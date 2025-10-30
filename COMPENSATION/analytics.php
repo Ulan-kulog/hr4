@@ -7,6 +7,7 @@
     <?php include '../INCLUDES/header.php'; ?>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-base-100 min-h-screen bg-white">
   <div class="flex h-screen">
@@ -34,7 +35,7 @@
                             <i data-lucide="download" class="w-4 h-4 mr-2"></i>
                             Export Report
                         </button>
-                        <select class="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700">
+                        <select id="timePeriodSelect" class="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700">
                             <option>Last 30 Days</option>
                             <option>Last Quarter</option>
                             <option>Year to Date</option>
@@ -102,61 +103,57 @@
                     </div>
                 </div>
 
-                <!-- Analytics Dashboard -->
+                <!-- Compensation Analytics Dashboard -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- Department-wise Analysis -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <h3 class="font-semibold text-gray-800 mb-4">Department Cost Analysis</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <div class="flex justify-between text-sm mb-1">
-                                    <span class="text-gray-600">Hotel Operations</span>
-                                    <span class="font-medium">₱8.2M</span>
-                                </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-blue-600 h-2 rounded-full" style="width: 45%"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-sm mb-1">
-                                    <span class="text-gray-600">Restaurant & F&B</span>
-                                    <span class="font-medium">₱6.8M</span>
-                                </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-green-600 h-2 rounded-full" style="width: 37%"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-sm mb-1">
-                                    <span class="text-gray-600">Support Departments</span>
-                                    <span class="font-medium">₱3.2M</span>
-                                </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-purple-600 h-2 rounded-full" style="width: 18%"></div>
-                                </div>
-                            </div>
-                        </div>
+                        <canvas id="departmentCostChart"></canvas>
+                    </div>
+
+                    <!-- Budget vs Actual -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="font-semibold text-gray-800 mb-4">Budget vs Actual</h3>
+                        <canvas id="budgetVsActualChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Cost-to-Company Analysis -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="font-semibold text-gray-800 mb-4">Cost-to-Company Breakdown</h3>
+                        <canvas id="costToCompanyChart"></canvas>
                     </div>
 
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="font-semibold text-gray-800 mb-4">Compensation Trends</h3>
-                        <div class="h-48 flex items-end justify-between gap-2">
-                            <div class="flex flex-col items-center flex-1">
-                                <div class="bg-blue-500 w-full rounded-t" style="height: 60%"></div>
-                                <span class="text-xs text-gray-500 mt-1">Q1</span>
-                            </div>
-                            <div class="flex flex-col items-center flex-1">
-                                <div class="bg-blue-500 w-full rounded-t" style="height: 75%"></div>
-                                <span class="text-xs text-gray-500 mt-1">Q2</span>
-                            </div>
-                            <div class="flex flex-col items-center flex-1">
-                                <div class="bg-blue-500 w-full rounded-t" style="height: 85%"></div>
-                                <span class="text-xs text-gray-500 mt-1">Q3</span>
-                            </div>
-                            <div class="flex flex-col items-center flex-1">
-                                <div class="bg-blue-500 w-full rounded-t" style="height: 92%"></div>
-                                <span class="text-xs text-gray-500 mt-1">Q4</span>
-                            </div>
-                        </div>
+                        <h3 class="font-semibold text-gray-800 mb-4">Compensation Ratio Trends</h3>
+                        <canvas id="compRatioChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Compensation Forecasting -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="font-semibold text-gray-800 mb-4">Salary Projection Models</h3>
+                        <canvas id="salaryProjectionChart"></canvas>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="font-semibold text-gray-800 mb-4">Market Adjustment Forecasting</h3>
+                        <canvas id="marketAdjustmentChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Budget Impact & Scenario Planning -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="font-semibold text-gray-800 mb-4">Budget Impact Analysis</h3>
+                        <canvas id="budgetImpactChart"></canvas>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="font-semibold text-gray-800 mb-4">Scenario Planning</h3>
+                        <canvas id="scenarioPlanningChart"></canvas>
                     </div>
                 </div>
 
@@ -188,6 +185,315 @@
 
     <script>
         lucide.createIcons();
+        
+        // Initialize charts when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Department Cost Analysis Chart
+            const departmentCostCtx = document.getElementById('departmentCostChart').getContext('2d');
+            const departmentCostChart = new Chart(departmentCostCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Hotel Operations', 'Restaurant & F&B', 'Support Departments', 'Management', 'Sales & Marketing'],
+                    datasets: [{
+                        label: 'Cost (₱M)',
+                        data: [8.2, 6.8, 3.2, 2.5, 1.8],
+                        backgroundColor: [
+                            '#3b82f6', // blue
+                            '#10b981', // green
+                            '#8b5cf6', // purple
+                            '#f59e0b', // amber
+                            '#ef4444'  // red
+                        ],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Cost (₱ Millions)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Budget vs Actual Chart
+            const budgetVsActualCtx = document.getElementById('budgetVsActualChart').getContext('2d');
+            const budgetVsActualChart = new Chart(budgetVsActualCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [
+                        {
+                            label: 'Budget',
+                            data: [18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Actual',
+                            data: [17.5, 18.8, 19.5, 20.8, 21.2, 22.5, 23.8, 24.2, 25.5, 26.8, 27.2, 28.5],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Cost (₱ Millions)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Cost-to-Company Breakdown Chart
+            const costToCompanyCtx = document.getElementById('costToCompanyChart').getContext('2d');
+            const costToCompanyChart = new Chart(costToCompanyCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Base Salary', 'Benefits', 'Bonuses', 'Allowances', 'Taxes', 'Other Costs'],
+                    datasets: [{
+                        data: [65, 15, 8, 5, 4, 3],
+                        backgroundColor: [
+                            '#3b82f6', // blue
+                            '#10b981', // green
+                            '#f59e0b', // amber
+                            '#8b5cf6', // purple
+                            '#ef4444', // red
+                            '#6b7280'  // gray
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+            
+            // Compensation Ratio Trends Chart
+            const compRatioCtx = document.getElementById('compRatioChart').getContext('2d');
+            const compRatioChart = new Chart(compRatioCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Q1 2022', 'Q2 2022', 'Q3 2022', 'Q4 2022', 'Q1 2023', 'Q2 2023', 'Q3 2023', 'Q4 2023'],
+                    datasets: [
+                        {
+                            label: 'Company Ratio',
+                            data: [1.15, 1.12, 1.10, 1.09, 1.08, 1.07, 1.08, 1.08],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Industry Average',
+                            data: [1.18, 1.16, 1.14, 1.13, 1.12, 1.11, 1.12, 1.12],
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            borderDash: [5, 5]
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Compensation Ratio'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Salary Projection Models Chart
+            const salaryProjectionCtx = document.getElementById('salaryProjectionChart').getContext('2d');
+            const salaryProjectionChart = new Chart(salaryProjectionCtx, {
+                type: 'line',
+                data: {
+                    labels: ['2022', '2023', '2024', '2025', '2026'],
+                    datasets: [
+                        {
+                            label: 'Current Trajectory',
+                            data: [18.5, 19.8, 21.2, 22.7, 24.3],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Optimistic Scenario',
+                            data: [18.5, 20.2, 22.1, 24.3, 26.8],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Conservative Scenario',
+                            data: [18.5, 19.5, 20.5, 21.6, 22.7],
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Salary Cost (₱ Millions)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Market Adjustment Forecasting Chart
+            const marketAdjustmentCtx = document.getElementById('marketAdjustmentChart').getContext('2d');
+            const marketAdjustmentChart = new Chart(marketAdjustmentCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Front Desk', 'Housekeeping', 'Servers', 'Kitchen Staff', 'Management'],
+                    datasets: [
+                        {
+                            label: 'Current Pay',
+                            data: [25, 22, 18, 28, 45],
+                            backgroundColor: '#3b82f6'
+                        },
+                        {
+                            label: 'Market Rate',
+                            data: [28, 24, 20, 32, 48],
+                            backgroundColor: '#10b981'
+                        },
+                        {
+                            label: 'Required Adjustment',
+                            data: [3, 2, 2, 4, 3],
+                            backgroundColor: '#f59e0b',
+                            type: 'line',
+                            borderColor: '#f59e0b',
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Hourly Rate (₱)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Budget Impact Analysis Chart
+            const budgetImpactCtx = document.getElementById('budgetImpactChart').getContext('2d');
+            const budgetImpactChart = new Chart(budgetImpactCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['No Change', '3% Increase', '5% Increase', 'Market Alignment', 'Performance Based'],
+                    datasets: [{
+                        label: 'Budget Impact (₱M)',
+                        data: [0, 0.65, 1.08, 1.42, 0.85],
+                        backgroundColor: [
+                            '#6b7280', // gray
+                            '#3b82f6', // blue
+                            '#10b981', // green
+                            '#f59e0b', // amber
+                            '#8b5cf6'  // purple
+                        ],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Additional Cost (₱ Millions)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Scenario Planning Chart
+            const scenarioPlanningCtx = document.getElementById('scenarioPlanningChart').getContext('2d');
+            const scenarioPlanningChart = new Chart(scenarioPlanningCtx, {
+                type: 'radar',
+                data: {
+                    labels: ['Cost Efficiency', 'Market Competitiveness', 'Employee Retention', 'Budget Alignment', 'Performance Impact', 'Compliance Risk'],
+                    datasets: [
+                        {
+                            label: 'Current Plan',
+                            data: [75, 65, 70, 80, 60, 85],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                            pointBackgroundColor: '#3b82f6'
+                        },
+                        {
+                            label: 'Optimized Plan',
+                            data: [80, 85, 90, 75, 85, 80],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                            pointBackgroundColor: '#10b981'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+            
+            // Time period selector functionality
+            const timePeriodSelect = document.getElementById('timePeriodSelect');
+            timePeriodSelect.addEventListener('change', function() {
+                // In a real application, this would update all charts with new data
+                // For this demo, we'll just show a simple alert
+                alert(`Time period changed to: ${this.value}. In a real application, this would update all charts with new data.`);
+            });
+        });
     </script>
 </body>
 </html>

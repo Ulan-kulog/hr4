@@ -27,19 +27,19 @@ $base_url = '/HR_4'; // Correct full URL
             </div>
             
             <!-- Core Human Capital Dropdown -->
-            <div class="relative group menu-dropdown">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+            <div class="relative menu-dropdown" data-dropdown="core-human-capital">
+                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle">
                     <div class="flex items-center">
-                        <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        <div class="p-1.5 rounded-lg bg-blue-800/30 transition-colors">
+                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B]"></i>
                         </div>
                         <span class="ml-3 sidebar-text">Core Human Capital</span>
                     </div>
-                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 group-hover:rotate-180 dropdown-arrow"></i>
+                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 dropdown-arrow"></i>
                 </button>
                 
                 <!-- Dropdown Menu -->
-                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0 group-hover:max-h-48">
+                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
                     <div class="py-2 space-y-1">
                         <!-- Employee Management -->
                         <a href="<?php echo $base_url; ?>/CHM/manage_employee.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
@@ -63,19 +63,19 @@ $base_url = '/HR_4'; // Correct full URL
             </div>
 
             <!-- Leave Management Dropdown -->
-            <div class="relative group menu-dropdown">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+            <div class="relative menu-dropdown" data-dropdown="leave-management">
+                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle">
                     <div class="flex items-center">
-                        <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="calendar" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        <div class="p-1.5 rounded-lg bg-blue-800/30 transition-colors">
+                            <i data-lucide="calendar" class="w-5 h-5 text-[#F7B32B]"></i>
                         </div>
                         <span class="ml-3 sidebar-text">Leave Management</span>
                     </div>
-                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 group-hover:rotate-180 dropdown-arrow"></i>
+                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 dropdown-arrow"></i>
                 </button>
                 
                 <!-- Dropdown Menu -->
-                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0 group-hover:max-h-48">
+                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
                     <div class="py-2 space-y-1">
                         <!-- Leave Review -->
                         <a href="<?php echo $base_url; ?>/LEAVE/leave.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
@@ -99,19 +99,19 @@ $base_url = '/HR_4'; // Correct full URL
             </div>
 
             <!-- Compensation Planning Dropdown -->
-            <div class="relative group menu-dropdown">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+            <div class="relative menu-dropdown" data-dropdown="compensation-planning">
+                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle">
                     <div class="flex items-center">
-                        <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="dollar-sign" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        <div class="p-1.5 rounded-lg bg-blue-800/30 transition-colors">
+                            <i data-lucide="dollar-sign" class="w-5 h-5 text-[#F7B32B]"></i>
                         </div>
                         <span class="ml-3 sidebar-text">Compensation</span>
                     </div>
-                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 group-hover:rotate-180 dropdown-arrow"></i>
+                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 dropdown-arrow"></i>
                 </button>
                 
                 <!-- Dropdown Menu -->
-                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0 group-hover:max-h-64">
+                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
                     <div class="py-2 space-y-1">
                         <!-- Core Compensation Management -->
                         <a href="<?php echo $base_url; ?>/COMPENSATION/core_compensation.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
@@ -148,18 +148,12 @@ $base_url = '/HR_4'; // Correct full URL
                             <i data-lucide="bar-chart-3" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
                             <span>Analytics & Reporting</span>
                         </a>
-
-                        <!-- Employee-Facing Modules -->
-                        <a href="<?php echo $base_url; ?>/COMPENSATION/Employee.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
-                            <i data-lucide="user" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>Employee Modules</span>
-                        </a>
                     </div>
                 </div>
             </div>
 
             <!-- HR Analytics Dashboard -->
-            <a href="<?php echo $base_url; ?>/HCM/analytics_dashboard.php" class="block">
+            <a href="<?php echo $base_url; ?>/ANALYTICS/main_analytics.php" class="block">
                 <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                     <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                         <i data-lucide="trending-up" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -184,19 +178,19 @@ $base_url = '/HR_4'; // Correct full URL
             </div>
 
             <!-- User Management Dropdown -->
-            <div class="relative group menu-dropdown">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+            <div class="relative menu-dropdown" data-dropdown="user-management">
+                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle">
                     <div class="flex items-center">
-                        <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="user-cog" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        <div class="p-1.5 rounded-lg bg-blue-800/30 transition-colors">
+                            <i data-lucide="user-cog" class="w-5 h-5 text-[#F7B32B]"></i>
                         </div>
                         <span class="ml-3 sidebar-text">User Management</span>
                     </div>
-                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 group-hover:rotate-180 dropdown-arrow"></i>
+                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 dropdown-arrow"></i>
                 </button>
                 
                 <!-- Dropdown Menu -->
-                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0 group-hover:max-h-48">
+                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
                     <div class="py-2 space-y-1">
                         <a href="<?php echo $base_url; ?>/USM/department_accounts.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
                             <i data-lucide="users" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
@@ -262,8 +256,17 @@ $base_url = '/HR_4'; // Correct full URL
     overflow: hidden;
 }
 
-.menu-dropdown:hover .dropdown-content {
+.menu-dropdown.active .dropdown-content {
     max-height: 200px;
+}
+
+.menu-dropdown.active .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+/* Active state for dropdown toggle */
+.menu-dropdown.active .dropdown-toggle {
+    background-color: rgba(59, 130, 246, 0.5);
 }
 
 /* Ensure proper spacing when dropdown opens */
@@ -272,8 +275,8 @@ $base_url = '/HR_4'; // Correct full URL
 }
 
 /* Adjust spacing for following modules when dropdown is open */
-.menu-dropdown:hover + *,
-.menu-dropdown:hover ~ * {
+.menu-dropdown.active + *,
+.menu-dropdown.active ~ * {
     transition: margin-top 0.3s ease-in-out;
 }
 
@@ -310,6 +313,15 @@ nav {
 nav > * {
     flex-shrink: 0;
 }
+
+/* Hover effects for dropdown toggle */
+.dropdown-toggle:hover {
+    background-color: rgba(59, 130, 246, 0.5);
+}
+
+.dropdown-toggle:hover .dropdown-arrow {
+    transform: rotate(180deg);
+}
 </style>
 
 <script>
@@ -320,31 +332,67 @@ document.addEventListener('DOMContentLoaded', function() {
         lucide.createIcons();
     }
     
-    // Handle dropdown hover states with better animation
+    // Handle dropdown click events
+    const dropdownToggles = document.querySelectorAll('.dropdown-toggle');
+    let activeDropdown = null;
+    
+    dropdownToggles.forEach(toggle => {
+        toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const dropdown = this.closest('.menu-dropdown');
+            const isCurrentlyActive = dropdown.classList.contains('active');
+            
+            // Close all dropdowns first
+            document.querySelectorAll('.menu-dropdown').forEach(d => {
+                d.classList.remove('active');
+            });
+            
+            // If the clicked dropdown wasn't active, open it
+            if (!isCurrentlyActive) {
+                dropdown.classList.add('active');
+                activeDropdown = dropdown;
+            } else {
+                activeDropdown = null;
+            }
+        });
+    });
+    
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.menu-dropdown')) {
+            document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                dropdown.classList.remove('active');
+            });
+            activeDropdown = null;
+        }
+    });
+    
+    // Close dropdown when clicking on a link inside it
+    document.querySelectorAll('.dropdown-content a').forEach(link => {
+        link.addEventListener('click', function() {
+            this.closest('.menu-dropdown').classList.remove('active');
+            activeDropdown = null;
+        });
+    });
+    
+    // Handle dropdown hover states for better UX (optional)
     const dropdowns = document.querySelectorAll('.menu-dropdown');
     
     dropdowns.forEach(dropdown => {
+        // Keep hover effects for visual feedback, but don't auto-open
         dropdown.addEventListener('mouseenter', function() {
-            const content = this.querySelector('.dropdown-content');
-            // Calculate the exact height needed
-            const scrollHeight = content.scrollHeight;
-            content.style.maxHeight = scrollHeight + 'px';
+            if (!this.classList.contains('active')) {
+                this.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+            }
         });
         
         dropdown.addEventListener('mouseleave', function() {
-            const content = this.querySelector('.dropdown-content');
-            content.style.maxHeight = '0';
+            if (!this.classList.contains('active')) {
+                this.style.backgroundColor = '';
+            }
         });
-    });
-
-    // Prevent dropdown from closing when clicking inside
-    dropdowns.forEach(dropdown => {
-        const content = dropdown.querySelector('.dropdown-content');
-        if (content) {
-            content.addEventListener('click', function(e) {
-                e.stopPropagation();
-            });
-        }
     });
 });
 </script>
