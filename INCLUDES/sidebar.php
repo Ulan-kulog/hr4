@@ -19,10 +19,25 @@ $base_url = '/HR_4'; // Correct full URL
     </div>
 
     <!-- Navigation Menu -->
-    <div class="flex-1 flex flex-col overflow-hidden hover:overflow-y-auto">
-        <nav class="flex-1 px-2 space-y-1">
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <nav class="flex-1 px-2 space-y-1 overflow-y-auto scrollbar-hide">
+            <!-- MAIN DASHBOARD SECTION -->
+            <div class="px-4 py-2">
+                <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider">Main Dashboard</p>
+            </div>
+
+            <!-- HR Analytics Dashboard - Now Main Dashboard -->
+            <a href="<?php echo $base_url; ?>/ANALYTICS/main_analytics.php" class="block">
+                <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group bg-blue-600/30">
+                    <div class="p-1.5 rounded-lg bg-blue-700/50 transition-colors">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <span class="ml-3 sidebar-text font-semibold">HR Analytics Dashboard</span>
+                </div>
+            </a>
+
             <!-- HUMAN CAPITAL MANAGEMENT SECTION -->
-            <div class="px-4 py-2 mt-2">
+            <div class="px-4 py-2 mt-4">
                 <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider">Human Capital Management</p>
             </div>
             
@@ -152,25 +167,47 @@ $base_url = '/HR_4'; // Correct full URL
                 </div>
             </div>
 
-            <!-- HR Analytics Dashboard -->
-            <a href="<?php echo $base_url; ?>/ANALYTICS/main_analytics.php" class="block">
-                <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
-                    <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                        <i data-lucide="trending-up" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+            <!-- HMO & Benefits Administration Dropdown -->
+            <div class="relative menu-dropdown" data-dropdown="hmo-benefits">
+                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle">
+                    <div class="flex items-center">
+                        <div class="p-1.5 rounded-lg bg-blue-800/30 transition-colors">
+                            <i data-lucide="heart" class="w-5 h-5 text-[#F7B32B]"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">HMO & Benefits</span>
                     </div>
-                    <span class="ml-3 sidebar-text">HR Analytics Dashboard</span>
-                </div>
-            </a>
+                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 dropdown-arrow"></i>
+                </button>
+                
+                <!-- Dropdown Menu -->
+                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
+                    <div class="py-2 space-y-1">
+                        <!-- Benefits Enrollment & Management -->
+                        <a href="<?php echo $base_url; ?>/HMO/benefits_enrollment.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
+                            <i data-lucide="clipboard-check" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                            <span>Benefits Enrollment</span>
+                        </a>
+                        
+                        <!-- HMO Provider Network -->
+                        <a href="<?php echo $base_url; ?>/HMO/HMO_provider_network.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
+                            <i data-lucide="building-2" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                            <span>Provider Network</span>
+                        </a>
+                        
+                        <!-- Claims & Reimbursement -->
+                        <a href="<?php echo $base_url; ?>/HMO/claims_reimbursement.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
+                            <i data-lucide="file-text" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                            <span>Claims Processing</span>
+                        </a>
 
-            <!-- HMO & Benefits Administration -->
-            <a href="<?php echo $base_url; ?>/HCM/benefits_administration.php" class="block">
-                <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
-                    <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                        <i data-lucide="heart" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        <!-- Benefits Analytics -->
+                        <a href="<?php echo $base_url; ?>/HMO/benefits.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
+                            <i data-lucide="trending-up" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                            <span>Benefits Analytics</span>
+                        </a>
                     </div>
-                    <span class="ml-3 sidebar-text">HMO & Benefits</span>
                 </div>
-            </a>
+            </div>
 
             <!-- USER MANAGEMENT SECTION -->
             <div class="px-4 py-2 mt-4">
@@ -269,6 +306,25 @@ $base_url = '/HR_4'; // Correct full URL
     background-color: rgba(59, 130, 246, 0.5);
 }
 
+/* Dashboard highlight styles */
+.bg-blue-600\/30 {
+    background-color: rgba(37, 99, 235, 0.3);
+}
+
+.bg-blue-700\/50 {
+    background-color: rgba(29, 78, 216, 0.5);
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Safari and Chrome */
+}
+
 /* Ensure proper spacing when dropdown opens */
 .menu-dropdown {
     margin-bottom: 0;
@@ -321,6 +377,20 @@ nav > * {
 
 .dropdown-toggle:hover .dropdown-arrow {
     transform: rotate(180deg);
+}
+
+/* Smooth scrolling behavior */
+.scrollbar-hide {
+    scroll-behavior: smooth;
+}
+
+/* Ensure proper scrolling area */
+.overflow-hidden {
+    overflow: hidden;
+}
+
+.overflow-y-auto {
+    overflow-y: auto;
 }
 </style>
 
