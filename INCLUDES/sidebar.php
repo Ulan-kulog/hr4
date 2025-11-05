@@ -77,41 +77,41 @@ $base_url = '/HR_4'; // Correct full URL
                 </div>
             </div>
 
-            <!-- Leave Management Dropdown -->
-            <div class="relative menu-dropdown" data-dropdown="leave-management">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle">
-                    <div class="flex items-center">
-                        <div class="p-1.5 rounded-lg bg-blue-800/30 transition-colors">
-                            <i data-lucide="calendar" class="w-5 h-5 text-[#F7B32B]"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text">Leave Management</span>
-                    </div>
-                    <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 dropdown-arrow"></i>
-                </button>
-                
-                <!-- Dropdown Menu -->
-                <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
-                    <div class="py-2 space-y-1">
-                        <!-- Leave Review -->
-                        <a href="<?php echo $base_url; ?>/LEAVE/leave.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
-                            <i data-lucide="clipboard-check" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>Leave Review</span>
-                        </a>
-                        
-                        <!-- Leave Overview -->
-                        <a href="<?php echo $base_url; ?>/LEAVE/overview.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
-                            <i data-lucide="calendar" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>Leave Overview</span>
-                        </a>
-                        
-                        <!-- Leave Analytics -->
-                        <a href="<?php echo $base_url; ?>/LEAVE/analytics.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
-                            <i data-lucide="trending-up" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>Leave Analytics</span>
-                        </a>
-                    </div>
-                </div>
+           <!-- Payroll Management Dropdown -->
+<div class="relative menu-dropdown" data-dropdown="payroll-management">
+    <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle">
+        <div class="flex items-center">
+            <div class="p-1.5 rounded-lg bg-blue-800/30 transition-colors">
+                <i data-lucide="dollar-sign" class="w-5 h-5 text-[#F7B32B]"></i>
             </div>
+            <span class="ml-3 sidebar-text">Payroll Management</span>
+        </div>
+        <i data-lucide="chevron-down" class="w-4 h-4 ml-auto transition-transform duration-200 dropdown-arrow"></i>
+    </button>
+    
+    <!-- Dropdown Menu -->
+    <div class="dropdown-content overflow-hidden transition-all duration-300 max-h-0">
+        <div class="py-2 space-y-1">
+            <!-- Payroll Processing -->
+            <a href="<?php echo $base_url; ?>/PAYROLL/processing.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
+                <i data-lucide="calculator" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                <span>Payroll Processing</span>
+            </a>
+            
+            <!-- Payroll Overview -->
+            <a href="<?php echo $base_url; ?>/PAYROLL/overview.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
+                <i data-lucide="dollar-sign" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                <span>Payroll Overview</span>
+            </a>
+            
+            <!-- Payroll Analytics -->
+            <a href="<?php echo $base_url; ?>/PAYROLL/analytics.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8">
+                <i data-lucide="trending-up" class="w-4 h-4 mr-3 text-[#F7B32B] group-hover/item:text-white"></i>
+                <span>Payroll Analytics</span>
+            </a>
+        </div>
+    </div>
+</div>
 
             <!-- Compensation Planning Dropdown -->
             <div class="relative menu-dropdown" data-dropdown="compensation-planning">
