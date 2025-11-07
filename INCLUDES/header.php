@@ -29,3 +29,16 @@
 
 
     <script src="../JAVASCRIPT/sidebar.js"></script>
+
+    <style>
+       .sweet-alert-button {
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+.swal2-popup {
+    padding: 2rem !important;
+}
+.swal2-actions {
+    margin: 1.5rem auto 0 !important;
+}
+    </style>
