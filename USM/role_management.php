@@ -1,14 +1,262 @@
+<?php
+
+include '../connection.php';
+$conn = $connections['HR_4'] ?? null;
+
+if (!$conn) {
+    die("❌ Database connection failed.");
+}
+
+$permission_query = "SELECT * FROM permissions";
+$permissions = $conn->query($permission_query)->fetch_all(MYSQLI_ASSOC);
+
+$roles_query = "SELECT * FROM roles";
+$roles = $conn->query($roles_query)->fetch_all(MYSQLI_ASSOC);
+
+
+// Fetch role permissions for each role
+$role_permissions = [];
+foreach ($roles as $role) {
+    $role_id = $role['id'];
+    $perm_query = "SELECT permission_id FROM role_permissions WHERE role_id = ?";
+    $stmt = $conn->prepare($perm_query);
+    $stmt->bind_param("i", $role_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $role_permissions[$role_id] = array_column($result->fetch_all(MYSQLI_ASSOC), 'permission_id');
+}
+
+$grouped = [];
+
+foreach ($permissions as $p) {
+    $grouped[$p['permission_for']][] = $p;
+}
+
+// Handle role update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_role'])) {
+    $role_id = $_POST['role_id'];
+    $name = $_POST['name'] ?? null;
+    $description = $_POST['description'] ?? null;
+    $permissions = $_POST['permissions'] ?? [];
+
+    mysqli_begin_transaction($conn);
+    try {
+        // Update role
+        $sqlRole = "UPDATE roles SET name = ?, description = ? WHERE id = ?";
+        $stmt = mysqli_prepare($conn, $sqlRole);
+        mysqli_stmt_bind_param($stmt, "ssi", $name, $description, $role_id);
+        mysqli_stmt_execute($stmt);
+
+        // Delete existing permissions
+        $sqlDelete = "DELETE FROM role_permissions WHERE role_id = ?";
+        $stmtDelete = mysqli_prepare($conn, $sqlDelete);
+        mysqli_stmt_bind_param($stmtDelete, "i", $role_id);
+        mysqli_stmt_execute($stmtDelete);
+
+        // Insert new permissions
+        $sqlPerm = "INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)";
+        $stmtPerm = mysqli_prepare($conn, $sqlPerm);
+        foreach ($permissions as $perm_id) {
+            mysqli_stmt_bind_param($stmtPerm, "ii", $role_id, $perm_id);
+            mysqli_stmt_execute($stmtPerm);
+        }
+
+        mysqli_commit($conn);
+        header('Location: ' . $_SERVER['PHP_SELF'] . '?success=2');
+        exit;
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        header('Location: ' . $_SERVER['PHP_SELF'] . '?error=2');
+        exit;
+    }
+}
+
+// Handle DELETE request
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['delete_role'])) {
+    $role_id = $_GET['delete_role'];
+
+    mysqli_begin_transaction($conn);
+    try {
+        // First delete from role_permissions table
+        $sqlDeletePerm = "DELETE FROM role_permissions WHERE role_id = ?";
+        $stmtPerm = mysqli_prepare($conn, $sqlDeletePerm);
+        mysqli_stmt_bind_param($stmtPerm, "i", $role_id);
+        mysqli_stmt_execute($stmtPerm);
+
+        // Then delete from roles table
+        $sqlDeleteRole = "DELETE FROM roles WHERE id = ?";
+        $stmtRole = mysqli_prepare($conn, $sqlDeleteRole);
+        mysqli_stmt_bind_param($stmtRole, "i", $role_id);
+        mysqli_stmt_execute($stmtRole);
+
+        mysqli_commit($conn);
+        header('Location: ' . $_SERVER['PHP_SELF'] . '?success=3');
+        exit;
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        header('Location: ' . $_SERVER['PHP_SELF'] . '?error=3');
+        exit;
+    }
+}
+
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $name         = $_POST['name'] ?? null;
+    $description  = $_POST['description'] ?? null;
+    $permissions  = $_POST['permissions'] ?? []; // array of permission IDs
+
+    // Use the HR_4 connection
+    $conn = $connections['HR_4'];
+
+    // Safety check
+    if (!$conn) {
+        die("Database HR_4 not connected.");
+    }
+
+    // Start transaction
+    mysqli_begin_transaction($conn);
+
+    try {
+
+        // 1️⃣ Insert into roles table
+        $sqlRole = "INSERT INTO roles (name, description) VALUES (?, ?)";
+        $stmt = mysqli_prepare($conn, $sqlRole);
+        mysqli_stmt_bind_param($stmt, "ss", $name, $description);
+        mysqli_stmt_execute($stmt);
+
+        // Get new role ID
+        $role_id = mysqli_insert_id($conn);
+
+        // 2️⃣ Insert multiple permissions
+        $sqlPerm = "INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)";
+        $stmtPerm = mysqli_prepare($conn, $sqlPerm);
+
+        foreach ($permissions as $perm_id) {
+            mysqli_stmt_bind_param($stmtPerm, "ii", $role_id, $perm_id);
+            mysqli_stmt_execute($stmtPerm);
+        }
+
+        // Commit transaction
+        $commit = mysqli_commit($conn);
+
+        if ($commit) {
+            header('Location: ' . $_SERVER['PHP_SELF'] . '?success=1');
+            exit;
+        } else {
+            header('Location: ' . $_SERVER['PHP_SELF'] . '?error=1');
+            exit;
+        }
+
+        echo "Role saved successfully with permissions!";
+    } catch (Exception $e) {
+
+        // Rollback on error
+        mysqli_rollback($conn);
+        echo "Error: " . $e->getMessage();
+    }
+}
+
+if (isset($_GET['success'])) {
+    $messages = [
+        '1' => "Role created successfully!",
+        '2' => "Role updated successfully!",
+        '3' => "Role deleted successfully!"
+    ];
+    $message = $messages[$_GET['success']] ?? "Operation completed successfully!";
+    echo '<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        alert("' . $message . '");
+    });
+    </script>';
+}
+
+if (isset($_GET['error'])) {
+    $messages = [
+        '1' => "Error creating role. Please try again.",
+        '2' => "Error updating role. Please try again.",
+        '3' => "Error deleting role. Please try again."
+    ];
+    $message = $messages[$_GET['error']] ?? "An error occurred. Please try again.";
+    echo '<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        alert("' . $message . '");
+    });
+    </script>';
+}
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Performance Compensation - Compensation Planning</title>
+    <title>Role Management</title>
     <?php include '../INCLUDES/header.php'; ?>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .role-card {
+            transition: all 0.3s ease;
+        }
+
+        .role-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .permission-group {
+            border-left: 3px solid #3b82f6;
+            padding-left: 1rem;
+        }
+
+        .btn-subtle-white {
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(209, 213, 219, 0.5);
+            color: #374151;
+            transition: all 0.3s ease;
+        }
+
+        .btn-subtle-white:hover {
+            background-color: rgba(255, 255, 255, 1);
+            border-color: rgba(156, 163, 175, 0.7);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-subtle-white {
+            background-color: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+        }
+
+        .modal-header {
+            border-bottom: 1px solid rgba(229, 231, 235, 0.8);
+            padding-bottom: 1rem;
+        }
+
+        /* Custom zebra table styling with #086788 */
+        .table-zebra tbody tr:nth-child(even) {
+            background-color: rgba(8, 103, 136, 0.08) !important;
+        }
+
+        .table-zebra tbody tr:nth-child(even):hover {
+            background-color: rgba(8, 103, 136, 0.12) !important;
+        }
+
+        .table-zebra tbody tr:nth-child(odd) {
+            background-color: transparent;
+        }
+
+        .table-zebra tbody tr:nth-child(odd):hover {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+    </style>
 </head>
 
 <body class="bg-base-100 bg-white min-h-screen">
@@ -32,118 +280,70 @@
                         </button>
                     </div>
 
-                    <!-- Role Cards Grid -->
                     <div class="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                        <!-- Admin Role Card -->
-                        <div class="bg-white shadow-sm p-5 border border-gray-200 rounded-xl role-card">
-                            <div class="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 class="font-semibold text-gray-800 text-lg">Administrator</h3>
-                                    <p class="text-gray-500 text-sm">Full system access</p>
+                        <?php foreach ($roles as $role): ?>
+                            <div class="bg-white shadow-sm p-5 border border-gray-200 rounded-xl role-card">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div>
+                                        <h3 class="font-semibold text-gray-800 text-lg"><?= htmlspecialchars($role['name']); ?></h3>
+                                        <p class="text-gray-500 text-sm"><?= htmlspecialchars($role['description']); ?></p>
+                                    </div>
+                                    <div class="badge badge-primary"><?= count($role_permissions[$role['id']] ?? []) ?> permissions</div>
                                 </div>
-                                <div class="badge badge-primary">12 users</div>
-                            </div>
-                            <p class="mb-4 text-gray-600">Has complete access to all system features and data.</p>
-                            <div class="flex justify-between">
-                                <button class="btn-outline btn btn-sm" onclick="editRole('admin')">
-                                    <i data-lucide="edit" class="mr-1 w-4 h-4"></i> Edit
-                                </button>
-                                <button class="text-red-500 btn btn-sm btn-ghost" onclick="deleteRole('admin')">
-                                    <i data-lucide="trash-2" class="mr-1 w-4 h-4"></i> Delete
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Manager Role Card -->
-                        <div class="bg-white shadow-sm p-5 border border-gray-200 rounded-xl role-card">
-                            <div class="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 class="font-semibold text-gray-800 text-lg">Manager</h3>
-                                    <p class="text-gray-500 text-sm">Team management access</p>
+                                <p class="mb-4 text-gray-600">Role ID: <?= $role['id'] ?></p>
+                                <div class="flex justify-between">
+                                    <button class="btn-outline btn btn-sm" onclick="editRole(<?= $role['id'] ?>)">
+                                        <i data-lucide="edit" class="mr-1 w-4 h-4"></i> Edit
+                                    </button>
+                                    <button class="text-red-500 btn btn-sm btn-ghost" onclick="deleteRole(<?= $role['id'] ?>)">
+                                        <i data-lucide="trash-2" class="mr-1 w-4 h-4"></i> Delete
+                                    </button>
                                 </div>
-                                <div class="badge badge-secondary">24 users</div>
                             </div>
-                            <p class="mb-4 text-gray-600">Can manage team members and view performance data.</p>
-                            <div class="flex justify-between">
-                                <button class="btn-outline btn btn-sm" onclick="editRole('manager')">
-                                    <i data-lucide="edit" class="mr-1 w-4 h-4"></i> Edit
-                                </button>
-                                <button class="text-red-500 btn btn-sm btn-ghost" onclick="deleteRole('manager')">
-                                    <i data-lucide="trash-2" class="mr-1 w-4 h-4"></i> Delete
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Employee Role Card -->
-                        <div class="bg-white shadow-sm p-5 border border-gray-200 rounded-xl role-card">
-                            <div class="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 class="font-semibold text-gray-800 text-lg">Employee</h3>
-                                    <p class="text-gray-500 text-sm">Limited access</p>
-                                </div>
-                                <div class="badge badge-accent">156 users</div>
-                            </div>
-                            <p class="mb-4 text-gray-600">Can view personal data and submit requests.</p>
-                            <div class="flex justify-between">
-                                <button class="btn-outline btn btn-sm" onclick="editRole('employee')">
-                                    <i data-lucide="edit" class="mr-1 w-4 h-4"></i> Edit
-                                </button>
-                                <button class="text-red-500 btn btn-sm btn-ghost" onclick="deleteRole('employee')">
-                                    <i data-lucide="trash-2" class="mr-1 w-4 h-4"></i> Delete
-                                </button>
-                            </div>
-                        </div>
+                        <?php endforeach; ?>
                     </div>
                 </div>
 
                 <!-- Permissions Section -->
-                <div class="bg-white/70 shadow-sm backdrop-blur-sm p-6 border border-gray-100/50 rounded-2xl glass-effect">
-                    <h2 class="mb-6 font-bold text-gray-800 text-2xl">Role Permissions</h2>
+                <div class="bg-white/70 shadow-sm backdrop-blur-sm p-6 border border-gray-100/50 rounded-2xl text-black glass-effect">
+                    <h2 class="mb-6 font-bold text-2xl">Role Permissions</h2>
 
-                    <div class="overflow-x-auto">
-                        <table class="table table-zebra w-full">
-                            <thead>
-                                <tr>
-                                    <th>Permission</th>
-                                    <th class="text-center">Admin</th>
-                                    <th class="text-center">Manager</th>
-                                    <th class="text-center">Employee</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>View Dashboard</td>
-                                    <td class="text-center"><i data-lucide="check" class="mx-auto w-5 h-5 text-green-500"></i></td>
-                                    <td class="text-center"><i data-lucide="check" class="mx-auto w-5 h-5 text-green-500"></i></td>
-                                    <td class="text-center"><i data-lucide="check" class="mx-auto w-5 h-5 text-green-500"></i></td>
-                                </tr>
-                                <tr>
-                                    <td>Manage Employees</td>
-                                    <td class="text-center"><i data-lucide="check" class="mx-auto w-5 h-5 text-green-500"></i></td>
-                                    <td class="text-center"><i data-lucide="check" class="mx-auto w-5 h-5 text-green-500"></i></td>
-                                    <td class="text-center"><i data-lucide="x" class="mx-auto w-5 h-5 text-red-500"></i></td>
-                                </tr>
-                                <tr>
-                                    <td>Manage Roles</td>
-                                    <td class="text-center"><i data-lucide="check" class="mx-auto w-5 h-5 text-green-500"></i></td>
-                                    <td class="text-center"><i data-lucide="x" class="mx-auto w-5 h-5 text-red-500"></i></td>
-                                    <td class="text-center"><i data-lucide="x" class="mx-auto w-5 h-5 text-red-500"></i></td>
-                                </tr>
-                                <tr>
-                                    <td>View Reports</td>
-                                    <td class="text-center"><i data-lucide="check" class="mx-auto w-5 h-5 text-green-500"></i></td>
-                                    <td class="text-center"><i data-lucide="check" class="mx-auto w-5 h-5 text-green-500"></i></td>
-                                    <td class="text-center"><i data-lucide="x" class="mx-auto w-5 h-5 text-red-500"></i></td>
-                                </tr>
-                                <tr>
-                                    <td>Manage Compensation</td>
-                                    <td class="text-center"><i data-lucide="check" class="mx-auto w-5 h-5 text-green-500"></i></td>
-                                    <td class="text-center"><i data-lucide="check" class="mx-auto w-5 h-5 text-green-500"></i></td>
-                                    <td class="text-center"><i data-lucide="x" class="mx-auto w-5 h-5 text-red-500"></i></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <?php foreach ($grouped as $module => $modulePermissions): ?>
+                        <div class="mb-8">
+                            <h3 class="mb-4 pb-2 border-gray-200 border-b font-semibold text-gray-800 text-lg">
+                                <?= ucfirst($module) ?> Permissions
+                                <span class="ml-2 font-normal text-gray-500 text-sm">
+                                    (<?= count($modulePermissions) ?> permissions)
+                                </span>
+                            </h3>
+
+                            <div class="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                                <?php foreach ($modulePermissions as $permission): ?>
+                                    <div class="bg-white hover:shadow-md p-4 border border-gray-200 rounded-lg transition-shadow duration-200">
+                                        <div class="flex justify-between items-center mb-3">
+                                            <h4 class="font-medium text-gray-800 text-sm">
+                                                <?= htmlspecialchars($permission['name']); ?>
+                                            </h4>
+                                            <div class="flex space-x-1">
+                                                <div class="tooltip" data-tip="Admin">
+                                                    <i data-lucide="shield-check" class="w-4 h-4 text-green-500"></i>
+                                                </div>
+                                                <div class="tooltip" data-tip="Manager">
+                                                    <i data-lucide="shield-check" class="w-4 h-4 text-green-500"></i>
+                                                </div>
+                                                <div class="tooltip" data-tip="Employee">
+                                                    <i data-lucide="shield-check" class="w-4 h-4 text-green-500"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p class="text-gray-500 text-xs">
+                                            ID: <?= $permission['id'] ?>
+                                        </p>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
             </main>
         </div>
@@ -151,75 +351,39 @@
 
     <!-- Add Role Modal -->
     <dialog id="add-role-modal" class="modal">
-        <div class="w-11/12 max-w-2xl modal-box">
-            <h3 class="mb-4 font-bold text-lg">Add New Role</h3>
-            <form id="add-role-form">
+        <div class="w-11/12 max-w-2xl modal-box modal-subtle-white">
+            <div class="modal-header">
+                <h3 class="font-bold text-gray-800 text-lg">Add New Role</h3>
+            </div>
+            <form id="add-role-form" class="mt-4" method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>">
                 <div class="mb-4 w-full form-control">
                     <label class="label">
-                        <span class="label-text">Role Name</span>
+                        <span class="text-gray-700 label-text">Role Name</span>
                     </label>
-                    <input type="text" placeholder="Enter role name" class="w-full input input-bordered" required />
+                    <input type="text" name="name" placeholder="Enter role name" class="bg-white/80 w-full input input-bordered" required />
                 </div>
 
                 <div class="mb-4 w-full form-control">
                     <label class="label">
-                        <span class="label-text">Description</span>
+                        <span class="text-gray-700 label-text">Description</span>
                     </label>
-                    <textarea class="h-24 textarea textarea-bordered" placeholder="Enter role description"></textarea>
+                    <textarea name="description" class="bg-white/80 h-24 textarea textarea-bordered" placeholder="Enter role description"></textarea>
                 </div>
 
                 <div class="mb-6">
-                    <h4 class="mb-3 font-semibold">Permissions</h4>
-
-                    <div class="permission-group mb-4">
-                        <h5 class="mb-2 font-medium">Employee Management</h5>
-                        <div class="space-y-2 ml-4">
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" />
-                                <span class="text-sm">View Employees</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" />
-                                <span class="text-sm">Add Employees</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" />
-                                <span class="text-sm">Edit Employees</span>
-                            </label>
+                    <?php foreach ($grouped as $module => $items): ?>
+                        <h4 class="mb-3 font-semibold text-gray-800"><?= ucfirst($module) ?> Permissions</h4>
+                        <div class="permission-group mb-4">
+                            <?php foreach ($items as $p): ?>
+                                <div class="space-y-2 ml-4">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" name="permissions[]" class="mr-2 checkbox checkbox-sm" value="<?= $p['id']; ?>" />
+                                        <span class="text-gray-600 text-sm"><?= htmlspecialchars($p['name']) ?></span>
+                                    </label>
+                                </div>
+                            <?php endforeach; ?>
                         </div>
-                    </div>
-
-                    <div class="permission-group mb-4">
-                        <h5 class="mb-2 font-medium">Compensation</h5>
-                        <div class="space-y-2 ml-4">
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" />
-                                <span class="text-sm">View Compensation</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" />
-                                <span class="text-sm">Manage Compensation</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" />
-                                <span class="text-sm">Approve Compensation</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="permission-group mb-4">
-                        <h5 class="mb-2 font-medium">Reports</h5>
-                        <div class="space-y-2 ml-4">
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" />
-                                <span class="text-sm">View Reports</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" />
-                                <span class="text-sm">Export Reports</span>
-                            </label>
-                        </div>
-                    </div>
+                    <?php endforeach; ?>
                 </div>
 
                 <div class="modal-action">
@@ -235,80 +399,47 @@
 
     <!-- Edit Role Modal -->
     <dialog id="edit-role-modal" class="modal">
-        <div class="w-11/12 max-w-2xl modal-box">
-            <h3 class="mb-4 font-bold text-lg">Edit Role</h3>
-            <form id="edit-role-form">
+        <div class="w-11/12 max-w-2xl modal-box modal-subtle-white">
+            <div class="modal-header">
+                <h3 class="font-bold text-gray-800 text-lg">Edit Role</h3>
+            </div>
+            <form id="edit-role-form" class="mt-4" method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>">
+                <input type="hidden" name="update_role" value="1">
+                <input type="hidden" id="edit-role-id" name="role_id" value="">
+
                 <div class="mb-4 w-full form-control">
                     <label class="label">
-                        <span class="label-text">Role Name</span>
+                        <span class="text-gray-700 label-text">Role Name</span>
                     </label>
-                    <input type="text" placeholder="Enter role name" class="w-full input input-bordered" value="Administrator" required />
+                    <input type="text" id="edit-role-name" name="name" placeholder="Enter role name" class="bg-white/80 w-full input input-bordered" required />
                 </div>
 
                 <div class="mb-4 w-full form-control">
                     <label class="label">
-                        <span class="label-text">Description</span>
+                        <span class="text-gray-700 label-text">Description</span>
                     </label>
-                    <textarea class="h-24 textarea textarea-bordered" placeholder="Enter role description">Has complete access to all system features and data.</textarea>
+                    <textarea id="edit-role-description" name="description" class="bg-white/80 h-24 textarea textarea-bordered" placeholder="Enter role description"></textarea>
                 </div>
 
                 <div class="mb-6">
-                    <h4 class="mb-3 font-semibold">Permissions</h4>
-
-                    <div class="permission-group mb-4">
-                        <h5 class="mb-2 font-medium">Employee Management</h5>
-                        <div class="space-y-2 ml-4">
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" checked />
-                                <span class="text-sm">View Employees</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" checked />
-                                <span class="text-sm">Add Employees</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" checked />
-                                <span class="text-sm">Edit Employees</span>
-                            </label>
+                    <?php foreach ($grouped as $module => $items): ?>
+                        <h4 class="mb-3 font-semibold text-gray-800"><?= ucfirst($module) ?> Permissions</h4>
+                        <div class="permission-group mb-4">
+                            <?php foreach ($items as $p): ?>
+                                <div class="space-y-2 ml-4">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" name="permissions[]" class="mr-2 edit-permission checkbox checkbox-sm" value="<?= $p['id']; ?>" />
+                                        <span class="text-gray-600 text-sm"><?= htmlspecialchars($p['name']) ?></span>
+                                    </label>
+                                </div>
+                            <?php endforeach; ?>
                         </div>
-                    </div>
-
-                    <div class="permission-group mb-4">
-                        <h5 class="mb-2 font-medium">Compensation</h5>
-                        <div class="space-y-2 ml-4">
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" checked />
-                                <span class="text-sm">View Compensation</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" checked />
-                                <span class="text-sm">Manage Compensation</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" checked />
-                                <span class="text-sm">Approve Compensation</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="permission-group mb-4">
-                        <h5 class="mb-2 font-medium">Reports</h5>
-                        <div class="space-y-2 ml-4">
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" checked />
-                                <span class="text-sm">View Reports</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" class="mr-2 checkbox checkbox-sm" checked />
-                                <span class="text-sm">Export Reports</span>
-                            </label>
-                        </div>
-                    </div>
+                    <?php endforeach; ?>
                 </div>
 
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" onclick="document.getElementById('edit-role-modal').close()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="submit" class="btn btn-primary">Update Role</button>
                 </div>
             </form>
         </div>
@@ -323,28 +454,61 @@
         // Form submission handlers
         document.getElementById('add-role-form').addEventListener('submit', function(e) {
             e.preventDefault();
-            // In a real app, you would send this data to the server
-            alert('Role created successfully!');
+
+            this.submit();
+
             document.getElementById('add-role-modal').close();
         });
 
         document.getElementById('edit-role-form').addEventListener('submit', function(e) {
             e.preventDefault();
-            // In a real app, you would send this data to the server
-            alert('Role updated successfully!');
+            this.submit();
             document.getElementById('edit-role-modal').close();
         });
 
         // Role management functions
         function editRole(roleId) {
-            // In a real app, you would fetch role data based on roleId
-            document.getElementById('edit-role-modal').showModal();
+            const role = <?= json_encode(array_column($roles, null, 'id')) ?>[roleId];
+            const rolePermissions = <?= json_encode($role_permissions) ?>[roleId] || [];
+
+            if (role) {
+                // Populate the form with role data
+                document.getElementById('edit-role-id').value = role.id;
+                document.getElementById('edit-role-name').value = role.name;
+                document.getElementById('edit-role-description').value = role.description;
+
+                // Reset all checkboxes
+                document.querySelectorAll('.edit-permission').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+
+                // Check the permissions this role has
+                rolePermissions.forEach(permId => {
+                    const checkbox = document.querySelector(`.edit-permission[value="${permId}"]`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+
+                document.getElementById('edit-role-modal').showModal();
+            }
         }
 
         function deleteRole(roleId) {
             if (confirm('Are you sure you want to delete this role?')) {
-                // In a real app, you would send a delete request to the server
-                alert('Role deleted successfully!');
+                // Create a form and submit it
+                const form = document.createElement('form');
+                form.method = 'GET';
+                form.action = '<?php echo $_SERVER['PHP_SELF']; ?>';
+
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'delete_role';
+                input.value = roleId;
+
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
             }
         }
     </script>
