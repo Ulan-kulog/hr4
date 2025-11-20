@@ -254,7 +254,7 @@ $base_url = '/HR_4'; // Correct full URL
             </div>
 
             <!-- Settings -->
-            <a href="<?php echo $base_url; ?>/settings/general.php" class="block">
+            <a href="<?php echo $base_url; ?>/SETTINGS_PROFILE/general.php" class="block">
                 <div class="group flex items-center hover:bg-blue-600/50 px-4 py-3 rounded-lg font-medium text-white text-sm transition-all">
                     <div class="bg-blue-800/30 group-hover:bg-blue-700/50 p-1.5 rounded-lg transition-colors">
                         <i data-lucide="settings" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -269,7 +269,7 @@ $base_url = '/HR_4'; // Correct full URL
             </div>
 
             <!-- Profile -->
-            <a href="<?php echo $base_url; ?>/profile.php" class="block">
+            <a href="<?php echo $base_url; ?>/SETTINGS_PROFILE/profile.php" class="block">
                 <div class="group flex items-center hover:bg-blue-600/50 px-4 py-3 rounded-lg font-medium text-white text-sm transition-all">
                     <div class="bg-blue-800/30 group-hover:bg-blue-700/50 p-1.5 rounded-lg transition-colors">
                         <i data-lucide="user" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
