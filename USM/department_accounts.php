@@ -1,3 +1,15 @@
+<?php
+include '../connection.php';
+$conn = $connections['HR_4'] ?? null;
+
+if (!$conn) {
+    die("❌ Database connection failed.");
+}
+
+$sql = "SELECT * FROM department_accounts";
+$results = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -142,181 +154,43 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr class="table-row">
-                                    <td class="px-4 py-3 text-gray-700">CZ2500</td>
-                                    <td class="px-4 py-3 text-gray-700">Soliera Restaurant</td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-3">
-                                            <div class="flex justify-center items-center bg-blue-100 rounded-full w-8 h-8">
-                                                <i data-lucide="user" class="w-4 h-4 text-blue-600"></i>
+                                <?php foreach ($results as $result): ?>
+                                    <tr class="table-row">
+                                        <td class="px-4 py-3 text-gray-700"><?= $result['employee_id'] ?></td>
+                                        <td class="px-4 py-3 text-gray-700"><?= $result['dept_name'] ?></td>
+                                        <td class="px-4 py-3">
+                                            <div class="flex items-center gap-3">
+                                                <div class="flex justify-center items-center bg-blue-100 rounded-full w-8 h-8">
+                                                    <i data-lucide="user" class="w-4 h-4 text-blue-600"></i>
+                                                </div>
+                                                <div>
+                                                    <div class="font-medium text-gray-900"><?= $result['employee_name'] ?></div>
+                                                    <div class="email-text"><?= $result['email'] ?></div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <div class="font-medium text-gray-900">Daniel Jonathan</div>
-                                                <div class="email-text">Timervorad@gmail.com</div>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-700">
+                                            <div class="flex items-center gap-2">
+                                                <i data-lucide="shield" class="w-4 h-4 text-blue-500"></i>
+                                                <?= $result['role'] ?>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3 text-gray-700">
-                                        <div class="flex items-center gap-2">
-                                            <i data-lucide="shield" class="w-4 h-4 text-blue-500"></i>
-                                            supervisor
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-2">
-                                            <i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i>
-                                            <span class="status-active">Active</span>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="timestamp">2023-05-15</div>
-                                        <div class="timestamp">10:30 AM</div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="timestamp">2024-01-20</div>
-                                        <div class="timestamp">02:15 PM</div>
-                                    </td>
-                                </tr>
-                                <tr class="table-row">
-                                    <td class="px-4 py-3 text-gray-700">CZ2500</td>
-                                    <td class="px-4 py-3 text-gray-700">Soliera Restaurant</td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-3">
-                                            <div class="flex justify-center items-center bg-purple-100 rounded-full w-8 h-8">
-                                                <i data-lucide="user" class="w-4 h-4 text-purple-600"></i>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <div class="flex items-center gap-2">
+                                                <i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i>
+                                                <span class="status-active"><?= $result['status'] ?></span>
                                             </div>
-                                            <div>
-                                                <div class="font-medium text-gray-900">James gervin Jr.</div>
-                                                <div class="email-text">Gervingabul@gmail.com</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3 text-gray-700">
-                                        <div class="flex items-center gap-2">
-                                            <i data-lucide="package" class="w-4 h-4 text-purple-500"></i>
-                                            inventory
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-2">
-                                            <i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i>
-                                            <span class="status-active">Active</span>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="timestamp">2023-06-22</div>
-                                        <div class="timestamp">09:45 AM</div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="timestamp">2024-02-10</div>
-                                        <div class="timestamp">11:20 AM</div>
-                                    </td>
-                                </tr>
-                                <tr class="table-row">
-                                    <td class="px-4 py-3 text-gray-700">CZ2500</td>
-                                    <td class="px-4 py-3 text-gray-700">Soliera Restaurant</td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-3">
-                                            <div class="flex justify-center items-center bg-green-100 rounded-full w-8 h-8">
-                                                <i data-lucide="user" class="w-4 h-4 text-green-600"></i>
-                                            </div>
-                                            <div>
-                                                <div class="font-medium text-gray-900">Justine james cash</div>
-                                                <div class="email-text">Timervorad@gmail.com</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3 text-gray-700">
-                                        <div class="flex items-center gap-2">
-                                            <i data-lucide="shield" class="w-4 h-4 text-green-500"></i>
-                                            security
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-2">
-                                            <i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i>
-                                            <span class="status-active">Active</span>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="timestamp">2023-07-10</div>
-                                        <div class="timestamp">03:20 PM</div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="timestamp">2024-01-15</div>
-                                        <div class="timestamp">04:30 PM</div>
-                                    </td>
-                                </tr>
-                                <tr class="table-row">
-                                    <td class="px-4 py-3 text-gray-700">CZ2500</td>
-                                    <td class="px-4 py-3 text-gray-700">Soliera Restaurant</td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-3">
-                                            <div class="flex justify-center items-center bg-yellow-100 rounded-full w-8 h-8">
-                                                <i data-lucide="user" class="w-4 h-4 text-yellow-600"></i>
-                                            </div>
-                                            <div>
-                                                <div class="font-medium text-gray-900">chery nae nadie lyn</div>
-                                                <div class="email-text">cerczsackenop037@gmail.com</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3 text-gray-700">
-                                        <div class="flex items-center gap-2">
-                                            <i data-lucide="credit-card" class="w-4 h-4 text-yellow-500"></i>
-                                            cashier
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-2">
-                                            <i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i>
-                                            <span class="status-active">Active</span>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="timestamp">2023-08-05</div>
-                                        <div class="timestamp">01:10 PM</div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="timestamp">2024-02-28</div>
-                                        <div class="timestamp">10:45 AM</div>
-                                    </td>
-                                </tr>
-                                <tr class="table-row">
-                                    <td class="px-4 py-3 text-gray-700">CZ2500</td>
-                                    <td class="px-4 py-3 text-gray-700">Soliera Restaurant</td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-3">
-                                            <div class="flex justify-center items-center bg-red-100 rounded-full w-8 h-8">
-                                                <i data-lucide="user" class="w-4 h-4 text-red-600"></i>
-                                            </div>
-                                            <div>
-                                                <div class="font-medium text-gray-900">Jasmine keith</div>
-                                                <div class="email-text">tremolstephaniekeithoud@gmail.com</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3 text-gray-700">
-                                        <div class="flex items-center gap-2">
-                                            <i data-lucide="user" class="w-4 h-4 text-red-500"></i>
-                                            staff
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-2">
-                                            <i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i>
-                                            <span class="status-active">Active</span>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="timestamp">2023-09-18</div>
-                                        <div class="timestamp">11:05 AM</div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="timestamp">2024-03-05</div>
-                                        <div class="timestamp">03:50 PM</div>
-                                    </td>
-                                </tr>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <div class="timestamp"><?= $result['created_at'] ?></div>
+                                            <!-- <div class="timestamp"><?= $result['created_time'] ?></div> -->
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <div class="timestamp"><?= $result['updated_at'] ?></div>
+                                            <!-- <div class="timestamp">02:15 PM</div> -->
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>

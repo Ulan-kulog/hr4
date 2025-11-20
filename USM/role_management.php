@@ -13,6 +13,8 @@ $permissions = $conn->query($permission_query)->fetch_all(MYSQLI_ASSOC);
 $roles_query = "SELECT * FROM roles";
 $roles = $conn->query($roles_query)->fetch_all(MYSQLI_ASSOC);
 
+$users_query = "SELECT * FROM department_accounts";
+$users = $conn->query($users_query)->fetch_all(MYSQLI_ASSOC);
 
 // Fetch role permissions for each role
 $role_permissions = [];
@@ -99,6 +101,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['delete_role'])) {
     }
 }
 
+// Handle role assignment to user
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_role_to_user'])) {
+    $user_id = $_POST['user_id'] ?? null;
+    $role_id = $_POST['role_id'] ?? null;
+
+    if ($user_id && $role_id) {
+        // Check if user already has this role
+        $check_query = "SELECT id FROM user_roles WHERE user_id = ? AND role_id = ?";
+        $stmt = $conn->prepare($check_query);
+        $stmt->bind_param("ii", $user_id, $role_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if ($result->num_rows === 0) {
+            // Assign role to user
+            $assign_query = "INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)";
+            $stmt = $conn->prepare($assign_query);
+            $stmt->bind_param("ii", $user_id, $role_id);
+
+            if ($stmt->execute()) {
+                header('Location: ' . $_SERVER['PHP_SELF'] . '?success=4');
+                exit;
+            } else {
+                header('Location: ' . $_SERVER['PHP_SELF'] . '?error=4');
+                exit;
+            }
+        } else {
+            header('Location: ' . $_SERVER['PHP_SELF'] . '?error=5');
+            exit;
+        }
+    }
+}
+
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name         = $_POST['name'] ?? null;
@@ -156,11 +191,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Update success messages
 if (isset($_GET['success'])) {
     $messages = [
         '1' => "Role created successfully!",
         '2' => "Role updated successfully!",
-        '3' => "Role deleted successfully!"
+        '3' => "Role deleted successfully!",
+        '4' => "Role assigned to user successfully!"
     ];
     $message = $messages[$_GET['success']] ?? "Operation completed successfully!";
     echo '<script>
@@ -174,7 +211,9 @@ if (isset($_GET['error'])) {
     $messages = [
         '1' => "Error creating role. Please try again.",
         '2' => "Error updating role. Please try again.",
-        '3' => "Error deleting role. Please try again."
+        '3' => "Error deleting role. Please try again.",
+        '4' => "Error assigning role to user. Please try again.",
+        '5' => "User already has this role assigned."
     ];
     $message = $messages[$_GET['error']] ?? "An error occurred. Please try again.";
     echo '<script>
@@ -273,11 +312,16 @@ if (isset($_GET['error'])) {
             <main class="flex-1 p-6">
                 <!-- Role Management Section -->
                 <div class="bg-white/70 shadow-sm backdrop-blur-sm mb-6 p-6 border border-gray-100/50 rounded-2xl glass-effect">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="font-bold text-gray-800 text-2xl">Role Management</h2>
-                        <button class="btn btn-primary" onclick="document.getElementById('add-role-modal').showModal()">
-                            <i data-lucide="plus" class="mr-2 w-5 h-5"></i> Add New Role
-                        </button>
+                    <div class="flex justify-between items-center mb-6 text-black">
+                        <h2 class="font-bold text-2xl">Role Management</h2>
+                        <div>
+                            <button class="bg-[#001f54] text-white btn" onclick="document.getElementById('attach-role-modal').showModal()">
+                                <i data-lucide="link" class="mr-2 w-5 h-5"></i> Attach Role to User
+                            </button>
+                            <button class="bg-[#001f54] text-white btn" onclick="document.getElementById('add-role-modal').showModal()">
+                                <i data-lucide="plus" class="mr-2 w-5 h-5"></i> Add New Role
+                            </button>
+                        </div>
                     </div>
 
                     <div class="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
@@ -288,16 +332,21 @@ if (isset($_GET['error'])) {
                                         <h3 class="font-semibold text-gray-800 text-lg"><?= htmlspecialchars($role['name']); ?></h3>
                                         <p class="text-gray-500 text-sm"><?= htmlspecialchars($role['description']); ?></p>
                                     </div>
-                                    <div class="badge badge-primary"><?= count($role_permissions[$role['id']] ?? []) ?> permissions</div>
+                                    <div class="bg-[#001f54] text-white badge"><?= count($role_permissions[$role['id']] ?? []) ?> permissions</div>
                                 </div>
                                 <p class="mb-4 text-gray-600">Role ID: <?= $role['id'] ?></p>
                                 <div class="flex justify-between">
                                     <button class="btn-outline btn btn-sm" onclick="editRole(<?= $role['id'] ?>)">
                                         <i data-lucide="edit" class="mr-1 w-4 h-4"></i> Edit
                                     </button>
-                                    <button class="text-red-500 btn btn-sm btn-ghost" onclick="deleteRole(<?= $role['id'] ?>)">
-                                        <i data-lucide="trash-2" class="mr-1 w-4 h-4"></i> Delete
-                                    </button>
+                                    <div class="flex gap-1">
+                                        <button class="text-blue-500 btn btn-sm btn-ghost" onclick="attachRoleToUser(<?= $role['id'] ?>)">
+                                            <i data-lucide="user-plus" class="mr-1 w-4 h-4"></i> Attach
+                                        </button>
+                                        <button class="text-red-500 btn btn-sm btn-ghost" onclick="deleteRole(<?= $role['id'] ?>)">
+                                            <i data-lucide="trash-2" class="mr-1 w-4 h-4"></i> Delete
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -448,15 +497,100 @@ if (isset($_GET['error'])) {
         </form>
     </dialog>
 
+    <!-- Attach Role to User Modal -->
+    <dialog id="attach-role-modal" class="modal">
+        <div class="w-11/12 max-w-2xl modal-box modal-subtle-white">
+            <div class="modal-header">
+                <h3 class="font-bold text-gray-800 text-lg">Attach Role to User</h3>
+            </div>
+            <form id="attach-role-form" class="mt-4" method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>">
+                <input type="hidden" name="assign_role_to_user" value="1">
+
+                <div class="mb-4 w-full form-control">
+                    <label class="label">
+                        <span class="text-gray-700 label-text">Select User</span>
+                    </label>
+                    <select name="user_id" class="bg-white/80 w-full select-bordered select" required>
+                        <option value="" disabled selected>Choose a user</option>
+                        <?php foreach ($users as $user): ?>
+                            <option value="<?= $user['dept_id'] ?>">
+                                <?= htmlspecialchars($user['employee_name']) ?> - <?= htmlspecialchars($user['email']) ?> (<?= htmlspecialchars($user['dept_name']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="mb-4 w-full form-control">
+                    <label class="label">
+                        <span class="text-gray-700 label-text">Select Role</span>
+                    </label>
+                    <select name="role_id" class="bg-white/80 w-full select-bordered select" required>
+                        <option value="" disabled selected>Choose a role</option>
+                        <?php foreach ($roles as $role): ?>
+                            <option value="<?= $role['id'] ?>">
+                                <?= htmlspecialchars($role['name']) ?> - <?= htmlspecialchars($role['description']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="document.getElementById('attach-role-modal').close()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Attach Role</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Quick Attach Role Modal (for individual role cards) -->
+    <dialog id="quick-attach-modal" class="modal">
+        <div class="w-11/12 max-w-md modal-box modal-subtle-white">
+            <div class="modal-header">
+                <h3 class="font-bold text-gray-800 text-lg">Attach Role to User</h3>
+            </div>
+            <form id="quick-attach-form" class="mt-4" method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>">
+                <input type="hidden" name="assign_role_to_user" value="1">
+                <input type="hidden" id="quick-attach-role-id" name="role_id" value="">
+
+                <div class="mb-4">
+                    <p class="mb-2 text-gray-600">Role: <span id="quick-attach-role-name" class="font-semibold"></span></p>
+                </div>
+
+                <div class="mb-4 w-full form-control">
+                    <label class="label">
+                        <span class="text-gray-700 label-text">Select User</span>
+                    </label>
+                    <select name="user_id" class="bg-white/80 w-full select-bordered select" required>
+                        <option value="" disabled selected>Choose a user</option>
+                        <?php foreach ($users as $user): ?>
+                            <option value="<?= $user['dept_id'] ?>">
+                                <?= htmlspecialchars($user['employee_name']) ?> - <?= htmlspecialchars($user['email']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="document.getElementById('quick-attach-modal').close()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Attach Role</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
     <script>
         lucide.createIcons();
 
         // Form submission handlers
         document.getElementById('add-role-form').addEventListener('submit', function(e) {
             e.preventDefault();
-
             this.submit();
-
             document.getElementById('add-role-modal').close();
         });
 
@@ -464,6 +598,18 @@ if (isset($_GET['error'])) {
             e.preventDefault();
             this.submit();
             document.getElementById('edit-role-modal').close();
+        });
+
+        document.getElementById('attach-role-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            this.submit();
+            document.getElementById('attach-role-modal').close();
+        });
+
+        document.getElementById('quick-attach-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            this.submit();
+            document.getElementById('quick-attach-modal').close();
         });
 
         // Role management functions
@@ -491,6 +637,15 @@ if (isset($_GET['error'])) {
                 });
 
                 document.getElementById('edit-role-modal').showModal();
+            }
+        }
+
+        function attachRoleToUser(roleId) {
+            const role = <?= json_encode(array_column($roles, null, 'id')) ?>[roleId];
+            if (role) {
+                document.getElementById('quick-attach-role-id').value = role.id;
+                document.getElementById('quick-attach-role-name').textContent = role.name + ' - ' + role.description;
+                document.getElementById('quick-attach-modal').showModal();
             }
         }
 
