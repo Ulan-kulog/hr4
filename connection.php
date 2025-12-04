@@ -8,7 +8,7 @@ $dbPass = "1234";
 // ✅ List only the databases you want to connect to
 $targetDatabases = [
     "HR_4",
-  
+    "usm",
 ];
 
 $connections = [];
@@ -32,4 +32,11 @@ if (!empty($errors)) {
     }
     echo "</ul>";
 }
-?>
+
+function dd($data)
+{
+    echo "<pre>";
+    var_dump($data);
+    echo "</pre>";
+    exit;
+}
