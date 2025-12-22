@@ -1,6 +1,6 @@
 <?php
 session_start();
-include("../connection.php");
+include("../../connection.php");
 
 // Database connection
 $db_name = "HR_4";

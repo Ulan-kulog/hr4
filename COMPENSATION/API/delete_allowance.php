@@ -1,6 +1,6 @@
 <?php
 session_start();
-include("../connection.php");
+include("../../connection.php");
 
 $db_name = "HR_4";
 if (!isset($connections[$db_name])) {
@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mysqli_stmt_bind_param($stmt, "i", $id);
 
     if (mysqli_stmt_execute($stmt)) {
-        header("Location: ../core_compensation.php?allowance_deleted=1");
+        header("Location: ../core_compensation.php?deleted=1");
     } else {
         $error_msg = urlencode(mysqli_error($conn));
         header("Location: ../core_compensation.php?deleted=0&error=DB Error&msg=$error_msg");

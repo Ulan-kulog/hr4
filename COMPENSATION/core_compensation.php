@@ -741,12 +741,14 @@ if (!function_exists('format_frequency')) {
                 </form>
             </div>
         </div>
+    </div>
 
-        <script>
-            lucide.createIcons();
+    <script>
+        lucide.createIcons();
 
-            // Initialize Charts
-            const salaryCtx = document.getElementById('salaryChart').getContext('2d');
+        // Initialize Charts
+        const salaryCtx = document.getElementById('salaryChart')?.getContext('2d');
+        if (salaryCtx) {
             const salaryChart = new Chart(salaryCtx, {
                 type: 'bar',
                 data: {
@@ -783,8 +785,10 @@ if (!function_exists('format_frequency')) {
                     }
                 }
             });
+        }
 
-            const mixCtx = document.getElementById('compensationMixChart').getContext('2d');
+        const mixCtx = document.getElementById('compensationMixChart')?.getContext('2d');
+        if (mixCtx) {
             const compensationMixChart = new Chart(mixCtx, {
                 type: 'doughnut',
                 data: {
@@ -811,248 +815,324 @@ if (!function_exists('format_frequency')) {
                     }
                 }
             });
+        }
 
-            // Modal Functionality
-            const salaryStructureModal = document.getElementById('salaryStructureModal');
-            const bonusModal = document.getElementById('bonusModal');
-            const allowanceModal = document.getElementById('allowanceModal');
-            const editSalaryModal = document.getElementById('editSalaryModal');
+        // Modal Functionality
+        const salaryStructureModal = document.getElementById('salaryStructureModal');
+        const bonusModal = document.getElementById('bonusModal');
+        const allowanceModal = document.getElementById('allowanceModal');
+        const editSalaryModal = document.getElementById('editSalaryModal');
+        const editAllowanceModal = document.getElementById('editAllowanceModal'); // Added missing declaration
 
-            // Open modals
-            document.getElementById('salaryStructureBtn').addEventListener('click', () => {
-                salaryStructureModal.classList.remove('hidden');
-            });
+        // Open modals with null checks
+        document.getElementById('salaryStructureBtn')?.addEventListener('click', () => {
+            salaryStructureModal?.classList.remove('hidden');
+        });
 
-            document.getElementById('bonusIncentivesBtn').addEventListener('click', () => {
-                bonusModal.classList.remove('hidden');
-            });
+        document.getElementById('bonusIncentivesBtn')?.addEventListener('click', () => {
+            bonusModal?.classList.remove('hidden');
+        });
 
-            document.getElementById('allowanceBtn').addEventListener('click', () => {
-                allowanceModal.classList.remove('hidden');
-            });
+        document.getElementById('allowanceBtn')?.addEventListener('click', () => {
+            allowanceModal?.classList.remove('hidden');
+        });
 
-            // Close modals
-            document.getElementById('closeSalaryModal').addEventListener('click', () => salaryStructureModal.classList.add('hidden'));
-            document.getElementById('closeBonusModal').addEventListener('click', () => bonusModal.classList.add('hidden'));
-            document.getElementById('closeAllowanceModal').addEventListener('click', () => allowanceModal.classList.add('hidden'));
-            document.getElementById('closeEditModal').addEventListener('click', () => editSalaryModal.classList.add('hidden'));
+        // Close modals with null checks
+        document.getElementById('closeSalaryModal')?.addEventListener('click', () => salaryStructureModal?.classList.add('hidden'));
+        document.getElementById('closeBonusModal')?.addEventListener('click', () => bonusModal?.classList.add('hidden'));
+        document.getElementById('closeAllowanceModal')?.addEventListener('click', () => allowanceModal?.classList.add('hidden'));
+        document.getElementById('closeEditModal')?.addEventListener('click', () => editSalaryModal?.classList.add('hidden'));
+        document.getElementById('closeEditAllowanceModal')?.addEventListener('click', () => editAllowanceModal?.classList.add('hidden')); // Added
 
-            document.getElementById('cancelSalary').addEventListener('click', () => salaryStructureModal.classList.add('hidden'));
-            document.getElementById('cancelBonus').addEventListener('click', () => bonusModal.classList.add('hidden'));
-            document.getElementById('cancelAllowance').addEventListener('click', () => allowanceModal.classList.add('hidden'));
-            document.getElementById('cancelEdit').addEventListener('click', () => editSalaryModal.classList.add('hidden'));
+        document.getElementById('cancelSalary')?.addEventListener('click', () => salaryStructureModal?.classList.add('hidden'));
+        document.getElementById('cancelBonus')?.addEventListener('click', () => bonusModal?.classList.add('hidden'));
+        document.getElementById('cancelAllowance')?.addEventListener('click', () => allowanceModal?.classList.add('hidden'));
+        document.getElementById('cancelEdit')?.addEventListener('click', () => editSalaryModal?.classList.add('hidden'));
+        document.getElementById('cancelEditAllowance')?.addEventListener('click', () => editAllowanceModal?.classList.add('hidden')); // Added
 
-            // Close modals when clicking outside
-            salaryStructureModal.addEventListener('click', (e) => {
-                if (e.target === salaryStructureModal) salaryStructureModal.classList.add('hidden');
-            });
-            bonusModal.addEventListener('click', (e) => {
-                if (e.target === bonusModal) bonusModal.classList.add('hidden');
-            });
-            allowanceModal.addEventListener('click', (e) => {
-                if (e.target === allowanceModal) allowanceModal.classList.add('hidden');
-            });
-            editSalaryModal.addEventListener('click', (e) => {
-                if (e.target === editSalaryModal) editSalaryModal.classList.add('hidden');
-            });
+        // Close modals when clicking outside
+        salaryStructureModal?.addEventListener('click', (e) => {
+            if (e.target === salaryStructureModal) salaryStructureModal.classList.add('hidden');
+        });
+        bonusModal?.addEventListener('click', (e) => {
+            if (e.target === bonusModal) bonusModal.classList.add('hidden');
+        });
+        allowanceModal?.addEventListener('click', (e) => {
+            if (e.target === allowanceModal) allowanceModal.classList.add('hidden');
+        });
+        editSalaryModal?.addEventListener('click', (e) => {
+            if (e.target === editSalaryModal) editSalaryModal.classList.add('hidden');
+        });
+        editAllowanceModal?.addEventListener('click', (e) => { // Added
+            if (e.target === editAllowanceModal) editAllowanceModal.classList.add('hidden');
+        });
 
-            // Open Edit modal and populate fields
-            document.querySelectorAll('.edit-salary-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const id = btn.getAttribute('data-id');
-                    const grade = btn.getAttribute('data-grade');
-                    const position = btn.getAttribute('data-position');
-                    const min = btn.getAttribute('data-min');
-                    const max = btn.getAttribute('data-max');
-                    const status = btn.getAttribute('data-status');
+        // Open Edit modal and populate fields
+        document.querySelectorAll('.edit-salary-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const id = btn.getAttribute('data-id');
+                const grade = btn.getAttribute('data-grade');
+                const position = btn.getAttribute('data-position');
+                const min = btn.getAttribute('data-min');
+                const max = btn.getAttribute('data-max');
+                const status = btn.getAttribute('data-status');
 
-                    document.getElementById('edit_id').value = id || '';
-                    document.getElementById('edit_grade').value = grade || '';
-                    document.getElementById('edit_position').value = position || '';
-                    document.getElementById('edit_min').value = min || '';
-                    document.getElementById('edit_max').value = max || '';
-                    // Set status select with case-insensitive matching to handle DB value variations
-                    const statusEl = document.getElementById('edit_status');
-                    if (status) {
-                        // try direct match first
-                        if (Array.from(statusEl.options).some(o => o.value === status)) {
-                            statusEl.value = status;
-                        } else {
-                            // case-insensitive fallback
-                            const match = Array.from(statusEl.options).find(o => o.value.toLowerCase() === status.toLowerCase());
-                            statusEl.value = match ? match.value : 'Active';
-                        }
+                document.getElementById('edit_id').value = id || '';
+                document.getElementById('edit_grade').value = grade || '';
+                document.getElementById('edit_position').value = position || '';
+                document.getElementById('edit_min').value = min || '';
+                document.getElementById('edit_max').value = max || '';
+
+                // Set status select with case-insensitive matching
+                const statusEl = document.getElementById('edit_status');
+                if (status && statusEl) {
+                    // try direct match first
+                    if (Array.from(statusEl.options).some(o => o.value === status)) {
+                        statusEl.value = status;
                     } else {
-                        statusEl.value = 'Active';
+                        // case-insensitive fallback
+                        const match = Array.from(statusEl.options).find(o =>
+                            o.value.toLowerCase() === status.toLowerCase()
+                        );
+                        statusEl.value = match ? match.value : 'Active';
                     }
+                } else if (statusEl) {
+                    statusEl.value = 'Active';
+                }
 
-                    editSalaryModal.classList.remove('hidden');
+                editSalaryModal?.classList.remove('hidden');
+            });
+        });
+
+        // FIXED: Prevent default submit on forms that should NOT submit to server
+        // Exclude: edit forms, create forms, and delete forms (handled separately)
+        document.querySelectorAll('form:not(#editSalaryForm):not(#editAllowanceForm):not(.create-form):not(.delete-form)').forEach(form => {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+
+                // Use SweetAlert toast for demo form submit feedback
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Submitted (Demo)',
+                    showConfirmButton: false,
+                    timer: 1500,
+                    timerProgressBar: true
+                });
+
+                // Close all modals
+                [salaryStructureModal, bonusModal, allowanceModal, editSalaryModal, editAllowanceModal].forEach(modal => {
+                    modal?.classList.add('hidden');
                 });
             });
+        });
 
-            // Prevent default submit on non-edit forms (allow edit and create forms to POST)
-            document.querySelectorAll('form:not(#editSalaryForm)').forEach(form => {
-                form.addEventListener('submit', (e) => {
-                    // For delete forms show SweetAlert confirmation then submit
-                    if (form.classList.contains('delete-form')) {
-                        e.preventDefault();
-                        Swal.fire({
-                            title: 'Delete this salary grade?',
-                            text: 'This action cannot be undone.',
-                            icon: 'warning',
-                            showCancelButton: true,
-                            confirmButtonColor: '#d33',
-                            confirmButtonText: 'Yes, delete it',
-                            cancelButtonText: 'Cancel',
-                            customClass: {
-                                confirmButton: 'swal-btn-primary',
-                                cancelButton: 'swal-btn-cancel'
-                            }
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                form.submit();
-                            }
-                        });
-                        return;
+        // Handle delete forms separately
+        document.querySelectorAll('form.delete-form').forEach(form => {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+
+                // Get form type from action URL
+                const action = form.getAttribute('action') || '';
+                let itemName = 'record';
+                if (action.includes('salary')) itemName = 'salary grade';
+                if (action.includes('allowance')) itemName = 'allowance';
+                if (action.includes('bonus')) itemName = 'bonus plan';
+
+                Swal.fire({
+                    title: `Delete this ${itemName}?`,
+                    text: 'This action cannot be undone.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    confirmButtonText: 'Yes, delete it',
+                    cancelButtonText: 'Cancel',
+                    customClass: {
+                        confirmButton: 'swal-btn-primary',
+                        cancelButton: 'swal-btn-cancel'
                     }
-
-                    // Allow create form to submit to server normally
-                    if (form.classList.contains('create-form')) {
-                        return;
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        form.submit();
                     }
-
-                    e.preventDefault();
-                    // Use SweetAlert toast for non-edit form submit feedback
-                    Swal.fire({
-                        toast: true,
-                        position: 'top-end',
-                        icon: 'success',
-                        title: 'Submitted',
-                        showConfirmButton: false,
-                        timer: 1500,
-                        timerProgressBar: true
-                    });
-                    salaryStructureModal.classList.add('hidden');
-                    bonusModal.classList.add('hidden');
-                    allowanceModal.classList.add('hidden');
-                    editSalaryModal.classList.add('hidden');
                 });
             });
+        });
 
-            // Auto-hide update banner after 3 seconds
-            (function() {
-                const banner = document.getElementById('updateBanner');
-                if (!banner) return;
+        // Auto-hide update banner after 3 seconds
+        (function() {
+            const banner = document.getElementById('updateBanner');
+            if (!banner) return;
+            setTimeout(() => {
+                banner.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+                banner.style.opacity = '0';
+                banner.style.transform = 'translateY(-8px)';
                 setTimeout(() => {
-                    banner.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
-                    banner.style.opacity = '0';
-                    banner.style.transform = 'translateY(-8px)';
-                    setTimeout(() => {
-                        if (banner && banner.parentNode) banner.parentNode.removeChild(banner);
-                    }, 450);
-                }, 3000);
-            })();
+                    if (banner && banner.parentNode) banner.parentNode.removeChild(banner);
+                }, 450);
+            }, 3000);
+        })();
 
-            // Show SweetAlert for delete result (if present in URL)
-            (function() {
-                const params = new URLSearchParams(window.location.search);
-                const deleted = params.get('deleted');
-                if (!deleted) return;
-                if (deleted === '1') {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Deleted',
-                        text: 'Salary grade was deleted successfully.',
-                        showConfirmButton: false,
-                        timer: 1600
-                    });
-                } else {
-                    const err = params.get('error') || 'failed';
-                    const msg = params.get('msg') ? decodeURIComponent(params.get('msg')) : '';
-                    const text = msg ? `${err} — ${msg}` : err;
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Delete failed',
-                        text: text,
-                        confirmButtonText: 'OK'
-                    });
-                }
-            })();
+        // Show SweetAlert for delete result (if present in URL)
+        // FIXED: Show appropriate banners/messages based on URL parameters
+        (function() {
+            const params = new URLSearchParams(window.location.search);
 
-            // Edit Allowance Modal functionality
-            const editAllowanceModal = document.getElementById('editAllowanceModal');
-
-            // Open edit allowance modal
-            document.addEventListener('click', function(e) {
-                if (e.target.classList.contains('edit-allowance-btn')) {
-                    e.preventDefault();
-                    const btn = e.target;
-
-                    document.getElementById('edit_alw_id').value = btn.getAttribute('data-id');
-                    document.getElementById('edit_alw_type').value = btn.getAttribute('data-type');
-                    document.getElementById('edit_alw_dept').value = btn.getAttribute('data-dept');
-                    document.getElementById('edit_alw_amount').value = btn.getAttribute('data-amount');
-                    document.getElementById('edit_alw_freq').value = btn.getAttribute('data-frequency');
-                    document.getElementById('edit_alw_criteria').value = btn.getAttribute('data-criteria');
-                    document.getElementById('edit_alw_status').value = btn.getAttribute('data-status');
-
-                    editAllowanceModal.classList.remove('hidden');
-                }
-            });
-
-            // Close edit allowance modal
-            document.getElementById('closeEditAllowanceModal').addEventListener('click', () => {
-                editAllowanceModal.classList.add('hidden');
-            });
-            document.getElementById('cancelEditAllowance').addEventListener('click', () => {
-                editAllowanceModal.classList.add('hidden');
-            });
-            editAllowanceModal.addEventListener('click', (e) => {
-                if (e.target === editAllowanceModal) editAllowanceModal.classList.add('hidden');
-            });
-
-            // Allowance search functionality
-            const searchAllowancesInput = document.getElementById('searchAllowances');
-            if (searchAllowancesInput) {
-                searchAllowancesInput.addEventListener('input', function() {
-                    const searchTerm = this.value.toLowerCase();
-                    const rows = document.querySelectorAll('#allowanceTableBody tr');
-
-                    rows.forEach(row => {
-                        const text = row.textContent.toLowerCase();
-                        row.style.display = text.includes(searchTerm) ? '' : 'none';
-                    });
-                });
+            // Remove the static banner if it exists
+            const staticBanner = document.getElementById('updateBanner');
+            if (staticBanner) {
+                staticBanner.remove();
             }
 
-            // SweetAlert for allowance delete success/failure
-            (function() {
-                const params = new URLSearchParams(window.location.search);
-                const allowanceDeleted = params.get('allowance_deleted');
-                if (!allowanceDeleted) return;
+            const updated = params.get('updated');
 
-                if (allowanceDeleted === '1') {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Deleted',
-                        text: 'Allowance was deleted successfully.',
-                        showConfirmButton: false,
-                        timer: 1600
-                    });
-                } else {
-                    const err = params.get('error') || 'failed';
-                    const msg = params.get('msg') ? decodeURIComponent(params.get('msg')) : '';
-                    const text = msg ? `${err} — ${msg}` : err;
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Delete failed',
-                        text: text,
-                        confirmButtonText: 'OK'
-                    });
+            if (updated === '1') {
+                // Get the current URL to check which form was submitted
+                const currentUrl = window.location.href;
+                let message = 'Operation completed successfully.';
+                let icon = 'success';
+
+                // Check URL parameters or patterns to determine what was updated
+                if (currentUrl.includes('allowance_created')) {
+                    message = 'Allowance created successfully!';
+                } else if (currentUrl.includes('allowance_updated')) {
+                    message = 'Allowance updated successfully!';
+                } else if (currentUrl.includes('salary_created')) {
+                    message = 'Salary structure created successfully!';
+                } else if (currentUrl.includes('salary_updated')) {
+                    message = 'Salary structure updated successfully!';
                 }
-            })();
-        </script>
+
+                // Show success notification
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: icon,
+                    title: message,
+                    showConfirmButton: false,
+                    timer: 2000,
+                    timerProgressBar: true
+                });
+
+                // Clean URL without reloading page (remove query parameters)
+                setTimeout(() => {
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }, 100);
+
+            } else if (updated === '0') {
+                const error = params.get('error') || 'Operation failed';
+                const msg = params.get('msg') ? decodeURIComponent(params.get('msg')) : '';
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: msg || error,
+                    confirmButtonText: 'OK'
+                });
+
+                // Clean URL after showing error
+                setTimeout(() => {
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }, 100);
+            }
+
+            // Handle delete results
+            const deleted = params.get('deleted');
+            if (deleted === '1') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Deleted',
+                    text: 'Record was deleted successfully.',
+                    showConfirmButton: false,
+                    timer: 1600
+                });
+
+                setTimeout(() => {
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }, 100);
+            } else if (deleted === '0') {
+                const err = params.get('error') || 'failed';
+                const msg = params.get('msg') ? decodeURIComponent(params.get('msg')) : '';
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Delete failed',
+                    text: msg || err,
+                    confirmButtonText: 'OK'
+                });
+
+                setTimeout(() => {
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }, 100);
+            }
+        })();
+
+        // Open edit allowance modal (improved version)
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('edit-allowance-btn')) {
+                e.preventDefault();
+                const btn = e.target;
+
+                // Get all data attributes
+                const data = {
+                    id: btn.getAttribute('data-id'),
+                    type: btn.getAttribute('data-type'),
+                    dept: btn.getAttribute('data-dept'),
+                    amount: btn.getAttribute('data-amount'),
+                    frequency: btn.getAttribute('data-frequency'),
+                    criteria: btn.getAttribute('data-criteria'),
+                    status: btn.getAttribute('data-status')
+                };
+
+                // Populate form fields
+                const setValue = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = value || '';
+                };
+
+                setValue('edit_alw_id', data.id);
+                setValue('edit_alw_type', data.type);
+                setValue('edit_alw_dept', data.dept);
+                setValue('edit_alw_amount', data.amount);
+                setValue('edit_alw_freq', data.frequency);
+                setValue('edit_alw_criteria', data.criteria);
+                setValue('edit_alw_status', data.status);
+
+                // Show modal
+                editAllowanceModal?.classList.remove('hidden');
+            }
+        });
+
+        // Allowance search functionality (with null check)
+        const searchAllowancesInput = document.getElementById('searchAllowances');
+        if (searchAllowancesInput) {
+            searchAllowancesInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase().trim();
+                const rows = document.querySelectorAll('#allowanceTableBody tr');
+
+                rows.forEach(row => {
+                    if (row.classList.contains('no-data-row')) return;
+
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = searchTerm === '' || text.includes(searchTerm) ? '' : 'none';
+                });
+            });
+        }
+
+        // Add debug logging for form submissions
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Forms that will submit to server:');
+            document.querySelectorAll('form[action]').forEach(form => {
+                console.log(`- ${form.id || 'unnamed form'}: ${form.getAttribute('action')}`);
+            });
+        });
+    </script>
 </body>
 
 </html>

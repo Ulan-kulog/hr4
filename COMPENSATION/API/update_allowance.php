@@ -1,6 +1,6 @@
 <?php
 session_start();
-include("../connection.php");
+include("../../connection.php");
 
 $db_name = "HR_4";
 if (!isset($connections[$db_name])) {
@@ -42,4 +42,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mysqli_stmt_close($stmt);
     exit;
 }
-?>
