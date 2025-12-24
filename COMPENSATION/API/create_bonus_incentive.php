@@ -54,5 +54,5 @@ if (!$ok) {
 }
 
 mysqli_stmt_close($stmt);
-header('Location: ../core_compensation.php?bonus_created=1');
+header('Location: ../core_compensation.php?created=1');
 exit;

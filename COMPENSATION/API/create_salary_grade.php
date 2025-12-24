@@ -43,10 +43,10 @@ $ok = mysqli_stmt_execute($stmt);
 if (!$ok) {
     $err = mysqli_stmt_error($stmt) ?: mysqli_error($conn);
     mysqli_stmt_close($stmt);
-    header('Location: ../core_compensation.php?created=0&error=exec&msg=' . urlencode($err));
+    header('Location: ../core_compensation.php?updated=0&error=DB Error&msg=' . urlencode($err));
     exit;
 }
 
 mysqli_stmt_close($stmt);
-header('Location: ../core_compensation.php?created=1');
+header('Location: ../core_compensation.php?updated=1&action=salary_created');
 exit;

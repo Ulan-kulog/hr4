@@ -30,6 +30,29 @@ if (!function_exists('status_class')) {
     }
 }
 
+// Helper function for allowance frequency display
+if (!function_exists('format_frequency')) {
+    function format_frequency($freq)
+    {
+        if ($freq === null || $freq === '') {
+            return 'Not Specified';
+        }
+
+        $freq = strtolower(trim($freq));
+        $map = [
+            'daily' => 'Daily',
+            'weekly' => 'Weekly',
+            'monthly' => 'Monthly',
+            'quarterly' => 'Quarterly',
+            'yearly' => 'Annual',
+            'annual' => 'Annual',
+            'annually' => 'Annual'
+        ];
+
+        return $map[$freq] ?? ucfirst($freq);
+    }
+}
+
 // Load `salary_grades` for display in the salary structure table
 $salary_grades = [];
 $grades = "SELECT * FROM salary_grades ORDER BY id ASC";
@@ -49,28 +72,171 @@ if ($res_bp = mysqli_query($conn, $sql_bp)) {
 }
 
 // Load allowances for Allowance Management section
-$allowances = [];
+$allowances_tbl = [];
 $sql_alw = "SELECT * FROM allowances ORDER BY id DESC";
 if ($res_alw = mysqli_query($conn, $sql_alw)) {
     while ($ralw = mysqli_fetch_assoc($res_alw)) {
-        $allowances[] = $ralw;
+        $allowances_tbl[] = $ralw;
     }
 }
 
-// Helper function for allowance frequency display
-if (!function_exists('format_frequency')) {
-    function format_frequency($freq)
-    {
-        $map = [
-            'daily' => 'Daily',
-            'weekly' => 'Weekly',
-            'monthly' => 'Monthly',
-            'quarterly' => 'Quarterly',
-            'annual' => 'Annual'
-        ];
-        return $map[strtolower($freq)] ?? ucfirst($freq);
+// Simplified version assuming basic_salary is monthly
+$statistics = [];
+
+// 1. Total Salary Budget (Annual total, assuming basic_salary is monthly)
+$sql_total_budget = "SELECT SUM(basic_salary * 12) as total_budget FROM employees WHERE status = 'Active'";
+$result = mysqli_query($conn, $sql_total_budget);
+$statistics['total_budget'] = mysqli_fetch_assoc($result)['total_budget'] ?? 0;
+
+// 2. Average Monthly Salary
+$sql_avg_salary = "SELECT AVG(basic_salary) as avg_monthly FROM employees WHERE status = 'Active'";
+$result = mysqli_query($conn, $sql_avg_salary);
+$statistics['avg_monthly'] = mysqli_fetch_assoc($result)['avg_monthly'] ?? 0;
+
+// 3. Bonus Pool
+$sql_bonus_pool = "SELECT 
+    SUM(
+        CASE 
+            WHEN amount_or_percentage NOT LIKE '%\%' 
+            THEN CAST(REPLACE(REPLACE(amount_or_percentage, '₱', ''), ',', '') AS DECIMAL(10,2))
+            ELSE 0 
+        END
+    ) as bonus_pool 
+    FROM bonus_plans 
+    WHERE status = 'active'";
+$result = mysqli_query($conn, $sql_bonus_pool);
+$statistics['bonus_pool'] = mysqli_fetch_assoc($result)['bonus_pool'] ?? 0;
+
+// 4. Allowance Budget
+$sql_allowance_budget = "SELECT 
+    SUM(
+        amount * 
+        CASE frequency 
+            WHEN 'daily' THEN 365 
+            WHEN 'weekly' THEN 52 
+            WHEN 'monthly' THEN 12 
+            WHEN 'quarterly' THEN 4 
+            WHEN 'annual' THEN 1 
+            ELSE 12 
+        END
+    ) as allowance_budget 
+    FROM allowances WHERE status = 'active'";
+$result = mysqli_query($conn, $sql_allowance_budget);
+$statistics['allowance_budget'] = mysqli_fetch_assoc($result)['allowance_budget'] ?? 0;
+
+// 5. Department-wise salary distribution
+$salary_by_dept = [];
+$sql_dept_salary = "SELECT 
+    COALESCE(e.department, 'Not Assigned') as department,
+    COUNT(e.id) as employee_count,
+    AVG(e.basic_salary) as avg_salary
+    FROM employees e
+    WHERE e.status = 'Active'
+    GROUP BY e.department
+    HAVING COUNT(e.id) > 0
+    ORDER BY avg_salary DESC";
+$result = mysqli_query($conn, $sql_dept_salary);
+while ($row = mysqli_fetch_assoc($result)) {
+    $salary_by_dept[] = $row;
+}
+
+// Fetch compensation mix data - FIXED VERSION
+$compensation_mix = [];
+
+// 1. Base Salary (Annual total from employees)
+$sql_base_salary = "SELECT 
+    COALESCE(SUM(basic_salary * 12), 0) as value 
+    FROM employees 
+    WHERE status = 'Active'";
+$result = mysqli_query($conn, $sql_base_salary);
+$base_salary = mysqli_fetch_assoc($result);
+$compensation_mix[] = ['type' => 'Base Salary', 'value' => $base_salary['value'] ?? 0];
+
+// 2. Bonuses (Only fixed amounts, not percentages)
+$sql_bonuses = "SELECT 
+    COALESCE(SUM(
+        CASE 
+            WHEN amount_or_percentage REGEXP '^[0-9]+(\.[0-9]+)?$' 
+            OR amount_or_percentage LIKE '%₱%'
+            OR (amount_or_percentage NOT LIKE '%\%' AND amount_or_percentage NOT LIKE '%percent%')
+            THEN CAST(REPLACE(REPLACE(REPLACE(amount_or_percentage, '₱', ''), ',', ''), ' ', '') AS DECIMAL(10,2))
+            ELSE 0 
+        END
+    ), 0) as value 
+    FROM bonus_plans 
+    WHERE status = 'active'";
+$result = mysqli_query($conn, $sql_bonuses);
+$bonuses = mysqli_fetch_assoc($result);
+$compensation_mix[] = ['type' => 'Bonuses', 'value' => $bonuses['value'] ?? 0];
+
+// 3. Allowances (Annual total)
+$sql_allowances = "SELECT 
+    COALESCE(SUM(
+        amount * 
+        CASE LOWER(frequency)
+            WHEN 'daily' THEN 365 
+            WHEN 'weekly' THEN 52 
+            WHEN 'monthly' THEN 12 
+            WHEN 'quarterly' THEN 4 
+            WHEN 'annual' THEN 1 
+            ELSE 12  -- Default to monthly if unknown
+        END
+    ), 0) as value 
+    FROM allowances 
+    WHERE status = 'active'";
+$result = mysqli_query($conn, $sql_allowances);
+$allowances = mysqli_fetch_assoc($result);
+$compensation_mix[] = ['type' => 'Allowances', 'value' => $allowances['value'] ?? 0];
+
+// 4. Benefits - Check if benefits table exists
+$benefits_value = 0;
+// First, check if benefits table exists
+$table_check = "SHOW TABLES LIKE 'benefits'";
+$table_result = mysqli_query($conn, $table_check);
+if (mysqli_num_rows($table_result) > 0) {
+    // Benefits table exists, query it
+    $sql_benefits = "SELECT COALESCE(SUM(amount * 12), 0) as value FROM benefits WHERE status = 'active'";
+    $result = mysqli_query($conn, $sql_benefits);
+    if ($result) {
+        $benefits = mysqli_fetch_assoc($result);
+        $benefits_value = $benefits['value'] ?? 0;
     }
 }
+$compensation_mix[] = ['type' => 'Benefits', 'value' => $benefits_value];
+
+// Filter out zero values to make chart cleaner
+$non_zero_mix = array_filter($compensation_mix, function ($item) {
+    return floatval($item['value']) > 0;
+});
+
+// If we have at least one non-zero value, use filtered array
+// Otherwise, use the original but with a minimum value for Base Salary
+if (!empty($non_zero_mix)) {
+    $compensation_mix = array_values($non_zero_mix);
+} else {
+    // Ensure at least Base Salary has a minimum value for chart display
+    if (floatval($compensation_mix[0]['value']) == 0) {
+        $compensation_mix[0]['value'] = 1; // Minimum value for display
+    }
+}
+
+// Helper function to format large numbers
+if (!function_exists('format_large_number')) {
+    function format_large_number($val)
+    {
+        if ($val === '' || $val === null) {
+            return '-';
+        }
+        $val = (float)$val;
+        if ($val >= 1000000) {
+            return '₱' . number_format($val / 1000000, 1) . 'M';
+        } elseif ($val >= 1000) {
+            return '₱' . number_format($val / 1000, 1) . 'K';
+        }
+        return '₱' . number_format($val, 0);
+    }
+}
+$today = date('Y-m-d');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -119,6 +285,34 @@ if (!function_exists('format_frequency')) {
 
         .swal-btn-cancel:hover {
             background-color: #d1d5db !important;
+        }
+
+        /* Bonus card styling */
+        #bonusPlansContainer>div {
+            transition: all 0.3s ease;
+            border: 1px solid #e5e7eb;
+        }
+
+        #bonusPlansContainer>div:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+        }
+
+        /* Status badges */
+        .bg-green-100.text-green-800 {
+            background-color: #d1fae5 !important;
+            color: #065f46 !important;
+        }
+
+        .bg-yellow-100.text-yellow-800 {
+            background-color: #fef3c7 !important;
+            color: #92400e !important;
+        }
+
+        .bg-gray-100.text-gray-800 {
+            background-color: #f3f4f6 !important;
+            color: #374151 !important;
         }
     </style>
 </head>
@@ -193,8 +387,12 @@ if (!function_exists('format_frequency')) {
                             <div class="flex justify-between items-start">
                                 <div>
                                     <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Total Salary Budget</p>
-                                    <h3 class="mt-1 font-bold text-3xl">₱18.2M</h3>
-                                    <p class="mt-1 text-gray-500 text-xs">Annual budget</p>
+                                    <h3 class="mt-1 font-bold text-3xl">
+                                        <?= format_large_number($statistics['total_budget']) ?>
+                                    </h3>
+                                    <p class="mt-1 text-gray-500 text-xs">
+                                        <?= $statistics['total_employees'] ?? 0 ?> active employees
+                                    </p>
                                 </div>
                                 <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
                                     <i data-lucide="credit-card" class="w-6 h-6 text-[#F7B32B]"></i>
@@ -207,8 +405,10 @@ if (!function_exists('format_frequency')) {
                             <div class="flex justify-between items-start">
                                 <div>
                                     <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Average Salary</p>
-                                    <h3 class="mt-1 font-bold text-3xl">₱25.4K</h3>
-                                    <p class="mt-1 text-gray-500 text-xs">Per month</p>
+                                    <h3 class="mt-1 font-bold text-3xl">
+                                        ₱<?= number_format($statistics['avg_monthly'] ?? 0, 0) ?>
+                                    </h3>
+                                    <p class="mt-1 text-gray-500 text-xs">Monthly average</p>
                                 </div>
                                 <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
                                     <i data-lucide="trending-up" class="w-6 h-6 text-[#F7B32B]"></i>
@@ -221,8 +421,17 @@ if (!function_exists('format_frequency')) {
                             <div class="flex justify-between items-start">
                                 <div>
                                     <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Bonus Pool</p>
-                                    <h3 class="mt-1 font-bold text-3xl">₱2.4M</h3>
-                                    <p class="mt-1 text-gray-500 text-xs">This year</p>
+                                    <h3 class="mt-1 font-bold text-3xl">
+                                        <?= format_large_number($statistics['bonus_pool']) ?>
+                                    </h3>
+                                    <p class="mt-1 text-gray-500 text-xs">
+                                        <?php
+                                        $sql_bonus_plans = "SELECT COUNT(*) as bonus_count FROM bonus_plans WHERE status = 'active'";
+                                        $result = mysqli_query($conn, $sql_bonus_plans);
+                                        $bonus_count = mysqli_fetch_assoc($result)['bonus_count'] ?? 0;
+                                        echo $bonus_count . ' active plans';
+                                        ?>
+                                    </p>
                                 </div>
                                 <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
                                     <i data-lucide="gift" class="w-6 h-6 text-[#F7B32B]"></i>
@@ -235,8 +444,17 @@ if (!function_exists('format_frequency')) {
                             <div class="flex justify-between items-start">
                                 <div>
                                     <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Allowance Budget</p>
-                                    <h3 class="mt-1 font-bold text-3xl">₱1.8M</h3>
-                                    <p class="mt-1 text-gray-500 text-xs">Annual allocation</p>
+                                    <h3 class="mt-1 font-bold text-3xl">
+                                        <?= format_large_number($statistics['allowance_budget']) ?>
+                                    </h3>
+                                    <p class="mt-1 text-gray-500 text-xs">
+                                        <?php
+                                        $sql_allowance_count = "SELECT COUNT(*) as allowance_count FROM allowances WHERE status = 'active'";
+                                        $result = mysqli_query($conn, $sql_allowance_count);
+                                        $allowance_count = mysqli_fetch_assoc($result)['allowance_count'] ?? 0;
+                                        echo $allowance_count . ' active allowances';
+                                        ?>
+                                    </p>
                                 </div>
                                 <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
                                     <i data-lucide="package" class="w-6 h-6 text-[#F7B32B]"></i>
@@ -334,8 +552,16 @@ if (!function_exists('format_frequency')) {
 
                     <!-- Bonus & Incentives Section -->
                     <div class="bg-white shadow-sm mb-6 p-6 border border-gray-100 rounded-xl">
-                        <h3 class="mb-4 font-semibold text-gray-800">Bonus & Incentive Plans</h3>
-                        <div class="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                        <div class="flex sm:flex-row flex-col justify-between items-start sm:items-center mb-4">
+                            <h3 class="font-semibold text-gray-800">Bonus & Incentive Plans</h3>
+                            <div class="flex gap-2 mt-2 sm:mt-0">
+                                <input type="text" id="searchBonus" placeholder="Search plans..." class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                                <button class="hover:bg-gray-50 p-2 border border-gray-200 rounded-lg">
+                                    <i data-lucide="filter" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" id="bonusPlansContainer">
                             <?php if (empty($bonus_plans)): ?>
                                 <div class="p-4 text-gray-500">No bonus or incentive plans found.</div>
                             <?php else: ?>
@@ -343,17 +569,23 @@ if (!function_exists('format_frequency')) {
                                     $bp_id = htmlspecialchars($plan['id'] ?? '');
                                     $bp_name = htmlspecialchars($plan['plan_name'] ?? $plan['title'] ?? 'Untitled Plan');
                                     $bp_dept = htmlspecialchars($plan['department'] ?? 'All Departments');
-                                    $bp_desc = htmlspecialchars($plan['description'] ?? $plan['details'] ?? '');
-                                    $bp_type = htmlspecialchars($plan['type'] ?? '');
+                                    $bp_desc = htmlspecialchars($plan['eligibility_criteria'] ?? $plan['description'] ?? $plan['details'] ?? '');
+                                    $bp_type = htmlspecialchars($plan['bonus_type'] ?? $plan['type'] ?? '');
                                     $bp_amount_raw = $plan['amount_or_percentage'] ?? $plan['value'] ?? '';
+                                    $bp_status = htmlspecialchars($plan['status'] ?? 'active');
+                                    $bp_start = htmlspecialchars($plan['start_date'] ?? '');
+                                    $bp_end = htmlspecialchars($plan['end_date'] ?? '');
+
                                     // display percentage or formatted currency
                                     if ($bp_amount_raw === '' || $bp_amount_raw === null) {
                                         $bp_amount = '-';
-                                    } elseif (strpos((string)$bp_amount_raw, '%') !== false) {
+                                    } elseif (strpos((string)$bp_amount_raw, '%') !== false || strpos((string)$bp_amount_raw, '₱') !== false) {
                                         $bp_amount = htmlspecialchars($bp_amount_raw);
                                     } else {
                                         $bp_amount = format_currency($bp_amount_raw);
                                     }
+
+                                    $statusClass = status_class($bp_status);
                                 ?>
                                     <div class="p-4 border border-gray-200 rounded-lg">
                                         <div class="flex justify-between items-center mb-3">
@@ -362,12 +594,45 @@ if (!function_exists('format_frequency')) {
                                                 <i data-lucide="gift" class="w-4 h-4"></i>
                                             </span>
                                         </div>
-                                        <p class="mb-2 text-gray-600 text-sm">Department: <?= $bp_dept ?></p>
-                                        <?php if ($bp_desc !== ''): ?><p class="mb-3 text-gray-600 text-sm"><?= $bp_desc ?></p><?php endif; ?>
-                                        <div class="flex justify-between items-center">
-                                            <span class="font-medium text-gray-700 text-sm">Amount: <?= $bp_amount ?></span>
-                                            <div class="flex gap-1">
-                                                <button class="text-blue-600 hover:text-blue-800 text-sm edit-bonus-btn" data-id="<?= $bp_id ?>">Edit</button>
+                                        <div class="mb-2">
+                                            <span class="inline-flex items-center <?= $statusClass ?> px-2.5 py-0.5 rounded-full font-medium text-xs mb-2">
+                                                <?= ucfirst($bp_status) ?>
+                                            </span>
+                                        </div>
+                                        <p class="mb-2 text-gray-600 text-sm">
+                                            <strong>Type:</strong> <?= ucfirst(str_replace('_', ' ', $bp_type)) ?>
+                                        </p>
+                                        <p class="mb-2 text-gray-600 text-sm">
+                                            <strong>Department:</strong> <?= $bp_dept ?>
+                                        </p>
+                                        <?php if ($bp_start || $bp_end): ?>
+                                            <p class="mb-2 text-gray-600 text-sm">
+                                                <strong>Period:</strong>
+                                                <?= $bp_start ? date('M d, Y', strtotime($bp_start)) : 'N/A' ?>
+                                                to
+                                                <?= $bp_end ? date('M d, Y', strtotime($bp_end)) : 'Ongoing' ?>
+                                            </p>
+                                        <?php endif; ?>
+                                        <?php if ($bp_desc !== ''): ?>
+                                            <p class="mb-3 text-gray-600 text-sm">
+                                                <strong>Criteria:</strong> <?= strlen($bp_desc) > 100 ? substr($bp_desc, 0, 100) . '...' : $bp_desc ?>
+                                            </p>
+                                        <?php endif; ?>
+                                        <div class="flex justify-between items-center mt-4 pt-4 border-gray-100 border-t">
+                                            <span class="font-medium text-gray-700 text-sm">Value: <?= $bp_amount ?></span>
+                                            <div class="flex gap-2">
+                                                <button class="text-blue-600 hover:text-blue-800 text-sm edit-bonus-btn"
+                                                    data-id="<?= $bp_id ?>"
+                                                    data-name="<?= $bp_name ?>"
+                                                    data-type="<?= $bp_type ?>"
+                                                    data-amount="<?= htmlspecialchars($plan['amount_or_percentage']) ?>"
+                                                    data-dept="<?= $bp_dept ?>"
+                                                    data-criteria="<?= htmlspecialchars($plan['eligibility_criteria'] ?? '') ?>"
+                                                    data-start="<?= $bp_start ?>"
+                                                    data-end="<?= $bp_end ?>"
+                                                    data-status="<?= $bp_status ?>">
+                                                    Edit
+                                                </button>
                                                 <form method="POST" action="API/delete_bonus_plan.php" class="inline delete-form">
                                                     <input type="hidden" name="id" value="<?= $bp_id ?>">
                                                     <button type="submit" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
@@ -380,7 +645,6 @@ if (!function_exists('format_frequency')) {
                         </div>
                     </div>
 
-                    <!-- Allowance Management -->
                     <!-- Allowance Management -->
                     <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
                         <div class="flex sm:flex-row flex-col justify-between items-start sm:items-center mb-4">
@@ -406,19 +670,21 @@ if (!function_exists('format_frequency')) {
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100" id="allowanceTableBody">
-                                    <?php if (empty($allowances)): ?>
+                                    <?php if (empty($allowances_tbl)): ?>
                                         <tr>
                                             <td colspan="7" class="px-4 py-3 text-gray-500 text-sm text-center">No allowances found. <button class="text-blue-600 hover:text-blue-800" onclick="document.getElementById('allowanceBtn').click()">Create one</button></td>
                                         </tr>
                                     <?php else: ?>
-                                        <?php foreach ($allowances as $allowance):
-                                            $alw_id = htmlspecialchars($allowance['id']);
-                                            $alw_type = htmlspecialchars($allowance['allowance_type']);
-                                            $alw_dept = htmlspecialchars($allowance['department'] ?? 'All');
-                                            $alw_amount = format_currency($allowance['amount']);
-                                            $alw_freq = format_frequency($allowance['frequency']);
-                                            $alw_criteria = htmlspecialchars($allowance['eligibility_criteria'] ?? '');
-                                            $alw_status = htmlspecialchars($allowance['status']);
+                                        <?php foreach ($allowances_tbl as $a):
+                                            // Safely access array elements with null coalescing
+                                            $alw_id = htmlspecialchars($a['id'] ?? '');
+                                            $alw_type = htmlspecialchars($a['allowance_type'] ?? $a['type'] ?? 'Not Specified');
+                                            $alw_dept = htmlspecialchars($a['department'] ?? $a['dept'] ?? 'All');
+                                            $alw_amount_raw = $a['amount'] ?? $a['value'] ?? 0;
+                                            $alw_amount = format_currency($alw_amount_raw);
+                                            $alw_freq = format_frequency($a['frequency'] ?? '');
+                                            $alw_criteria = htmlspecialchars($a['eligibility_criteria'] ?? $a['description'] ?? $a['details'] ?? '');
+                                            $alw_status = htmlspecialchars($a['status'] ?? 'active');
                                             $statusClass = status_class($alw_status);
                                         ?>
                                             <tr>
@@ -440,9 +706,9 @@ if (!function_exists('format_frequency')) {
                                                             data-id="<?= $alw_id ?>"
                                                             data-type="<?= $alw_type ?>"
                                                             data-dept="<?= $alw_dept ?>"
-                                                            data-amount="<?= htmlspecialchars($allowance['amount']) ?>"
-                                                            data-frequency="<?= $allowance['frequency'] ?>"
-                                                            data-criteria="<?= htmlspecialchars($allowance['eligibility_criteria'] ?? '') ?>"
+                                                            data-amount="<?= htmlspecialchars($alw_amount_raw) ?>"
+                                                            data-frequency="<?= htmlspecialchars($allowance['frequency'] ?? '') ?>"
+                                                            data-criteria="<?= htmlspecialchars($alw_criteria) ?>"
                                                             data-status="<?= $alw_status ?>">
                                                             Edit
                                                         </button>
@@ -463,308 +729,38 @@ if (!function_exists('format_frequency')) {
             </main>
         </div>
 
-        <!-- Salary Structure Modal -->
-        <div id="salaryStructureModal" class="hidden z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-            <div class="bg-white mx-4 p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-semibold text-gray-800 text-lg">Create Salary Structure</h3>
-                    <button id="closeSalaryModal" class="text-gray-400 hover:text-gray-600">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                <form id="createSalaryForm" class="space-y-4 create-form" method="POST" action="API/create_salary_grade.php">
-                    <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Grade Level</label>
-                            <input name="grade_name" type="text" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" placeholder="e.g., G1">
-                        </div>
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Position Title</label>
-                            <input name="position" type="text" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" placeholder="e.g., Junior Staff">
-                        </div>
-                    </div>
-                    <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Minimum Salary</label>
-                            <input name="min_salary" type="number" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" placeholder="15000">
-                        </div>
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Maximum Salary</label>
-                            <input name="max_salary" type="number" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" placeholder="25000">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block mb-1 font-medium text-gray-700 text-sm">Department</label>
-                        <select name="department" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                            <option value="">Select Department</option>
-                            <option value="hotel">Hotel Department</option>
-                            <option value="restaurant">Restaurant Department</option>
-                            <option value="hr">HR Department</option>
-                            <option value="logistic">Logistic Department</option>
-                            <option value="all">All Departments</option>
-                        </select>
-                    </div>
-                    <div class="flex justify-end gap-3 pt-4">
-                        <button type="button" id="cancelSalary" class="hover:bg-gray-50 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 transition-colors">
-                            Cancel
-                        </button>
-                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white transition-colors">
-                            Create Structure
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Edit Salary Structure Modal -->
-        <div id="editSalaryModal" class="hidden z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-            <div class="bg-white mx-4 p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-semibold text-gray-800 text-lg">Edit Salary Structure</h3>
-                    <button id="closeEditModal" class="text-gray-400 hover:text-gray-600">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                <form id="editSalaryForm" class="space-y-4" method="POST" action="API/update_salary_grade.php">
-                    <input type="hidden" id="edit_id" name="id">
-                    <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Grade Level</label>
-                            <input id="edit_grade" name="grade" type="text" class="bg-white px-3 py-2 border border-gray-300 rounded-lg w-full" placeholder="e.g., G1">
-                        </div>
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Position Title</label>
-                            <input id="edit_position" name="position" type="text" class="bg-white px-3 py-2 border border-gray-300 rounded-lg w-full" placeholder="e.g., Junior Staff">
-                        </div>
-                    </div>
-                    <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Minimum Salary</label>
-                            <input id="edit_min" name="min_salary" type="number" class="bg-white px-3 py-2 border border-gray-300 rounded-lg w-full" placeholder="15000">
-                        </div>
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Maximum Salary</label>
-                            <input id="edit_max" name="max_salary" type="number" class="bg-white px-3 py-2 border border-gray-300 rounded-lg w-full" placeholder="25000">
-                        </div>
-                    </div>
-                    <!-- Department removed from edit modal per request -->
-                    <div>
-                        <label class="block mb-1 font-medium text-gray-700 text-sm">Status</label>
-                        <select id="edit_status" name="status" class="bg-white px-3 py-2 border border-gray-300 rounded-lg w-full">
-                            <option value="Active">Active</option>
-                            <option value="Pending Review">Pending Review</option>
-                            <option value="Inactive">Inactive</option>
-                        </select>
-                    </div>
-                    <div class="flex justify-end gap-3 pt-4">
-                        <button type="button" id="cancelEdit" class="hover:bg-gray-50 px-4 py-2 border border-gray-300 rounded-lg text-gray-700">Cancel</button>
-                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white">Save Changes</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Bonus & Incentives Modal -->
-        <div id="bonusModal" class="hidden z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-            <div class="bg-white mx-4 p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-semibold text-gray-800 text-lg">Create Bonus & Incentive Plan</h3>
-                    <button id="closeBonusModal" class="text-gray-400 hover:text-gray-600">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                <form class="space-y-4">
-                    <div>
-                        <label class="block mb-1 font-medium text-gray-700 text-sm">Plan Name</label>
-                        <input type="text" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" placeholder="e.g., Sales Commission Plan">
-                    </div>
-                    <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Bonus Type</label>
-                            <select class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                                <option value="commission">Commission</option>
-                                <option value="performance">Performance Bonus</option>
-                                <option value="referral">Referral Bonus</option>
-                                <option value="seasonal">Seasonal Incentive</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Amount/Percentage</label>
-                            <input type="text" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" placeholder="e.g., 5% or ₱2,000">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block mb-1 font-medium text-gray-700 text-sm">Eligibility Criteria</label>
-                        <textarea class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full h-20" placeholder="Describe eligibility requirements..."></textarea>
-                    </div>
-                    <div class="flex justify-end gap-3 pt-4">
-                        <button type="button" id="cancelBonus" class="hover:bg-gray-50 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 transition-colors">
-                            Cancel
-                        </button>
-                        <button type="submit" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-white transition-colors">
-                            Create Plan
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Allowance Modal -->
-        <!-- Allowance Modal -->
-        <div id="allowanceModal" class="hidden z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-            <div class="bg-white mx-4 p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-semibold text-gray-800 text-lg">Create Allowance</h3>
-                    <button id="closeAllowanceModal" class="text-gray-400 hover:text-gray-600">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                <form id="createAllowanceForm" class="space-y-4 create-form" method="POST" action="API/create_allowance.php">
-                    <div>
-                        <label class="block mb-1 font-medium text-gray-700 text-sm">Allowance Type *</label>
-                        <input name="allowance_type" type="text" required class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" placeholder="e.g., Transportation, Meal, Uniform">
-                    </div>
-
-                    <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Department</label>
-                            <select name="department" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                                <option value="All">All Departments</option>
-                                <option value="hotel">Hotel Department</option>
-                                <option value="restaurant">Restaurant Department</option>
-                                <option value="hr">HR Department</option>
-                                <option value="logistic">Logistic Department</option>
-                                <option value="administrative">Administrative</option>
-                                <option value="financial">Financial</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Frequency *</label>
-                            <select name="frequency" required class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly" selected>Monthly</option>
-                                <option value="quarterly">Quarterly</option>
-                                <option value="annual">Annual</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 font-medium text-gray-700 text-sm">Amount (₱) *</label>
-                        <input name="amount" type="number" step="0.01" min="0" required class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" placeholder="2000">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 font-medium text-gray-700 text-sm">Eligibility Criteria</label>
-                        <textarea name="eligibility_criteria" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full h-20" placeholder="Describe eligibility requirements (optional)"></textarea>
-                    </div>
-
-                    <div class="flex justify-end gap-3 pt-4">
-                        <button type="button" id="cancelAllowance" class="hover:bg-gray-50 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 transition-colors">
-                            Cancel
-                        </button>
-                        <button type="submit" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-white transition-colors">
-                            Create Allowance
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Edit Allowance Modal -->
-        <div id="editAllowanceModal" class="hidden z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-            <div class="bg-white mx-4 p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-semibold text-gray-800 text-lg">Edit Allowance</h3>
-                    <button id="closeEditAllowanceModal" class="text-gray-400 hover:text-gray-600">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                <form id="editAllowanceForm" class="space-y-4" method="POST" action="API/update_allowance.php">
-                    <input type="hidden" id="edit_alw_id" name="id">
-
-                    <div>
-                        <label class="block mb-1 font-medium text-gray-700 text-sm">Allowance Type *</label>
-                        <input id="edit_alw_type" name="allowance_type" type="text" required class="bg-white px-3 py-2 border border-gray-300 rounded-lg w-full">
-                    </div>
-
-                    <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Department</label>
-                            <select id="edit_alw_dept" name="department" class="bg-white px-3 py-2 border border-gray-300 rounded-lg w-full">
-                                <option value="All">All Departments</option>
-                                <option value="hotel">Hotel Department</option>
-                                <option value="restaurant">Restaurant Department</option>
-                                <option value="hr">HR Department</option>
-                                <option value="logistic">Logistic Department</option>
-                                <option value="administrative">Administrative</option>
-                                <option value="financial">Financial</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block mb-1 font-medium text-gray-700 text-sm">Frequency *</label>
-                            <select id="edit_alw_freq" name="frequency" required class="bg-white px-3 py-2 border border-gray-300 rounded-lg w-full">
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly">Monthly</option>
-                                <option value="quarterly">Quarterly</option>
-                                <option value="annual">Annual</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 font-medium text-gray-700 text-sm">Amount (₱) *</label>
-                        <input id="edit_alw_amount" name="amount" type="number" step="0.01" min="0" required class="bg-white px-3 py-2 border border-gray-300 rounded-lg w-full">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 font-medium text-gray-700 text-sm">Eligibility Criteria</label>
-                        <textarea id="edit_alw_criteria" name="eligibility_criteria" class="bg-white px-3 py-2 border border-gray-300 rounded-lg w-full h-20"></textarea>
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 font-medium text-gray-700 text-sm">Status</label>
-                        <select id="edit_alw_status" name="status" class="bg-white px-3 py-2 border border-gray-300 rounded-lg w-full">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                    </div>
-
-                    <div class="flex justify-end gap-3 pt-4">
-                        <button type="button" id="cancelEditAllowance" class="hover:bg-gray-50 px-4 py-2 border border-gray-300 rounded-lg text-gray-700">Cancel</button>
-                        <button type="submit" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-white">Save Changes</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+        <?php include 'modals/salary_structure_modal.php' ?>
+        <?php include 'modals/edit_salary_modal.php' ?>
+        <?php include 'modals/bonus_incentives_modal.php' ?>
+        <?php include 'modals/edit_bonus_modal.php' ?>
+        <?php include 'modals/allowance_modal.php' ?>
+        <?php include 'modals/edit_allowance_modal.php' ?>
     </div>
 
     <script>
         lucide.createIcons();
 
-        // Initialize Charts
+        // Initialize Charts with Dynamic Data
         const salaryCtx = document.getElementById('salaryChart')?.getContext('2d');
         if (salaryCtx) {
+            // Prepare data from PHP
+            const deptLabels = <?= json_encode(array_column($salary_by_dept, 'department')) ?>;
+            const avgSalaries = <?= json_encode(array_column($salary_by_dept, 'avg_salary')) ?>;
+            const employeeCounts = <?= json_encode(array_column($salary_by_dept, 'employee_count')) ?>;
+
+            // Generate colors dynamically based on number of departments
+            const colors = generateChartColors(deptLabels.length);
+
             const salaryChart = new Chart(salaryCtx, {
                 type: 'bar',
                 data: {
-                    labels: ['Hotel', 'Restaurant', 'HR', 'Logistic', 'Admin', 'Financial'],
+                    labels: deptLabels.length > 0 ? deptLabels : ['No Department Data'],
                     datasets: [{
-                        label: 'Average Salary (₱)',
-                        data: [28000, 22000, 35000, 25000, 32000, 40000],
-                        backgroundColor: [
-                            '#3B82F6',
-                            '#10B981',
-                            '#8B5CF6',
-                            '#F59E0B',
-                            '#EF4444',
-                            '#06B6D4'
-                        ],
-                        borderWidth: 0
+                        label: 'Average Monthly Salary (₱)',
+                        data: avgSalaries.length > 0 ? avgSalaries : [0],
+                        backgroundColor: colors,
+                        borderWidth: 0,
+                        borderRadius: 4
                     }]
                 },
                 options: {
@@ -775,11 +771,32 @@ if (!function_exists('format_frequency')) {
                             beginAtZero: true,
                             grid: {
                                 drawBorder: false
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '₱' + value.toLocaleString();
+                                }
                             }
                         },
                         x: {
                             grid: {
                                 display: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.dataset.label || '';
+                                    const value = context.parsed.y || 0;
+                                    const index = context.dataIndex;
+                                    const count = employeeCounts[index] || 0;
+                                    return [
+                                        `${label}: ₱${value.toLocaleString()}`,
+                                        `Employees: ${count}`
+                                    ];
+                                }
                             }
                         }
                     }
@@ -789,19 +806,23 @@ if (!function_exists('format_frequency')) {
 
         const mixCtx = document.getElementById('compensationMixChart')?.getContext('2d');
         if (mixCtx) {
+            // Prepare data from PHP
+            const mixLabels = <?= json_encode(array_column($compensation_mix, 'type')) ?>;
+            const mixValues = <?= json_encode(array_column($compensation_mix, 'value')) ?>;
+
+            // Calculate percentages
+            const total = mixValues.reduce((sum, val) => sum + parseFloat(val || 0), 0);
+            const percentages = mixValues.map(val => total > 0 ? ((parseFloat(val || 0) / total) * 100).toFixed(1) : 0);
+
             const compensationMixChart = new Chart(mixCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Base Salary', 'Bonuses', 'Allowances', 'Benefits'],
+                    labels: mixLabels.length > 0 ? mixLabels : ['No Data'],
                     datasets: [{
-                        data: [65, 15, 12, 8],
-                        backgroundColor: [
-                            '#3B82F6',
-                            '#10B981',
-                            '#8B5CF6',
-                            '#F59E0B'
-                        ],
-                        borderWidth: 0
+                        data: percentages.length > 0 ? percentages : [100],
+                        backgroundColor: ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#06B6D4'],
+                        borderWidth: 0,
+                        hoverOffset: 10
                     }]
                 },
                 options: {
@@ -810,11 +831,50 @@ if (!function_exists('format_frequency')) {
                     cutout: '70%',
                     plugins: {
                         legend: {
-                            position: 'bottom'
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const index = context.dataIndex;
+                                    const actualValue = mixValues[index] || 0;
+                                    return [
+                                        `${label}: ${value}%`,
+                                        `Amount: ₱${parseFloat(actualValue).toLocaleString()}`
+                                    ];
+                                }
+                            }
                         }
                     }
                 }
             });
+        }
+
+        // Helper function to generate chart colors
+        function generateChartColors(count) {
+            const baseColors = [
+                '#3B82F6', '#10B981', '#8B5CF6', '#F59E0B',
+                '#EF4444', '#06B6D4', '#EC4899', '#14B8A6',
+                '#F97316', '#6366F1', '#8B5CF6', '#EF4444'
+            ];
+
+            if (count <= baseColors.length) {
+                return baseColors.slice(0, count);
+            }
+
+            // Generate additional colors if needed
+            const colors = [...baseColors];
+            for (let i = baseColors.length; i < count; i++) {
+                const hue = Math.floor(Math.random() * 360);
+                colors.push(`hsl(${hue}, 70%, 60%)`);
+            }
+            return colors;
         }
 
         // Modal Functionality
@@ -905,9 +965,451 @@ if (!function_exists('format_frequency')) {
             });
         });
 
+        // Function to validate if a string is a valid number (including decimals)
+        function isValidNumber(value) {
+            if (value === '' || value === null || value === undefined) return false;
+            // Remove commas and currency symbols for validation
+            const cleanValue = String(value).replace(/[₱,]/g, '').trim();
+            // Check if it's a valid number (including decimals)
+            return !isNaN(parseFloat(cleanValue)) && isFinite(cleanValue);
+        }
+
+        // Function to validate if a string is a valid percentage
+        function isValidPercentage(value) {
+            if (value === '' || value === null || value === undefined) return false;
+            const cleanValue = String(value).replace('%', '').trim();
+            const num = parseFloat(cleanValue);
+            return !isNaN(num) && isFinite(num) && num >= 0 && num <= 100;
+        }
+
+        // Function to validate if a string is a valid amount (currency or percentage)
+        function isValidAmountOrPercentage(value) {
+            if (value === '' || value === null || value === undefined) return false;
+
+            // Check if it's a percentage
+            if (value.includes('%')) {
+                return isValidPercentage(value);
+            }
+
+            // Check if it's a currency amount
+            return isValidNumber(value);
+        }
+
+        // Function to validate date is not in the past
+        function isValidFutureDate(dateString) {
+            if (!dateString) return true; // Empty dates are allowed
+            const inputDate = new Date(dateString);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Set to start of day
+            return inputDate >= today;
+        }
+
+        // Function to validate end date is after start date
+        function isValidDateRange(startDate, endDate) {
+            if (!startDate || !endDate) return true; // If either is empty, validation passes
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            return end >= start;
+        }
+
+        // Function to validate salary range (min < max)
+        function isValidSalaryRange(min, max) {
+            if (!min || !max) return true; // If either is empty, validation passes
+            const minVal = parseFloat(min);
+            const maxVal = parseFloat(max);
+            return minVal < maxVal;
+        }
+
+        // Function to validate amount is positive
+        function isValidPositiveNumber(value) {
+            if (value === '' || value === null || value === undefined) return false;
+            const num = parseFloat(value);
+            return !isNaN(num) && isFinite(num) && num >= 0;
+        }
+
+        // Set up date input restrictions (min = today)
+        function setupDateInputRestrictions() {
+            const today = new Date().toISOString().split('T')[0];
+
+            // Set min date for all date inputs
+            document.querySelectorAll('input[type="date"]').forEach(dateInput => {
+                dateInput.setAttribute('min', today);
+
+                // Add change event to validate dates
+                dateInput.addEventListener('change', function() {
+                    if (this.value && !isValidFutureDate(this.value)) {
+                        this.setCustomValidity('Date cannot be in the past');
+                        this.reportValidity();
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                });
+            });
+        }
+
+        // Set up number input restrictions
+        function setupNumberInputValidations() {
+            // Salary inputs - min and max validation
+            const salaryInputs = document.querySelectorAll('input[name="min_salary"], input[name="max_salary"]');
+            salaryInputs.forEach(input => {
+                input.setAttribute('min', '0');
+                input.setAttribute('step', '0.01');
+
+                input.addEventListener('change', function() {
+                    const minInput = document.querySelector('input[name="min_salary"]');
+                    const maxInput = document.querySelector('input[name="max_salary"]');
+
+                    if (minInput && maxInput && minInput.value && maxInput.value) {
+                        if (!isValidSalaryRange(minInput.value, maxInput.value)) {
+                            minInput.setCustomValidity('Minimum salary must be less than maximum salary');
+                            minInput.reportValidity();
+                            maxInput.setCustomValidity('Maximum salary must be greater than minimum salary');
+                            maxInput.reportValidity();
+                        } else {
+                            minInput.setCustomValidity('');
+                            maxInput.setCustomValidity('');
+                        }
+                    }
+                });
+            });
+
+            // Allowance amount input
+            const allowanceAmountInput = document.querySelector('input[name="amount"]');
+            if (allowanceAmountInput) {
+                allowanceAmountInput.setAttribute('min', '0');
+                allowanceAmountInput.setAttribute('step', '0.01');
+
+                allowanceAmountInput.addEventListener('change', function() {
+                    if (this.value && !isValidPositiveNumber(this.value)) {
+                        this.setCustomValidity('Amount must be a positive number');
+                        this.reportValidity();
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                });
+            }
+
+            // Edit allowance amount input
+            const editAllowanceAmountInput = document.querySelector('#edit_alw_amount');
+            if (editAllowanceAmountInput) {
+                editAllowanceAmountInput.setAttribute('min', '0');
+                editAllowanceAmountInput.setAttribute('step', '0.01');
+
+                editAllowanceAmountInput.addEventListener('change', function() {
+                    if (this.value && !isValidPositiveNumber(this.value)) {
+                        this.setCustomValidity('Amount must be a positive number');
+                        this.reportValidity();
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                });
+            }
+        }
+
+        // Set up bonus form validation
+        function setupBonusFormValidation() {
+            // Bonus amount/percentage validation
+            const bonusAmountInputs = document.querySelectorAll('#edit_bonus_amount, input[name="amount_or_percentage"]');
+            bonusAmountInputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    if (this.value && !isValidAmountOrPercentage(this.value)) {
+                        this.setCustomValidity('Please enter a valid amount (e.g., 5000 or 5%)');
+                        this.reportValidity();
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                });
+            });
+
+            // Bonus date range validation
+            const startDateInputs = document.querySelectorAll('#edit_bonus_start, input[name="start_date"]');
+            const endDateInputs = document.querySelectorAll('#edit_bonus_end, input[name="end_date"]');
+
+            startDateInputs.forEach(startInput => {
+                startInput.addEventListener('change', function() {
+                    const form = this.closest('form');
+                    const endInput = form.querySelector('#edit_bonus_end') || form.querySelector('input[name="end_date"]');
+
+                    if (this.value && endInput && endInput.value) {
+                        if (!isValidDateRange(this.value, endInput.value)) {
+                            this.setCustomValidity('Start date must be before end date');
+                            this.reportValidity();
+                        } else {
+                            this.setCustomValidity('');
+                        }
+                    }
+                });
+            });
+
+            endDateInputs.forEach(endInput => {
+                endInput.addEventListener('change', function() {
+                    const form = this.closest('form');
+                    const startInput = form.querySelector('#edit_bonus_start') || form.querySelector('input[name="start_date"]');
+
+                    if (this.value && startInput && startInput.value) {
+                        if (!isValidDateRange(startInput.value, this.value)) {
+                            this.setCustomValidity('End date must be after start date');
+                            this.reportValidity();
+                        } else {
+                            this.setCustomValidity('');
+                        }
+                    }
+                });
+            });
+        }
+
+        // Create Salary Form Validation
+        document.getElementById('createSalaryForm')?.addEventListener('submit', function(e) {
+            const minSalary = this.querySelector('[name="min_salary"]').value;
+            const maxSalary = this.querySelector('[name="max_salary"]').value;
+            const gradeName = this.querySelector('[name="grade_name"]').value.trim();
+            const position = this.querySelector('[name="position"]').value.trim();
+
+            let hasError = false;
+            let errorMessage = '';
+
+            // Validate required fields
+            if (!gradeName || !position) {
+                hasError = true;
+                errorMessage = 'Grade Level and Position Title are required.';
+            }
+
+            // Validate salary amounts
+            if (!isValidPositiveNumber(minSalary)) {
+                hasError = true;
+                errorMessage = 'Please enter a valid minimum salary (positive number).';
+            }
+
+            if (!isValidPositiveNumber(maxSalary)) {
+                hasError = true;
+                errorMessage = 'Please enter a valid maximum salary (positive number).';
+            }
+
+            // Validate salary range
+            if (minSalary && maxSalary && !isValidSalaryRange(minSalary, maxSalary)) {
+                hasError = true;
+                errorMessage = 'Minimum salary must be less than maximum salary.';
+            }
+
+            if (hasError) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Validation Error',
+                    text: errorMessage,
+                    confirmButtonText: 'OK'
+                });
+            }
+        });
+
+        // Edit Salary Form Validation
+        document.getElementById('editSalaryForm')?.addEventListener('submit', function(e) {
+            const minSalary = this.querySelector('[name="min_salary"]').value;
+            const maxSalary = this.querySelector('[name="max_salary"]').value;
+            const grade = this.querySelector('[name="grade"]').value.trim();
+            const position = this.querySelector('[name="position"]').value.trim();
+
+            let hasError = false;
+            let errorMessage = '';
+
+            // Validate required fields
+            if (!grade || !position) {
+                hasError = true;
+                errorMessage = 'Grade Level and Position Title are required.';
+            }
+
+            // Validate salary amounts
+            if (!isValidPositiveNumber(minSalary)) {
+                hasError = true;
+                errorMessage = 'Please enter a valid minimum salary (positive number).';
+            }
+
+            if (!isValidPositiveNumber(maxSalary)) {
+                hasError = true;
+                errorMessage = 'Please enter a valid maximum salary (positive number).';
+            }
+
+            // Validate salary range
+            if (minSalary && maxSalary && !isValidSalaryRange(minSalary, maxSalary)) {
+                hasError = true;
+                errorMessage = 'Minimum salary must be less than maximum salary.';
+            }
+
+            if (hasError) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Validation Error',
+                    text: errorMessage,
+                    confirmButtonText: 'OK'
+                });
+            }
+        });
+
+        // Create Bonus Form Validation
+        document.getElementById('createBonusForm')?.addEventListener('submit', function(e) {
+            const planName = this.querySelector('[name="plan_name"]').value.trim();
+            const bonusType = this.querySelector('[name="bonus_type"]').value;
+            const amount = this.querySelector('[name="amount_or_percentage"]').value.trim();
+            const startDate = this.querySelector('[name="start_date"]').value;
+            const endDate = this.querySelector('[name="end_date"]').value;
+
+            let hasError = false;
+            let errorMessage = '';
+
+            // Validate required fields
+            if (!planName || !bonusType || !amount) {
+                hasError = true;
+                errorMessage = 'Plan Name, Bonus Type, and Amount/Percentage are required.';
+            }
+
+            // Validate amount/percentage
+            if (amount && !isValidAmountOrPercentage(amount)) {
+                hasError = true;
+                errorMessage = 'Please enter a valid amount (e.g., 5000 or 5%).';
+            }
+
+            // Validate dates
+            if (startDate && !isValidFutureDate(startDate)) {
+                hasError = true;
+                errorMessage = 'Start date cannot be in the past.';
+            }
+
+            if (endDate && !isValidFutureDate(endDate)) {
+                hasError = true;
+                errorMessage = 'End date cannot be in the past.';
+            }
+
+            // Validate date range
+            if (startDate && endDate && !isValidDateRange(startDate, endDate)) {
+                hasError = true;
+                errorMessage = 'End date must be after start date.';
+            }
+
+            if (hasError) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Validation Error',
+                    text: errorMessage,
+                    confirmButtonText: 'OK'
+                });
+            }
+        });
+
+        // Edit Bonus Form Validation
+        document.getElementById('editBonusForm')?.addEventListener('submit', function(e) {
+            const planName = this.querySelector('[name="plan_name"]').value.trim();
+            const bonusType = this.querySelector('[name="bonus_type"]').value;
+            const amount = this.querySelector('[name="amount_or_percentage"]').value.trim();
+            const startDate = this.querySelector('[name="start_date"]').value;
+            const endDate = this.querySelector('[name="end_date"]').value;
+
+            let hasError = false;
+            let errorMessage = '';
+
+            // Validate required fields
+            if (!planName || !bonusType || !amount) {
+                hasError = true;
+                errorMessage = 'Plan Name, Bonus Type, and Amount/Percentage are required.';
+            }
+
+            // Validate amount/percentage
+            if (amount && !isValidAmountOrPercentage(amount)) {
+                hasError = true;
+                errorMessage = 'Please enter a valid amount (e.g., 5000 or 5%).';
+            }
+
+            // Validate dates (for existing records, allow past dates for start date)
+            if (endDate && !isValidFutureDate(endDate)) {
+                hasError = true;
+                errorMessage = 'End date cannot be in the past.';
+            }
+
+            // Validate date range
+            if (startDate && endDate && !isValidDateRange(startDate, endDate)) {
+                hasError = true;
+                errorMessage = 'End date must be after start date.';
+            }
+
+            if (hasError) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Validation Error',
+                    text: errorMessage,
+                    confirmButtonText: 'OK'
+                });
+            }
+        });
+
+        // Create Allowance Form Validation
+        document.getElementById('createAllowanceForm')?.addEventListener('submit', function(e) {
+            const allowanceType = this.querySelector('[name="allowance_type"]').value.trim();
+            const amount = this.querySelector('[name="amount"]').value;
+            const frequency = this.querySelector('[name="frequency"]').value;
+
+            let hasError = false;
+            let errorMessage = '';
+
+            // Validate required fields
+            if (!allowanceType || !amount || !frequency) {
+                hasError = true;
+                errorMessage = 'Allowance Type, Amount, and Frequency are required.';
+            }
+
+            // Validate amount
+            if (amount && !isValidPositiveNumber(amount)) {
+                hasError = true;
+                errorMessage = 'Please enter a valid positive amount.';
+            }
+
+            if (hasError) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Validation Error',
+                    text: errorMessage,
+                    confirmButtonText: 'OK'
+                });
+            }
+        });
+
+        // Edit Allowance Form Validation
+        document.getElementById('editAllowanceForm')?.addEventListener('submit', function(e) {
+            const allowanceType = this.querySelector('[name="allowance_type"]').value.trim();
+            const amount = this.querySelector('[name="amount"]').value;
+            const frequency = this.querySelector('[name="frequency"]').value;
+
+            let hasError = false;
+            let errorMessage = '';
+
+            // Validate required fields
+            if (!allowanceType || !amount || !frequency) {
+                hasError = true;
+                errorMessage = 'Allowance Type, Amount, and Frequency are required.';
+            }
+
+            // Validate amount
+            if (amount && !isValidPositiveNumber(amount)) {
+                hasError = true;
+                errorMessage = 'Please enter a valid positive amount.';
+            }
+
+            if (hasError) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Validation Error',
+                    text: errorMessage,
+                    confirmButtonText: 'OK'
+                });
+            }
+        });
+
         // FIXED: Prevent default submit on forms that should NOT submit to server
         // Exclude: edit forms, create forms, and delete forms (handled separately)
-        document.querySelectorAll('form:not(#editSalaryForm):not(#editAllowanceForm):not(.create-form):not(.delete-form)').forEach(form => {
+        document.querySelectorAll('form:not(#editSalaryForm):not(#editAllowanceForm):not(#editBonusForm):not(.create-form):not(.delete-form)').forEach(form => {
             form.addEventListener('submit', (e) => {
                 e.preventDefault();
 
@@ -916,14 +1418,14 @@ if (!function_exists('format_frequency')) {
                     toast: true,
                     position: 'top-end',
                     icon: 'success',
-                    title: 'Submitted (Demo)',
+                    title: 'Submitted successfully',
                     showConfirmButton: false,
                     timer: 1500,
                     timerProgressBar: true
                 });
 
                 // Close all modals
-                [salaryStructureModal, bonusModal, allowanceModal, editSalaryModal, editAllowanceModal].forEach(modal => {
+                [salaryStructureModal, bonusModal, allowanceModal, editSalaryModal, editAllowanceModal, editBonusModal].forEach(modal => {
                     modal?.classList.add('hidden');
                 });
             });
@@ -1030,7 +1532,10 @@ if (!function_exists('format_frequency')) {
                     icon: 'error',
                     title: 'Error',
                     text: msg || error,
-                    confirmButtonText: 'OK'
+                    confirmButtonText: 'OK',
+                    customClass: {
+                        confirmButton: 'swal-btn-primary'
+                    }
                 });
 
                 // Clean URL after showing error
@@ -1125,12 +1630,239 @@ if (!function_exists('format_frequency')) {
             });
         }
 
-        // Add debug logging for form submissions
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Forms that will submit to server:');
-            document.querySelectorAll('form[action]').forEach(form => {
-                console.log(`- ${form.id || 'unnamed form'}: ${form.getAttribute('action')}`);
+        // Bonus Modal Functionality
+        const editBonusModal = document.getElementById('editBonusModal');
+
+        // Open edit bonus modal
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('edit-bonus-btn')) {
+                e.preventDefault();
+                const btn = e.target;
+
+                // Get all data attributes
+                const data = {
+                    id: btn.getAttribute('data-id'),
+                    name: btn.getAttribute('data-name'),
+                    type: btn.getAttribute('data-type'),
+                    amount: btn.getAttribute('data-amount'),
+                    dept: btn.getAttribute('data-dept'),
+                    criteria: btn.getAttribute('data-criteria'),
+                    start: btn.getAttribute('data-start'),
+                    end: btn.getAttribute('data-end'),
+                    status: btn.getAttribute('data-status')
+                };
+
+                // Populate form fields
+                const setValue = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = value || '';
+                };
+
+                setValue('edit_bonus_id', data.id);
+                setValue('edit_bonus_name', data.name);
+                setValue('edit_bonus_type', data.type);
+                setValue('edit_bonus_amount', data.amount);
+                setValue('edit_bonus_dept', data.dept);
+                setValue('edit_bonus_criteria', data.criteria);
+                setValue('edit_bonus_start', data.start);
+                setValue('edit_bonus_end', data.end);
+                setValue('edit_bonus_status', data.status);
+
+                // Show modal
+                editBonusModal?.classList.remove('hidden');
+            }
+        });
+
+        // Close edit bonus modal
+        document.getElementById('closeEditBonusModal')?.addEventListener('click', () => editBonusModal?.classList.add('hidden'));
+        document.getElementById('cancelEditBonus')?.addEventListener('click', () => editBonusModal?.classList.add('hidden'));
+
+        // Close modal when clicking outside
+        editBonusModal?.addEventListener('click', (e) => {
+            if (e.target === editBonusModal) editBonusModal.classList.add('hidden');
+        });
+
+        // Bonus search functionality
+        const searchBonusInput = document.getElementById('searchBonus');
+        if (searchBonusInput) {
+            searchBonusInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase().trim();
+                const cards = document.querySelectorAll('#bonusPlansContainer > div');
+
+                let visibleCount = 0;
+
+                cards.forEach(card => {
+                    if (card.textContent.toLowerCase().includes(searchTerm)) {
+                        card.style.display = '';
+                        visibleCount++;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+
+                // Show message if no results
+                const noResultsMsg = document.getElementById('noBonusResults');
+                if (visibleCount === 0 && searchTerm !== '') {
+                    if (!noResultsMsg) {
+                        const msg = document.createElement('div');
+                        msg.id = 'noBonusResults';
+                        msg.className = 'col-span-3 p-4 text-gray-500 text-center';
+                        msg.textContent = 'No bonus plans found matching your search.';
+                        document.getElementById('bonusPlansContainer').appendChild(msg);
+                    }
+                } else if (noResultsMsg) {
+                    noResultsMsg.remove();
+                }
             });
+        }
+
+        // Handle bonus-specific URL parameters
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+
+            // Handle bonus creation/update/deletion results
+            const bonusCreated = params.get('bonus_created');
+            const bonusUpdated = params.get('bonus_updated');
+            const bonusDeleted = params.get('bonus_deleted');
+
+            if (bonusCreated === '1') {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Bonus plan created successfully!',
+                    showConfirmButton: false,
+                    timer: 2000,
+                    timerProgressBar: true
+                });
+
+                // Clean URL
+                setTimeout(() => {
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }, 100);
+            } else if (bonusCreated === '0') {
+                const error = params.get('error') || 'Creation failed';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error,
+                    confirmButtonText: 'OK',
+                    customClass: {
+                        confirmButton: 'swal-btn-primary'
+                    }
+                });
+
+                setTimeout(() => {
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }, 100);
+            }
+
+            if (bonusUpdated === '1') {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Bonus plan updated successfully!',
+                    showConfirmButton: false,
+                    timer: 2000,
+                    timerProgressBar: true
+                });
+
+                setTimeout(() => {
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }, 100);
+            } else if (bonusUpdated === '0') {
+                const error = params.get('error') || 'Update failed';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error,
+                    confirmButtonText: 'OK',
+                    customClass: {
+                        confirmButton: 'swal-btn-primary'
+                    }
+                });
+
+                setTimeout(() => {
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }, 100);
+            }
+
+            if (bonusDeleted === '1') {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Bonus plan deleted successfully!',
+                    showConfirmButton: false,
+                    timer: 2000,
+                    timerProgressBar: true
+                });
+
+                setTimeout(() => {
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }, 100);
+            } else if (bonusDeleted === '0') {
+                const error = params.get('error') || 'Deletion failed';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error,
+                    confirmButtonText: 'OK',
+                    customClass: {
+                        confirmButton: 'swal-btn-primary'
+                    }
+                });
+
+                setTimeout(() => {
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }, 100);
+            }
+        })();
+
+        // Form validation for bonus forms
+        document.getElementById('createBonusForm')?.addEventListener('submit', function(e) {
+            const planName = this.querySelector('[name="plan_name"]').value.trim();
+            const bonusType = this.querySelector('[name="bonus_type"]').value;
+            const amount = this.querySelector('[name="amount_or_percentage"]').value.trim();
+
+            if (!planName || !bonusType || !amount) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Missing Information',
+                    text: 'Please fill in all required fields (Plan Name, Bonus Type, and Amount).',
+                    confirmButtonText: 'OK',
+                    customClass: {
+                        confirmButton: 'swal-btn-primary'
+                    }
+                });
+            }
+        });
+
+        document.getElementById('editBonusForm')?.addEventListener('submit', function(e) {
+            const planName = this.querySelector('[name="plan_name"]').value.trim();
+            const bonusType = this.querySelector('[name="bonus_type"]').value;
+            const amount = this.querySelector('[name="amount_or_percentage"]').value.trim();
+
+            if (!planName || !bonusType || !amount) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Missing Information',
+                    text: 'Please fill in all required fields (Plan Name, Bonus Type, and Amount).',
+                    confirmButtonText: 'OK',
+                    customClass: {
+                        confirmButton: 'swal-btn-primary'
+                    }
+                });
+            }
         });
     </script>
 </body>
