@@ -43,4 +43,47 @@
     .swal2-actions {
         margin: 1.5rem auto 0 !important;
     }
+
+    /* SweetAlert base button */
+    .swal-btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border: none;
+        cursor: pointer;
+    }
+
+    /* Approve / Confirm */
+    .btn-confirm {
+        background-color: #16a34a;
+        /* green */
+        color: #ffffff;
+    }
+
+    .btn-confirm:hover {
+        background-color: #15803d;
+    }
+
+    /* Cancel */
+    .btn-cancel {
+        background-color: #e5e7eb;
+        /* gray */
+        color: #374151;
+    }
+
+    .btn-cancel:hover {
+        background-color: #d1d5db;
+    }
+
+    /* Delete / Danger */
+    .btn-danger {
+        background-color: #dc2626;
+        /* red */
+        color: #ffffff;
+    }
+
+    .btn-danger:hover {
+        background-color: #b91c1c;
+    }
 </style>
