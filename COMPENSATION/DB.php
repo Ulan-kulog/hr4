@@ -11,8 +11,8 @@ class Database
     // ================= EDIT ONLY THESE 4 LINES =================
     private const DB_HOST = 'localhost';     // Your database host
     private const DB_NAME = 'HR_4';   // Your database name  
-    private const DB_USER = 'root';          // Your database username
-    private const DB_PASS = '';      // Your database password
+    private const DB_USER = '3206_CENTRALIZED_DATABASE';          // Your database username
+    private const DB_PASS = '1234';      // Your database password
     // ===========================================================
 
     /**
