@@ -5,7 +5,7 @@ $role = $_SESSION['role'] ?? 'guest';
 // $is_supervisor = ($role === 'supervisor' || $role === 'admin');
 
 // Define base path for consistent URL structure
-$base_url = '/HR_4/'; // Correct full URL
+$base_url = 'https://hr4.soliera-hotel-restaurant.com'; // Correct full URL
 
 // Get current page for active state highlighting
 $current_page = basename($_SERVER['PHP_SELF']);
@@ -94,7 +94,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             <!-- =========================== -->
             <!-- PAYROLL SECTION -->
             <!-- =========================== -->
-           
+
 
             <!-- Payroll Processing Dropdown -->
             <div class="relative menu-dropdown" data-dropdown="payroll-processing">
@@ -134,7 +134,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 </div>
             </div>
 
-          
+
             <!-- Compensation Management Dropdown -->
             <div class="relative menu-dropdown" data-dropdown="compensation-management">
                 <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['core_compensation.php', 'strat_planning.php', 'performance_linked.php', 'administration.php', 'Hospitality.php', 'analytics.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
