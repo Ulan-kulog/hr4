@@ -4,7 +4,7 @@ require_once '../../connection.php'; // Adjust path as necessary
 
 $response = [];
 
-if (isset($connections['HR_4'])) {
+if (isset($connections['hr4_hr_4'])) {
     $conn = $connections['hr4_hr_4'];
 
     $sql = "SELECT * FROM departments ORDER BY name ASC";

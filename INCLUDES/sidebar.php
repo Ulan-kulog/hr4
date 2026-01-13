@@ -32,7 +32,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </div>
 
             <!-- Main Dashboard -->
-            <a href="<?php echo $base_url; ?>/ANALYTICS/main_analytics.php" class="block">
+            <a href="<?php echo $base_url; ?>/index.php" class="block">
                 <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group <?php echo ($current_page == 'main_analytics.php') ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
                     <div class="bg-blue-700/50 p-1.5 rounded-lg transition-colors">
                         <i data-lucide="layout-dashboard" class="w-5 h-5 text-white"></i>

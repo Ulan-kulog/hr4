@@ -1,7 +1,7 @@
 <?php
 // job_positions_api.php - REST API for Job Positions
 session_start();
-include("../connection.php");
+include("../../connection.php");
 
 // Connect to hr_4 database
 $db_name = "hr4_hr_4";
@@ -68,9 +68,9 @@ function getJobPositions($conn, $params = []) {
     }
     
     // Pagination
-    $page = isset($params['page']) ? (int)$params['page'] : 1;
-    $limit = isset($params['limit']) ? (int)$params['limit'] : 10;
-    $offset = ($page - 1) * $limit;
+    // $page = isset($params['page']) ? (int)$params['page'] : 1;
+    // $limit = isset($params['limit']) ? (int)$params['limit'] : 10;
+    // $offset = ($page - 1) * $limit;
     
     // Main query with department name join
     $sql = "SELECT 
@@ -89,10 +89,10 @@ function getJobPositions($conn, $params = []) {
             ORDER BY jl.created_at DESC
             LIMIT ? OFFSET ?";
     
-    // Add pagination parameters
-    $queryParams[] = $limit;
-    $queryParams[] = $offset;
-    $types .= 'ii';
+    // // Add pagination parameters
+    // $queryParams[] = $limit;
+    // $queryParams[] = $offset;
+    // $types .= 'ii';
     
     // Prepare and execute query
     if (!empty($queryParams)) {
@@ -126,12 +126,12 @@ function getJobPositions($conn, $params = []) {
     return [
         'success' => true,
         'data' => $positions,
-        'pagination' => [
-            'page' => $page,
-            'limit' => $limit,
-            'total' => $totalCount,
-            'total_pages' => ceil($totalCount / $limit)
-        ],
+        // 'pagination' => [
+        //     'page' => $page,
+        //     'limit' => $limit,
+        //     'total' => $totalCount,
+        //     'total_pages' => ceil($totalCount / $limit)
+        // ],
         'meta' => [
             'count' => count($positions),
             'filters' => $params
