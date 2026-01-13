@@ -677,16 +677,28 @@ $user_role = $_SESSION['user_role'] ?? 'employee'; // admin, manager, hr, financ
             }
 
             // Show/hide provider field for medical/accident claims
+            const incidentDateInput = document.querySelector('input[name="incident_date"]');
             if (claimType === 'medical' || claimType === 'accident') {
                 providerField.classList.remove('hidden');
                 if (claimType === 'accident') {
                     incidentDateField.classList.remove('hidden');
+                    if (incidentDateInput) incidentDateInput.required = true;
                 } else {
                     incidentDateField.classList.add('hidden');
+                    if (incidentDateInput) {
+                        incidentDateInput.required = false;
+                        incidentDateInput.value = '';
+                    }
                 }
             } else {
                 providerField.classList.add('hidden');
-                incidentDateField.classList.add('hidden');
+                if (incidentDateInput) {
+                    incidentDateField.classList.add('hidden');
+                    incidentDateInput.required = false;
+                    incidentDateInput.value = '';
+                } else {
+                    incidentDateField.classList.add('hidden');
+                }
             }
         }
 
