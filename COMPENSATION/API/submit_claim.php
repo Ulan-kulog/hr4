@@ -31,6 +31,24 @@ try {
     $provider_name = $_POST['provider_name'] ?? null;
     $incident_date = $_POST['incident_date'] ?? null;
 
+    // Server-side validation: incident_date required only for 'accident' claims
+    if ($claim_type === 'accident') {
+        if (empty($incident_date)) {
+            echo json_encode(['success' => false, 'message' => 'Incident date is required for accident claims']);
+            exit;
+        }
+
+        // Validate date format YYYY-MM-DD
+        $d = DateTime::createFromFormat('Y-m-d', $incident_date);
+        if (!($d && $d->format('Y-m-d') === $incident_date)) {
+            echo json_encode(['success' => false, 'message' => 'Invalid incident_date format. Expected YYYY-MM-DD']);
+            exit;
+        }
+    } else {
+        // Ensure non-accident claims do not store an incident date
+        $incident_date = null;
+    }
+
     // Generate claim number
     $timestamp = time();
     $claim_number = "CLM-" . strtoupper($claim_type) . "-" . $timestamp;
