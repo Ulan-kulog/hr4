@@ -332,7 +332,7 @@ $user_role = $_SESSION['user_role'] ?? 'employee'; // admin, manager, hr, financ
                                         }
                                     ?>
                                         <tr>
-                                            <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
+                                            <td class="px-6 py-4 text-gray-900 whitespace-nowrap">
                                                 <?= htmlspecialchars($row->claim_number ?? 'N/A') ?>
                                                 <?php if ($row->status === 'draft'): ?>
                                                     <span class="ml-2 text-gray-500 text-xs">(Draft)</span>
