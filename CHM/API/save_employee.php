@@ -58,8 +58,6 @@ function getJobPositions($conn, $params = [])
         $whereClause = "WHERE " . implode(" AND ", $whereConditions);
     }
 
-    // (pagination removed) — return all matching job listings
-
     // Main query with department name join (build without LIMIT/OFFSET initially)
     $sql = "SELECT 
                 jl.*,
@@ -110,12 +108,6 @@ function getJobPositions($conn, $params = [])
     return [
         'success' => true,
         'data' => $positions,
-        // 'pagination' => [
-        //     'page' => $page,
-        //     'limit' => $limit,
-        //     'total' => $totalCount,
-        //     'total_pages' => ceil($totalCount / $limit)
-        // ],
         'meta' => [
             'count' => count($positions),
             'filters' => $params
