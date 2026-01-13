@@ -19,46 +19,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Function to get all job positions
-function getJobPositions($conn, $params = []) {
+function getJobPositions($conn, $params = [])
+{
     // Build query with optional filters
     $whereConditions = [];
     $queryParams = [];
     $types = '';
-    
+
     // Check for filters
     if (!empty($params['status'])) {
         $whereConditions[] = "status = ?";
         $queryParams[] = $params['status'];
         $types .= 's';
     }
-    
+
     if (!empty($params['department_id'])) {
         $whereConditions[] = "department_id = ?";
         $queryParams[] = $params['department_id'];
         $types .= 'i';
     }
-    
+
     if (!empty($params['type'])) {
         $whereConditions[] = "type = ?";
         $queryParams[] = $params['type'];
         $types .= 's';
     }
-    
+
     if (!empty($params['search'])) {
         $whereConditions[] = "(title LIKE ? OR description LIKE ?)";
         $queryParams[] = "%" . $params['search'] . "%";
         $queryParams[] = "%" . $params['search'] . "%";
         $types .= 'ss';
     }
-    
+
     // Build WHERE clause
     $whereClause = '';
     if (!empty($whereConditions)) {
         $whereClause = "WHERE " . implode(" AND ", $whereConditions);
     }
-    
+
     // (pagination removed) — return all matching job listings
-    
+
     // Main query with department name join (build without LIMIT/OFFSET initially)
     $sql = "SELECT 
                 jl.*,
@@ -76,7 +77,7 @@ function getJobPositions($conn, $params = []) {
             ORDER BY jl.created_at DESC";
 
     // no pagination — fetch all matching rows
-    
+
     // Prepare and execute query
     if (!empty($queryParams)) {
         $stmt = $conn->prepare($sql);
@@ -86,13 +87,13 @@ function getJobPositions($conn, $params = []) {
     } else {
         $result = $conn->query($sql);
     }
-    
+
     $positions = [];
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             // Format salary range
             $row['salary_range'] = '₱' . number_format($row['salary_min'], 2) . ' - ₱' . number_format($row['salary_max'], 2);
-            
+
             // Add days remaining if job_end_date exists
             if ($row['job_end_date']) {
                 $endDate = new DateTime($row['job_end_date']);
@@ -101,11 +102,11 @@ function getJobPositions($conn, $params = []) {
                 $row['days_remaining'] = $interval->days;
                 $row['is_expired'] = $today > $endDate;
             }
-            
+
             $positions[] = $row;
         }
     }
-    
+
     return [
         'success' => true,
         'data' => $positions,
@@ -123,7 +124,8 @@ function getJobPositions($conn, $params = []) {
 }
 
 // Function to get single job position by ID
-function getJobPositionById($conn, $id) {
+function getJobPositionById($conn, $id)
+{
     $sql = "SELECT 
                 jl.*,
                 d.name as department_name,
@@ -137,16 +139,16 @@ function getJobPositionById($conn, $id) {
             FROM job_listing jl
             LEFT JOIN departments d ON jl.department_id = d.id
             WHERE jl.id = ?";
-    
+
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $result = $stmt->get_result();
-    
+
     if ($row = $result->fetch_assoc()) {
         // Format salary range
         $row['salary_range'] = '₱' . number_format($row['salary_min'], 2) . ' - ₱' . number_format($row['salary_max'], 2);
-        
+
         // Add days remaining if job_end_date exists
         if ($row['job_end_date']) {
             $endDate = new DateTime($row['job_end_date']);
@@ -155,13 +157,13 @@ function getJobPositionById($conn, $id) {
             $row['days_remaining'] = $interval->days;
             $row['is_expired'] = $today > $endDate;
         }
-        
+
         return [
             'success' => true,
             'data' => $row
         ];
     }
-    
+
     return [
         'success' => false,
         'message' => 'Job position not found'
@@ -169,7 +171,8 @@ function getJobPositionById($conn, $id) {
 }
 
 // Function to create new job position (POST)
-function createJobPosition($conn, $data) {
+function createJobPosition($conn, $data)
+{
     // Validate required fields
     $requiredFields = ['department_id', 'title', 'type', 'salary_min', 'salary_max', 'vacancies', 'status'];
     foreach ($requiredFields as $field) {
@@ -180,7 +183,7 @@ function createJobPosition($conn, $data) {
             ];
         }
     }
-    
+
     // Validate type value
     $valid_types = ['full_time', 'part_time', 'contract', 'internship'];
     if (!in_array($data['type'], $valid_types)) {
@@ -189,7 +192,7 @@ function createJobPosition($conn, $data) {
             'message' => 'Invalid employment type'
         ];
     }
-    
+
     // Validate salary range
     if ($data['salary_min'] > $data['salary_max']) {
         return [
@@ -197,7 +200,7 @@ function createJobPosition($conn, $data) {
             'message' => 'Minimum salary cannot be greater than maximum salary'
         ];
     }
-    
+
     // Validate vacancies
     if ($data['vacancies'] < 1) {
         return [
@@ -205,7 +208,7 @@ function createJobPosition($conn, $data) {
             'message' => 'Number of vacancies must be at least 1'
         ];
     }
-    
+
     // Validate job period
     if (isset($data['job_period_days']) && $data['job_period_days'] < 1) {
         return [
@@ -213,7 +216,7 @@ function createJobPosition($conn, $data) {
             'message' => 'Job posting duration must be at least 1 day'
         ];
     }
-    
+
     // Validate status
     $valid_statuses = ['draft', 'open', 'closed'];
     if (!in_array($data['status'], $valid_statuses)) {
@@ -222,11 +225,11 @@ function createJobPosition($conn, $data) {
             'message' => 'Invalid status value'
         ];
     }
-    
+
     // Default values
     $exam_required = isset($data['exam_required']) ? (int)$data['exam_required'] : 0;
     $job_period_days = $data['job_period_days'] ?? 30;
-    
+
     try {
         $sql = "INSERT INTO job_listing (
                     department_id, 
@@ -241,9 +244,9 @@ function createJobPosition($conn, $data) {
                     created_at,
                     updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
-        
+
         $stmt = $conn->prepare($sql);
-        
+
         $stmt->bind_param(
             "issddiisi",
             $data['department_id'],
@@ -256,13 +259,13 @@ function createJobPosition($conn, $data) {
             $data['status'],
             $job_period_days
         );
-        
+
         if ($stmt->execute()) {
             $id = $conn->insert_id;
-            
+
             // Get the created record
             $createdJob = getJobPositionById($conn, $id);
-            
+
             return [
                 'success' => true,
                 'message' => 'Job position created successfully',
@@ -302,12 +305,12 @@ switch ($_SERVER['REQUEST_METHOD']) {
             $response = getJobPositions($conn, $filters);
         }
         break;
-        
+
     case 'POST':
         // Handle POST requests (create new job position)
         // Get input data from either form-data or JSON
         $inputData = [];
-        
+
         if (!empty($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false) {
             // JSON input
             $json = file_get_contents('php://input');
@@ -316,17 +319,17 @@ switch ($_SERVER['REQUEST_METHOD']) {
             // Form data
             $inputData = $_POST;
         }
-        
+
         // Convert string numbers to actual numbers
         if (isset($inputData['department_id'])) $inputData['department_id'] = (int)$inputData['department_id'];
         if (isset($inputData['salary_min'])) $inputData['salary_min'] = (float)$inputData['salary_min'];
         if (isset($inputData['salary_max'])) $inputData['salary_max'] = (float)$inputData['salary_max'];
         if (isset($inputData['vacancies'])) $inputData['vacancies'] = (int)$inputData['vacancies'];
         if (isset($inputData['job_period_days'])) $inputData['job_period_days'] = (int)$inputData['job_period_days'];
-        
+
         $response = createJobPosition($conn, $inputData);
         break;
-        
+
     default:
         $response = [
             'success' => false,
@@ -340,4 +343,3 @@ switch ($_SERVER['REQUEST_METHOD']) {
 echo json_encode($response, JSON_PRETTY_PRINT);
 
 $conn->close();
-?>
