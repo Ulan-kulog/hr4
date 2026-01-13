@@ -55,7 +55,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                         <div class="bg-blue-800/30 p-1.5 rounded-lg transition-colors">
                             <i data-lucide="users" class="w-5 h-5 text-[#F7B32B]"></i>
                         </div>
-                        <span class="ml-3 sidebar-text">Employee Management</span>
+                        <span class="ml-3 sidebar-text">Core Human Capital</span>
                     </div>
                     <i data-lucide="chevron-down" class="ml-auto w-4 h-4 transition-transform duration-200 dropdown-arrow"></i>
                 </button>
@@ -94,9 +94,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             <!-- =========================== -->
             <!-- PAYROLL SECTION -->
             <!-- =========================== -->
-            <div class="mt-4 px-4 py-2">
-                <p class="font-semibold text-blue-300 text-xs uppercase tracking-wider">Payroll</p>
-            </div>
+           
 
             <!-- Payroll Processing Dropdown -->
             <div class="relative menu-dropdown" data-dropdown="payroll-processing">
@@ -136,13 +134,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 </div>
             </div>
 
-            <!-- =========================== -->
-            <!-- COMPENSATION & BENEFITS -->
-            <!-- =========================== -->
-            <div class="mt-4 px-4 py-2">
-                <p class="font-semibold text-blue-300 text-xs uppercase tracking-wider">Compensation & Benefits</p>
-            </div>
-
+          
             <!-- Compensation Management Dropdown -->
             <div class="relative menu-dropdown" data-dropdown="compensation-management">
                 <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['core_compensation.php', 'strat_planning.php', 'performance_linked.php', 'administration.php', 'Hospitality.php', 'analytics.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
@@ -219,7 +211,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             <!-- ADMINISTRATION -->
             <!-- =========================== -->
             <div class="mt-4 px-4 py-2">
-                <p class="font-semibold text-blue-300 text-xs uppercase tracking-wider">Administration</p>
+                <p class="font-semibold text-blue-300 text-xs uppercase tracking-wider">User management</p>
             </div>
 
             <!-- User & System Management -->

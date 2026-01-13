@@ -20,10 +20,10 @@ if (!function_exists('format_currency')) {
     }
 }
 
-if (!function_exists('status_class')) {
-    function status_class($status)
+if (!function_exists('work_status_class')) {
+    function work_status_class($work_status)
     {
-        $s = strtolower((string)$status);
+        $s = strtolower((string)$work_status);
         if ($s === 'active') return 'bg-green-100 text-green-800';
         if (strpos($s, 'pending') !== false) return 'bg-yellow-100 text-yellow-800';
         return 'bg-gray-100 text-gray-800';
@@ -84,12 +84,12 @@ if ($res_alw = mysqli_query($conn, $sql_alw)) {
 $statistics = [];
 
 // 1. Total Salary Budget (Annual total, assuming basic_salary is monthly)
-$sql_total_budget = "SELECT SUM(basic_salary * 12) as total_budget FROM employees WHERE status = 'Active'";
+$sql_total_budget = "SELECT SUM(basic_salary * 12) as total_budget FROM employees WHERE work_status = 'Active'";
 $result = mysqli_query($conn, $sql_total_budget);
 $statistics['total_budget'] = mysqli_fetch_assoc($result)['total_budget'] ?? 0;
 
 // 2. Average Monthly Salary
-$sql_avg_salary = "SELECT AVG(basic_salary) as avg_monthly FROM employees WHERE status = 'Active'";
+$sql_avg_salary = "SELECT AVG(basic_salary) as avg_monthly FROM employees WHERE work_status = 'Active'";
 $result = mysqli_query($conn, $sql_avg_salary);
 $statistics['avg_monthly'] = mysqli_fetch_assoc($result)['avg_monthly'] ?? 0;
 
@@ -131,7 +131,7 @@ $sql_dept_salary = "SELECT
     COUNT(e.id) as employee_count,
     AVG(e.basic_salary) as avg_salary
     FROM employees e
-    WHERE e.status = 'Active'
+    WHERE e.work_status = 'Active'
     GROUP BY e.department
     HAVING COUNT(e.id) > 0
     ORDER BY avg_salary DESC";
@@ -147,7 +147,7 @@ $compensation_mix = [];
 $sql_base_salary = "SELECT 
     COALESCE(SUM(basic_salary * 12), 0) as value 
     FROM employees 
-    WHERE status = 'Active'";
+    WHERE work_status = 'Active'";
 $result = mysqli_query($conn, $sql_base_salary);
 $base_salary = mysqli_fetch_assoc($result);
 $compensation_mix[] = ['type' => 'Base Salary', 'value' => $base_salary['value'] ?? 0];
@@ -299,7 +299,7 @@ $today = date('Y-m-d');
             transform: translateY(-2px);
         }
 
-        /* Status badges */
+        /* work_status badges */
         .bg-green-100.text-green-800 {
             background-color: #d1fae5 !important;
             color: #065f46 !important;
@@ -502,7 +502,7 @@ $today = date('Y-m-d');
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Min Salary</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Max Salary</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Employees</th>
-                                        <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Status</th>
+                                        <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">work_status</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
@@ -521,10 +521,10 @@ $today = date('Y-m-d');
                                             $maxRaw = $row['max_salary'] ?? $row['max'] ?? '';
                                             $minSalary = format_currency($minRaw);
                                             $maxSalary = format_currency($maxRaw);
-                                            $status = htmlspecialchars($row['status'] ?? 'Active');
+                                            $work_status = htmlspecialchars($row['work_status'] ?? 'Active');
                                             $employees = isset($row['employees']) ? (int)$row['employees'] : (isset($row['employees_count']) ? (int)$row['employees_count'] : '-');
                                             $dept = htmlspecialchars($row['department'] ?? $row['dept'] ?? '');
-                                            $statusClass = status_class($status);
+                                            $work_statusClass = work_status_class($work_status);
                                         ?>
                                             <tr>
                                                 <td class="px-4 py-3 font-medium text-gray-900 text-sm"><?= $grade ?></td>
@@ -532,10 +532,10 @@ $today = date('Y-m-d');
                                                 <td class="px-4 py-3 text-gray-900 text-sm"><?= $minSalary ?></td>
                                                 <td class="px-4 py-3 text-gray-900 text-sm"><?= $maxSalary ?></td>
                                                 <td class="px-4 py-3 text-gray-900 text-sm"><?= $employees ?></td>
-                                                <td class="px-4 py-3"><span class="inline-flex items-center <?= $statusClass ?> px-2.5 py-0.5 rounded-full font-medium text-xs"><?= $status ?></span></td>
+                                                <td class="px-4 py-3"><span class="inline-flex items-center <?= $work_statusClass ?> px-2.5 py-0.5 rounded-full font-medium text-xs"><?= $work_status ?></span></td>
                                                 <td class="px-4 py-3">
                                                     <div class="flex gap-2">
-                                                        <a href="#" class="font-medium text-blue-600 hover:text-blue-800 text-sm edit-salary-btn" data-id="<?= $id ?>" data-grade="<?= $grade ?>" data-position="<?= $position ?>" data-min="<?= htmlspecialchars($minRaw) ?>" data-max="<?= htmlspecialchars($maxRaw) ?>" data-status="<?= $status ?>">Edit</a>
+                                                        <a href="#" class="font-medium text-blue-600 hover:text-blue-800 text-sm edit-salary-btn" data-id="<?= $id ?>" data-grade="<?= $grade ?>" data-position="<?= $position ?>" data-min="<?= htmlspecialchars($minRaw) ?>" data-max="<?= htmlspecialchars($maxRaw) ?>" data-work_status="<?= $work_status ?>">Edit</a>
                                                         <form method="POST" action="API/delete_salary_grade.php" class="inline delete-form">
                                                             <input type="hidden" name="id" value="<?= htmlspecialchars($id) ?>">
                                                             <button type="submit" class="font-medium text-red-600 hover:text-red-800 text-sm">Delete</button>
@@ -572,7 +572,7 @@ $today = date('Y-m-d');
                                     $bp_desc = htmlspecialchars($plan['eligibility_criteria'] ?? $plan['description'] ?? $plan['details'] ?? '');
                                     $bp_type = htmlspecialchars($plan['bonus_type'] ?? $plan['type'] ?? '');
                                     $bp_amount_raw = $plan['amount_or_percentage'] ?? $plan['value'] ?? '';
-                                    $bp_status = htmlspecialchars($plan['status'] ?? 'active');
+                                    $bp_work_status = htmlspecialchars($plan['work_status'] ?? 'active');
                                     $bp_start = htmlspecialchars($plan['start_date'] ?? '');
                                     $bp_end = htmlspecialchars($plan['end_date'] ?? '');
 
@@ -585,7 +585,7 @@ $today = date('Y-m-d');
                                         $bp_amount = format_currency($bp_amount_raw);
                                     }
 
-                                    $statusClass = status_class($bp_status);
+                                    $work_statusClass = work_status_class($bp_work_status);
                                 ?>
                                     <div class="p-4 border border-gray-200 rounded-lg">
                                         <div class="flex justify-between items-center mb-3">
@@ -595,8 +595,8 @@ $today = date('Y-m-d');
                                             </span>
                                         </div>
                                         <div class="mb-2">
-                                            <span class="inline-flex items-center <?= $statusClass ?> px-2.5 py-0.5 rounded-full font-medium text-xs mb-2">
-                                                <?= ucfirst($bp_status) ?>
+                                            <span class="inline-flex items-center <?= $work_statusClass ?> px-2.5 py-0.5 rounded-full font-medium text-xs mb-2">
+                                                <?= ucfirst($bp_work_status) ?>
                                             </span>
                                         </div>
                                         <p class="mb-2 text-gray-600 text-sm">
@@ -630,7 +630,7 @@ $today = date('Y-m-d');
                                                     data-criteria="<?= htmlspecialchars($plan['eligibility_criteria'] ?? '') ?>"
                                                     data-start="<?= $bp_start ?>"
                                                     data-end="<?= $bp_end ?>"
-                                                    data-status="<?= $bp_status ?>">
+                                                    data-work_status="<?= $bp_work_status ?>">
                                                     Edit
                                                 </button>
                                                 <form method="POST" action="API/delete_bonus_plan.php" class="inline delete-form">
@@ -665,7 +665,7 @@ $today = date('Y-m-d');
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Amount</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Frequency</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Eligibility Criteria</th>
-                                        <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Status</th>
+                                        <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">work_status</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
@@ -684,8 +684,8 @@ $today = date('Y-m-d');
                                             $alw_amount = format_currency($alw_amount_raw);
                                             $alw_freq = format_frequency($a['frequency'] ?? '');
                                             $alw_criteria = htmlspecialchars($a['eligibility_criteria'] ?? $a['description'] ?? $a['details'] ?? '');
-                                            $alw_status = htmlspecialchars($a['status'] ?? 'active');
-                                            $statusClass = status_class($alw_status);
+                                            $alw_work_status = htmlspecialchars($a['work_status'] ?? 'active');
+                                            $work_statusClass = work_status_class($alw_work_status);
                                         ?>
                                             <tr>
                                                 <td class="px-4 py-3 font-medium text-gray-900 text-sm"><?= $alw_type ?></td>
@@ -696,8 +696,8 @@ $today = date('Y-m-d');
                                                     <?= strlen($alw_criteria) > 50 ? substr($alw_criteria, 0, 50) . '...' : $alw_criteria ?>
                                                 </td>
                                                 <td class="px-4 py-3">
-                                                    <span class="inline-flex items-center <?= $statusClass ?> px-2.5 py-0.5 rounded-full font-medium text-xs">
-                                                        <?= ucfirst($alw_status) ?>
+                                                    <span class="inline-flex items-center <?= $work_statusClass ?> px-2.5 py-0.5 rounded-full font-medium text-xs">
+                                                        <?= ucfirst($alw_work_status) ?>
                                                     </span>
                                                 </td>
                                                 <td class="px-4 py-3">
@@ -709,7 +709,7 @@ $today = date('Y-m-d');
                                                             data-amount="<?= htmlspecialchars($alw_amount_raw) ?>"
                                                             data-frequency="<?= htmlspecialchars($allowance['frequency'] ?? '') ?>"
                                                             data-criteria="<?= htmlspecialchars($alw_criteria) ?>"
-                                                            data-status="<?= $alw_status ?>">
+                                                            data-work_status="<?= $alw_work_status ?>">
                                                             Edit
                                                         </button>
                                                         <form method="POST" action="API/delete_allowance.php" class="inline delete-form">
@@ -936,7 +936,7 @@ $today = date('Y-m-d');
                 const position = btn.getAttribute('data-position');
                 const min = btn.getAttribute('data-min');
                 const max = btn.getAttribute('data-max');
-                const status = btn.getAttribute('data-status');
+                const work_status = btn.getAttribute('data-work_status');
 
                 document.getElementById('edit_id').value = id || '';
                 document.getElementById('edit_grade').value = grade || '';
@@ -944,21 +944,21 @@ $today = date('Y-m-d');
                 document.getElementById('edit_min').value = min || '';
                 document.getElementById('edit_max').value = max || '';
 
-                // Set status select with case-insensitive matching
-                const statusEl = document.getElementById('edit_status');
-                if (status && statusEl) {
+                // Set work_status select with case-insensitive matching
+                const work_statusEl = document.getElementById('edit_work_status');
+                if (work_status && work_statusEl) {
                     // try direct match first
-                    if (Array.from(statusEl.options).some(o => o.value === status)) {
-                        statusEl.value = status;
+                    if (Array.from(work_statusEl.options).some(o => o.value === work_status)) {
+                        work_statusEl.value = work_status;
                     } else {
                         // case-insensitive fallback
-                        const match = Array.from(statusEl.options).find(o =>
-                            o.value.toLowerCase() === status.toLowerCase()
+                        const match = Array.from(work_statusEl.options).find(o =>
+                            o.value.toLowerCase() === work_status.toLowerCase()
                         );
-                        statusEl.value = match ? match.value : 'Active';
+                        work_statusEl.value = match ? match.value : 'Active';
                     }
-                } else if (statusEl) {
-                    statusEl.value = 'Active';
+                } else if (work_statusEl) {
+                    work_statusEl.value = 'Active';
                 }
 
                 editSalaryModal?.classList.remove('hidden');
@@ -1592,7 +1592,7 @@ $today = date('Y-m-d');
                     amount: btn.getAttribute('data-amount'),
                     frequency: btn.getAttribute('data-frequency'),
                     criteria: btn.getAttribute('data-criteria'),
-                    status: btn.getAttribute('data-status')
+                    work_status: btn.getAttribute('data-work_status')
                 };
 
                 // Populate form fields
@@ -1607,7 +1607,7 @@ $today = date('Y-m-d');
                 setValue('edit_alw_amount', data.amount);
                 setValue('edit_alw_freq', data.frequency);
                 setValue('edit_alw_criteria', data.criteria);
-                setValue('edit_alw_status', data.status);
+                setValue('edit_alw_work_status', data.work_status);
 
                 // Show modal
                 editAllowanceModal?.classList.remove('hidden');
@@ -1649,7 +1649,7 @@ $today = date('Y-m-d');
                     criteria: btn.getAttribute('data-criteria'),
                     start: btn.getAttribute('data-start'),
                     end: btn.getAttribute('data-end'),
-                    status: btn.getAttribute('data-status')
+                    work_status: btn.getAttribute('data-work_status')
                 };
 
                 // Populate form fields
@@ -1666,7 +1666,7 @@ $today = date('Y-m-d');
                 setValue('edit_bonus_criteria', data.criteria);
                 setValue('edit_bonus_start', data.start);
                 setValue('edit_bonus_end', data.end);
-                setValue('edit_bonus_status', data.status);
+                setValue('edit_bonus_work_status', data.work_status);
 
                 // Show modal
                 editBonusModal?.classList.remove('hidden');
