@@ -1,6 +1,6 @@
 <?php
 include '../connection.php';
-$conn = $connections['HR_4'] ?? null;
+$conn = $connections['hr4_hr_4'] ?? null;
 
 if (!$conn) {
     die("❌ Database connection failed.");

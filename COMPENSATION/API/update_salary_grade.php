@@ -2,7 +2,7 @@
 session_start();
 include '../../connection.php';
 
-$db_name = 'HR_4';
+$db_name = 'hr4_hr_4';
 if (!isset($connections[$db_name])) {
     // if no connection, redirect back with error
     header('Location: ../core_compensation.php?updated=0&error=conn');

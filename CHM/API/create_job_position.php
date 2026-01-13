@@ -10,7 +10,7 @@ ini_set('log_errors', 1);
 include("../../connection.php");
 
 // Database connection
-$db_name = "HR_4";
+$db_name = "hr4_hr_4";
 if (!isset($connections[$db_name])) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => '❌ Database connection not found']);

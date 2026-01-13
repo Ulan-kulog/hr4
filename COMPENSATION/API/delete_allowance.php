@@ -2,7 +2,7 @@
 session_start();
 include("../../connection.php");
 
-$db_name = "HR_4";
+$db_name = "hr4_hr_4";
 if (!isset($connections[$db_name])) {
     die(json_encode(['success' => false, 'message' => 'Database connection not found']));
 }

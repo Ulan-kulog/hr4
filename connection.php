@@ -7,7 +7,7 @@ $dbPass = "1234";
 
 // ✅ List only the databases you want to connect to
 $targetDatabases = [
-    "hr_4",
+    "hr4_hr_4",
     "usm",
 ];
 

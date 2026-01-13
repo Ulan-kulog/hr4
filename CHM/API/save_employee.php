@@ -4,7 +4,7 @@ session_start();
 include("../connection.php");
 
 // Connect to hr_4 database
-$db_name = "hr_4";
+$db_name = "hr4_hr_4";
 $conn = $connections[$db_name] ?? die("❌ Connection not found for $db_name");
 
 header('Content-Type: application/json');

@@ -2,7 +2,7 @@
 session_start();
 include("../connection.php");
 
-$db_name = "hr_4";
+$db_name = "hr4_hr_4";
 $conn = $connections[$db_name] ?? die("❌ Connection not found for $db_name");
 
 // Pagination variables
