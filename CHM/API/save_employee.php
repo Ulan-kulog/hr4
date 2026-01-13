@@ -57,22 +57,9 @@ function getJobPositions($conn, $params = []) {
         $whereClause = "WHERE " . implode(" AND ", $whereConditions);
     }
     
-    // Get total count for pagination
-    $countSql = "SELECT COUNT(*) as total FROM job_listing $whereClause";
-    $countResult = $conn->query($countSql);
-    $totalCount = 0;
+    // (pagination removed) — return all matching job listings
     
-    if ($countResult) {
-        $row = $countResult->fetch_assoc();
-        $totalCount = $row['total'];
-    }
-    
-    // Pagination
-    // $page = isset($params['page']) ? (int)$params['page'] : 1;
-    // $limit = isset($params['limit']) ? (int)$params['limit'] : 10;
-    // $offset = ($page - 1) * $limit;
-    
-    // Main query with department name join
+    // Main query with department name join (build without LIMIT/OFFSET initially)
     $sql = "SELECT 
                 jl.*,
                 d.name as department_name,
@@ -86,13 +73,9 @@ function getJobPositions($conn, $params = []) {
             FROM job_listing jl
             LEFT JOIN departments d ON jl.department_id = d.id
             $whereClause
-            ORDER BY jl.created_at DESC
-            LIMIT ? OFFSET ?";
-    
-    // // Add pagination parameters
-    // $queryParams[] = $limit;
-    // $queryParams[] = $offset;
-    // $types .= 'ii';
+            ORDER BY jl.created_at DESC";
+
+    // no pagination — fetch all matching rows
     
     // Prepare and execute query
     if (!empty($queryParams)) {
@@ -314,9 +297,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
                 'status' => $_GET['status'] ?? null,
                 'department_id' => $_GET['department_id'] ?? null,
                 'type' => $_GET['type'] ?? null,
-                'search' => $_GET['search'] ?? null,
-                'page' => $_GET['page'] ?? 1,
-                'limit' => $_GET['limit'] ?? 10
+                'search' => $_GET['search'] ?? null
             ];
             $response = getJobPositions($conn, $filters);
         }
