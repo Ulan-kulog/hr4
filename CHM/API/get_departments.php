@@ -17,7 +17,7 @@ if (isset($connections['hr4_hr_4'])) {
         }
 
         if (empty($rows)) {
-            $response = ['status' => 'success', 'data' => []];
+            $response = [];
         } else {
             // Determine department id column in departments table
             $sample = $rows[0];
@@ -86,7 +86,7 @@ if (isset($connections['hr4_hr_4'])) {
                     $departmentsWithSubs[] = $map[$r[$deptIdKey]];
                 }
 
-                $response = ['status' => 'success', 'data' => $departmentsWithSubs];
+                $response = $departmentsWithSubs;
             } else {
                 // No dedicated sub-departments table found — fall back to hierarchical parent column in departments
                 $idKeys = ['id', 'department_id', 'dept_id', 'deptid', 'departmentid'];
@@ -109,7 +109,7 @@ if (isset($connections['hr4_hr_4'])) {
                 }
 
                 if (!$parentKey || !$idKey) {
-                    $response = ['status' => 'success', 'data' => $rows];
+                    $response = $rows;
                 } else {
                     $map = [];
                     foreach ($rows as $r) {
@@ -129,18 +129,67 @@ if (isset($connections['hr4_hr_4'])) {
                         }
                     }
 
-                    $response = ['status' => 'success', 'data' => $tree];
+                    $response = $tree;
                 }
             }
         }
     } else {
-        $response = ['status' => 'error', 'message' => 'Failed to fetch departments: ' . mysqli_error($conn)];
+        http_response_code(500);
+        $response = [];
     }
 } else {
-    $response = ['status' => 'error', 'message' => 'HR_4 database connection not established.'];
+    http_response_code(500);
+    $response = [];
 }
 
-echo json_encode($response);
+// Convert top-level numeric array to an object map keyed by department id
+if (is_array($response)) {
+    if (count($response) === 0) {
+        echo json_encode((object)[]);
+    } else {
+        $isList = array_keys($response) === range(0, count($response) - 1);
+        if ($isList) {
+            $idCandidates = ['id', 'department_id', 'dept_id', 'deptid', 'departmentid'];
+            $sample = reset($response);
+            $idKey = null;
+            if (is_array($sample)) {
+                foreach ($idCandidates as $k) {
+                    if (array_key_exists($k, $sample)) {
+                        $idKey = $k;
+                        break;
+                    }
+                }
+            } elseif (is_object($sample)) {
+                foreach ($idCandidates as $k) {
+                    if (property_exists($sample, $k)) {
+                        $idKey = $k;
+                        break;
+                    }
+                }
+            }
+
+            if ($idKey) {
+                $map = [];
+                foreach ($response as $item) {
+                    if (is_array($item) && array_key_exists($idKey, $item)) {
+                        $map[$item[$idKey]] = $item;
+                    } elseif (is_object($item) && isset($item->$idKey)) {
+                        $map[$item->$idKey] = $item;
+                    } else {
+                        $map[] = $item;
+                    }
+                }
+                echo json_encode($map);
+            } else {
+                echo json_encode($response);
+            }
+        } else {
+            echo json_encode($response);
+        }
+    }
+} else {
+    echo json_encode($response);
+}
 
 if (isset($conn) && $conn) {
     mysqli_close($conn); // Close the connection when done

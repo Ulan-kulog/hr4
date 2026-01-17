@@ -4,7 +4,7 @@
 
 // Prevent connection.php from echoing HTML errors into JSON
 ob_start();
-require_once __DIR__ . '/connection.php';
+require_once __DIR__ . '../../../connection.php';
 ob_end_clean();
 
 header('Content-Type: application/json; charset=utf-8');
