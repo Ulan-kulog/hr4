@@ -166,6 +166,50 @@ function getEmployees($conn, $params = [])
         }
     }
 
+    // Attach department and sub-department names by ID
+    // Build departments map
+    $deptMap = [];
+    $deptRes = $conn->query("SELECT id, name FROM departments");
+    if ($deptRes) {
+        while ($d = $deptRes->fetch_assoc()) {
+            $deptMap[$d['id']] = $d['name'];
+        }
+    }
+
+    // Attempt to find a sub-departments table and build map
+    $subDeptMap = [];
+    $subTableCandidates = ['sub_departments', 'subdepartments', 'sub_department', 'sub-departments', 'sub_depts', 'sub_dept'];
+    foreach ($subTableCandidates as $tbl) {
+        $escaped = mysqli_real_escape_string($conn, $tbl);
+        $q = @mysqli_query($conn, "SELECT id, name FROM `" . $escaped . "` LIMIT 1000");
+        if ($q !== false) {
+            while ($s = mysqli_fetch_assoc($q)) {
+                $subDeptMap[$s['id']] = $s['name'];
+            }
+            mysqli_free_result($q);
+            if (!empty($subDeptMap)) break;
+        }
+    }
+
+    // Add human-readable department/sub_department fields to employees
+    foreach ($employees as &$emp) {
+        // department id may be numeric or string
+        $did = $emp['department_id'] ?? null;
+        $sid = $emp['sub_department_id'] ?? null;
+
+        $emp['department'] = null;
+        $emp['sub_department'] = null;
+
+        if ($did !== null && $did !== '' && isset($deptMap[$did])) {
+            $emp['department'] = $deptMap[$did];
+        }
+
+        if ($sid !== null && $sid !== '' && isset($subDeptMap[$sid])) {
+            $emp['sub_department'] = $subDeptMap[$sid];
+        }
+    }
+    unset($emp);
+
     return [
         'success' => true,
         'data' => $employees,
