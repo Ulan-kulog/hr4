@@ -166,50 +166,6 @@ function getEmployees($conn, $params = [])
         }
     }
 
-    // Attach department and sub-department names by ID
-    // Build departments map
-    $deptMap = [];
-    $deptRes = $conn->query("SELECT id, name FROM departments");
-    if ($deptRes) {
-        while ($d = $deptRes->fetch_assoc()) {
-            $deptMap[$d['id']] = $d['name'];
-        }
-    }
-
-    // Attempt to find a sub-departments table and build map
-    $subDeptMap = [];
-    $subTableCandidates = ['sub_departments', 'subdepartments', 'sub_department', 'sub-departments', 'sub_depts', 'sub_dept'];
-    foreach ($subTableCandidates as $tbl) {
-        $escaped = mysqli_real_escape_string($conn, $tbl);
-        $q = @mysqli_query($conn, "SELECT id, name FROM `" . $escaped . "` LIMIT 1000");
-        if ($q !== false) {
-            while ($s = mysqli_fetch_assoc($q)) {
-                $subDeptMap[$s['id']] = $s['name'];
-            }
-            mysqli_free_result($q);
-            if (!empty($subDeptMap)) break;
-        }
-    }
-
-    // Add human-readable department/sub_department fields to employees
-    foreach ($employees as &$emp) {
-        // department id may be numeric or string
-        $did = $emp['department_id'] ?? null;
-        $sid = $emp['sub_department_id'] ?? null;
-
-        $emp['department'] = null;
-        $emp['sub_department'] = null;
-
-        if ($did !== null && $did !== '' && isset($deptMap[$did])) {
-            $emp['department'] = $deptMap[$did];
-        }
-
-        if ($sid !== null && $sid !== '' && isset($subDeptMap[$sid])) {
-            $emp['sub_department'] = $subDeptMap[$sid];
-        }
-    }
-    unset($emp);
-
     return [
         'success' => true,
         'data' => $employees,
@@ -333,62 +289,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
 }
 
-// Send response: emit only the `data` payload (exclude `success`, `pagination`, etc.)
-$output = null;
-if (is_array($response) && array_key_exists('data', $response)) {
-    $output = $response['data'];
-} else {
-    $output = (object)[];
-}
-
-// Convert top-level numeric array into an object map keyed by id (remove top-level array)
-if (is_array($output)) {
-    if (count($output) === 0) {
-        $output = (object)[];
-    } else {
-        $isList = array_keys($output) === range(0, count($output) - 1);
-        if ($isList) {
-            $idCandidates = ['id', 'employee_id', 'emp_id', 'user_id'];
-            $sample = reset($output);
-            $idKey = null;
-            if (is_array($sample)) {
-                foreach ($idCandidates as $k) {
-                    if (array_key_exists($k, $sample)) {
-                        $idKey = $k;
-                        break;
-                    }
-                }
-            } elseif (is_object($sample)) {
-                foreach ($idCandidates as $k) {
-                    if (property_exists($sample, $k)) {
-                        $idKey = $k;
-                        break;
-                    }
-                }
-            }
-
-            if ($idKey) {
-                $map = [];
-                foreach ($output as $item) {
-                    if (is_array($item) && array_key_exists($idKey, $item)) {
-                        $map[$item[$idKey]] = $item;
-                    } elseif (is_object($item) && isset($item->$idKey)) {
-                        $map[$item->$idKey] = $item;
-                    } else {
-                        $map[] = $item;
-                    }
-                }
-                $output = $map;
-            }
-        }
-    }
-}
-
-// If the response indicates failure, set a 400 status code
-if (is_array($response) && array_key_exists('success', $response) && $response['success'] === false) {
-    http_response_code(400);
-}
-
-echo json_encode($output, JSON_PRETTY_PRINT);
+// Send response
+echo json_encode($response, JSON_PRETTY_PRINT);
 
 $conn->close();
