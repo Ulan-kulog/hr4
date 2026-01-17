@@ -2,7 +2,7 @@
 // main_connection.php
 
 $dbHost = "127.0.0.1";
-$dbUser = "hr4_dandin";
+$dbUser = "3206_CENTRALIZED_DATABASE";
 $dbPass = "1234";
 
 // ✅ List only the databases you want to connect to

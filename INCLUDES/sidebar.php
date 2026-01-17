@@ -5,7 +5,7 @@ $role = $_SESSION['role'] ?? 'guest';
 // $is_supervisor = ($role === 'supervisor' || $role === 'admin');
 
 // Define base path for consistent URL structure
-$base_url = 'https://hr4.soliera-hotel-restaurant.com'; // Correct full URL
+$base_url = '/HR_4'; // Correct full URL
 
 // Get current page for active state highlighting
 $current_page = basename($_SERVER['PHP_SELF']);
@@ -15,9 +15,14 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <!-- Sidebar Header -->
     <div class="flex flex-shrink-0 justify-between items-center mb-6 px-4 text-center">
         <h1 class="flex items-center gap-2 font-bold text-white text-xl">
-            <img src="<?php echo $base_url; ?>images/tagline_no_bg.png"
-                alt="Logo"
-                class="w-auto h-25">
+               <img src="<?php echo $base_url; ?>/images/tagline_no_bg.png" 
+            alt="Full Logo" 
+            class="h-25 w-auto "
+            id="sidebar-logo">
+        <img src="<?php echo $base_url; ?>/images/soliera_S.png" 
+            alt="Icon Logo" 
+            class="h-25 w-auto"
+            id="sonly">
         </h1>
     </div>
 
