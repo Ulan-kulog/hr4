@@ -166,6 +166,68 @@ function getEmployees($conn, $params = [])
         }
     }
 
+    // Attach department and sub-department names for returned employees
+    $deptIds = [];
+    $subDeptIds = [];
+    foreach ($employees as $e) {
+        if (!empty($e['department_id'])) $deptIds[] = (int)$e['department_id'];
+        if (!empty($e['sub_department_id'])) $subDeptIds[] = (int)$e['sub_department_id'];
+    }
+    $deptIds = array_values(array_unique(array_filter($deptIds)));
+    $subDeptIds = array_values(array_unique(array_filter($subDeptIds)));
+
+    $deptMap = [];
+    if (!empty($deptIds)) {
+        $ids = implode(',', array_map('intval', $deptIds));
+        $dsql = "SELECT id, name FROM departments WHERE id IN ($ids)";
+        $dres = $conn->query($dsql);
+        if ($dres) {
+            while ($dr = $dres->fetch_assoc()) {
+                $deptMap[(int)$dr['id']] = $dr['name'];
+            }
+        }
+    }
+
+    $subDeptMap = [];
+    if (!empty($subDeptIds)) {
+        // Try sub_departments table first
+        $exists = @$conn->query("SELECT 1 FROM sub_departments LIMIT 1");
+        $ids = implode(',', array_map('intval', $subDeptIds));
+        if ($exists !== false) {
+            $sSql = "SELECT id, name FROM sub_departments WHERE id IN ($ids)";
+            $sRes = $conn->query($sSql);
+            if ($sRes) {
+                while ($sr = $sRes->fetch_assoc()) {
+                    $subDeptMap[(int)$sr['id']] = $sr['name'];
+                }
+            }
+        } else {
+            // Fallback to departments table (some schemas store sub-departments in same table)
+            $sSql = "SELECT id, name FROM departments WHERE id IN ($ids)";
+            $sRes = $conn->query($sSql);
+            if ($sRes) {
+                while ($sr = $sRes->fetch_assoc()) {
+                    $subDeptMap[(int)$sr['id']] = $sr['name'];
+                }
+            }
+        }
+    }
+
+    // Inject names into employee rows
+    foreach ($employees as &$er) {
+        $er['department'] = null;
+        $er['sub_department'] = null;
+        if (!empty($er['department_id'])) {
+            $key = (int)$er['department_id'];
+            if (isset($deptMap[$key])) $er['department'] = $deptMap[$key];
+        }
+        if (!empty($er['sub_department_id'])) {
+            $skey = (int)$er['sub_department_id'];
+            if (isset($subDeptMap[$skey])) $er['sub_department'] = $subDeptMap[$skey];
+        }
+    }
+    unset($er);
+
     return [
         'success' => true,
         'data' => $employees,
@@ -289,7 +351,62 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
 }
 
-// Send response
-echo json_encode($response, JSON_PRETTY_PRINT);
+// Send response: emit only the `data` payload (exclude `success`, `pagination`, etc.)
+$output = null;
+if (is_array($response) && array_key_exists('data', $response)) {
+    $output = $response['data'];
+} else {
+    $output = (object)[];
+}
+
+// Convert top-level numeric array into an object map keyed by id (remove top-level array)
+if (is_array($output)) {
+    if (count($output) === 0) {
+        $output = (object)[];
+    } else {
+        $isList = array_keys($output) === range(0, count($output) - 1);
+        if ($isList) {
+            $idCandidates = ['id', 'employee_id', 'emp_id', 'user_id'];
+            $sample = reset($output);
+            $idKey = null;
+            if (is_array($sample)) {
+                foreach ($idCandidates as $k) {
+                    if (array_key_exists($k, $sample)) {
+                        $idKey = $k;
+                        break;
+                    }
+                }
+            } elseif (is_object($sample)) {
+                foreach ($idCandidates as $k) {
+                    if (property_exists($sample, $k)) {
+                        $idKey = $k;
+                        break;
+                    }
+                }
+            }
+
+            if ($idKey) {
+                $map = [];
+                foreach ($output as $item) {
+                    if (is_array($item) && array_key_exists($idKey, $item)) {
+                        $map[$item[$idKey]] = $item;
+                    } elseif (is_object($item) && isset($item->$idKey)) {
+                        $map[$item->$idKey] = $item;
+                    } else {
+                        $map[] = $item;
+                    }
+                }
+                $output = $map;
+            }
+        }
+    }
+}
+
+// If the response indicates failure, set a 400 status code
+if (is_array($response) && array_key_exists('success', $response) && $response['success'] === false) {
+    http_response_code(400);
+}
+
+echo json_encode($output, JSON_PRETTY_PRINT);
 
 $conn->close();
