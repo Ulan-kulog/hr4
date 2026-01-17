@@ -25,44 +25,44 @@ function getEmployees($conn, $params = [])
     $page = max(1, (int)($params['page'] ?? 1));
     $limit = max(1, min(100, (int)($params['limit'] ?? 25)));
     $offset = ($page - 1) * $limit;
-    
+
     // Build query with optional filters
     $whereConditions = [];
     $queryParams = [];
     $types = '';
-    
+
     // Check for filters
     if (!empty($params['department'])) {
         $whereConditions[] = "department = ?";
         $queryParams[] = $params['department'];
         $types .= 's';
     }
-    
+
     if (!empty($params['sub_department'])) {
         $whereConditions[] = "sub_department = ?";
         $queryParams[] = $params['sub_department'];
         $types .= 's';
     }
-    
+
     if (!empty($params['employment_status'])) {
         $whereConditions[] = "employment_status = ?";
         $queryParams[] = $params['employment_status'];
         $types .= 's';
     }
-    
+
     if (!empty($params['work_status'])) {
         $whereConditions[] = "work_status = ?";
         $queryParams[] = $params['work_status'];
         $types .= 's';
     }
-    
+
     // Check if searching by employee ID - use the 'id' column
     if (!empty($params['employee_id'])) {
         $whereConditions[] = "id = ?";
         $queryParams[] = $params['employee_id'];
         $types .= 's';
     }
-    
+
     if (!empty($params['search'])) {
         $whereConditions[] = "(first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone_number LIKE ?)";
         $queryParams[] = "%" . $params['search'] . "%";
@@ -71,13 +71,13 @@ function getEmployees($conn, $params = [])
         $queryParams[] = "%" . $params['search'] . "%";
         $types .= 'ssss';
     }
-    
+
     // Build WHERE clause
     $whereClause = '';
     if (!empty($whereConditions)) {
         $whereClause = "WHERE " . implode(" AND ", $whereConditions);
     }
-    
+
     // Count total records for pagination
     $countSql = "SELECT COUNT(*) as total FROM employees $whereClause";
     $totalResult = $conn->query($countSql);
@@ -90,7 +90,7 @@ function getEmployees($conn, $params = [])
     $totalRow = $totalResult->fetch_assoc();
     $totalRecords = $totalRow['total'] ?? 0;
     $totalPages = ceil($totalRecords / $limit);
-    
+
     // Main query with pagination - REMOVED employee_id column
     $sql = "SELECT 
                 id,
@@ -130,12 +130,12 @@ function getEmployees($conn, $params = [])
             $whereClause
             ORDER BY hire_date DESC
             LIMIT ? OFFSET ?";
-    
+
     // Add pagination parameters to query
     $queryParams[] = $limit;
     $queryParams[] = $offset;
     $types .= 'ii';
-    
+
     // Prepare and execute query
     $employees = [];
     if (!empty($queryParams)) {
@@ -146,7 +146,7 @@ function getEmployees($conn, $params = [])
     } else {
         $result = $conn->query($sql);
     }
-    
+
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             // Calculate age from date_of_birth
@@ -156,16 +156,16 @@ function getEmployees($conn, $params = [])
                 $age = $today->diff($birthDate)->y;
                 $row['age'] = $age;
             }
-            
+
             // Format salary
             if ($row['salary']) {
                 $row['salary_formatted'] = '₱' . number_format($row['salary'], 2);
             }
-            
+
             $employees[] = $row;
         }
     }
-    
+
     return [
         'success' => true,
         'data' => $employees,
@@ -189,12 +189,12 @@ function getEmployeeById($conn, $id)
                 DATE_FORMAT(date_of_birth, '%Y-%m-%d') as date_of_birth_formatted
             FROM employees 
             WHERE id = ?";
-    
+
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("s", $id);
     $stmt->execute();
     $result = $stmt->get_result();
-    
+
     if ($row = $result->fetch_assoc()) {
         // Calculate age
         if ($row['date_of_birth']) {
@@ -203,18 +203,18 @@ function getEmployeeById($conn, $id)
             $age = $today->diff($birthDate)->y;
             $row['age'] = $age;
         }
-        
+
         // Format salary
         if ($row['salary']) {
             $row['salary_formatted'] = '₱' . number_format($row['salary'], 2);
         }
-        
+
         return [
             'success' => true,
             'data' => $row
         ];
     }
-    
+
     return [
         'success' => false,
         'message' => 'Employee not found'
@@ -225,25 +225,25 @@ function getEmployeeById($conn, $id)
 function getDepartments($conn)
 {
     $departments = [];
-    
+
     // Get distinct departments
     $deptSql = "SELECT DISTINCT department FROM employees WHERE department IS NOT NULL AND department != '' ORDER BY department";
     $deptResult = $conn->query($deptSql);
-    
+
     $deptList = [];
     while ($row = $deptResult->fetch_assoc()) {
         $deptList[] = $row['department'];
     }
-    
+
     // Get distinct sub-departments
     $subDeptSql = "SELECT DISTINCT sub_department FROM employees WHERE sub_department IS NOT NULL AND sub_department != '' ORDER BY sub_department";
     $subDeptResult = $conn->query($subDeptSql);
-    
+
     $subDeptList = [];
     while ($row = $subDeptResult->fetch_assoc()) {
         $subDeptList[] = $row['sub_department'];
     }
-    
+
     return [
         'success' => true,
         'data' => [
@@ -279,7 +279,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
             $response = getEmployees($conn, $filters);
         }
         break;
-        
+
     default:
         $response = [
             'success' => false,
@@ -289,8 +289,62 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
 }
 
-// Send response
-echo json_encode($response, JSON_PRETTY_PRINT);
+// Send response: emit only the `data` payload (exclude `success`, `pagination`, etc.)
+$output = null;
+if (is_array($response) && array_key_exists('data', $response)) {
+    $output = $response['data'];
+} else {
+    $output = (object)[];
+}
+
+// Convert top-level numeric array into an object map keyed by id (remove top-level array)
+if (is_array($output)) {
+    if (count($output) === 0) {
+        $output = (object)[];
+    } else {
+        $isList = array_keys($output) === range(0, count($output) - 1);
+        if ($isList) {
+            $idCandidates = ['id', 'employee_id', 'emp_id', 'user_id'];
+            $sample = reset($output);
+            $idKey = null;
+            if (is_array($sample)) {
+                foreach ($idCandidates as $k) {
+                    if (array_key_exists($k, $sample)) {
+                        $idKey = $k;
+                        break;
+                    }
+                }
+            } elseif (is_object($sample)) {
+                foreach ($idCandidates as $k) {
+                    if (property_exists($sample, $k)) {
+                        $idKey = $k;
+                        break;
+                    }
+                }
+            }
+
+            if ($idKey) {
+                $map = [];
+                foreach ($output as $item) {
+                    if (is_array($item) && array_key_exists($idKey, $item)) {
+                        $map[$item[$idKey]] = $item;
+                    } elseif (is_object($item) && isset($item->$idKey)) {
+                        $map[$item->$idKey] = $item;
+                    } else {
+                        $map[] = $item;
+                    }
+                }
+                $output = $map;
+            }
+        }
+    }
+}
+
+// If the response indicates failure, set a 400 status code
+if (is_array($response) && array_key_exists('success', $response) && $response['success'] === false) {
+    http_response_code(400);
+}
+
+echo json_encode($output, JSON_PRETTY_PRINT);
 
 $conn->close();
-?>
