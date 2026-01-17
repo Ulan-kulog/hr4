@@ -5,7 +5,12 @@ $role = $_SESSION['role'] ?? 'guest';
 // $is_supervisor = ($role === 'supervisor' || $role === 'admin');
 
 // Define base path for consistent URL structure
+<<<<<<< HEAD
 $base_url = '/HR_4'; // Correct full URL
+=======
+// $base_url = 'https://hr4.soliera-hotel-restaurant.com'; // Correct full URL
+$base_url = '/HR_4/'; // Correct full URL
+>>>>>>> 74ad6e481d8e80577b6e53f19336c184a527bb1c
 
 // Get current page for active state highlighting
 $current_page = basename($_SERVER['PHP_SELF']);

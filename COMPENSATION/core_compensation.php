@@ -86,18 +86,28 @@ $statistics = [];
 // 1. Total Salary Budget (Annual total, assuming basic_salary is monthly)
 $sql_total_budget = "SELECT SUM(basic_salary * 12) as total_budget FROM employees WHERE work_status = 'Active'";
 $result = mysqli_query($conn, $sql_total_budget);
-$statistics['total_budget'] = mysqli_fetch_assoc($result)['total_budget'] ?? 0;
+if ($result) {
+    $row = mysqli_fetch_assoc($result);
+    $statistics['total_budget'] = $row['total_budget'] ?? 0;
+} else {
+    $statistics['total_budget'] = 0;
+}
 
 // 2. Average Monthly Salary
 $sql_avg_salary = "SELECT AVG(basic_salary) as avg_monthly FROM employees WHERE work_status = 'Active'";
 $result = mysqli_query($conn, $sql_avg_salary);
-$statistics['avg_monthly'] = mysqli_fetch_assoc($result)['avg_monthly'] ?? 0;
+if ($result) {
+    $row = mysqli_fetch_assoc($result);
+    $statistics['avg_monthly'] = $row['avg_monthly'] ?? 0;
+} else {
+    $statistics['avg_monthly'] = 0;
+}
 
 // 3. Bonus Pool
 $sql_bonus_pool = "SELECT 
     SUM(
         CASE 
-            WHEN amount_or_percentage NOT LIKE '%\%' 
+            WHEN amount_or_percentage NOT LIKE '%\\%' 
             THEN CAST(REPLACE(REPLACE(amount_or_percentage, '₱', ''), ',', '') AS DECIMAL(10,2))
             ELSE 0 
         END
@@ -105,7 +115,12 @@ $sql_bonus_pool = "SELECT
     FROM bonus_plans 
     WHERE status = 'active'";
 $result = mysqli_query($conn, $sql_bonus_pool);
-$statistics['bonus_pool'] = mysqli_fetch_assoc($result)['bonus_pool'] ?? 0;
+if ($result) {
+    $row = mysqli_fetch_assoc($result);
+    $statistics['bonus_pool'] = $row['bonus_pool'] ?? 0;
+} else {
+    $statistics['bonus_pool'] = 0;
+}
 
 // 4. Allowance Budget
 $sql_allowance_budget = "SELECT 
@@ -122,7 +137,12 @@ $sql_allowance_budget = "SELECT
     ) as allowance_budget 
     FROM allowances WHERE status = 'active'";
 $result = mysqli_query($conn, $sql_allowance_budget);
-$statistics['allowance_budget'] = mysqli_fetch_assoc($result)['allowance_budget'] ?? 0;
+if ($result) {
+    $row = mysqli_fetch_assoc($result);
+    $statistics['allowance_budget'] = $row['allowance_budget'] ?? 0;
+} else {
+    $statistics['allowance_budget'] = 0;
+}
 
 // 5. Department-wise salary distribution
 $salary_by_dept = [];
@@ -136,8 +156,12 @@ $sql_dept_salary = "SELECT
     HAVING COUNT(e.id) > 0
     ORDER BY avg_salary DESC";
 $result = mysqli_query($conn, $sql_dept_salary);
-while ($row = mysqli_fetch_assoc($result)) {
-    $salary_by_dept[] = $row;
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $salary_by_dept[] = $row;
+    }
+} else {
+    // leave $salary_by_dept empty on query failure
 }
 
 // Fetch compensation mix data - FIXED VERSION

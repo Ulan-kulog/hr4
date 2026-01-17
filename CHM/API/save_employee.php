@@ -331,7 +331,62 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
 }
 
-// Send response
-echo json_encode($response, JSON_PRETTY_PRINT);
+// Send response: emit only the `data` payload (or empty object on error)
+$output = null;
+if (is_array($response) && array_key_exists('data', $response)) {
+    $output = $response['data'];
+} else {
+    $output = (object)[];
+}
+
+// Convert top-level numeric array into an object map keyed by id (remove top-level array)
+if (is_array($output)) {
+    if (count($output) === 0) {
+        $output = (object)[];
+    } else {
+        $isList = array_keys($output) === range(0, count($output) - 1);
+        if ($isList) {
+            $idCandidates = ['id', 'job_id', 'position_id', 'positionid', 'listing_id'];
+            $sample = reset($output);
+            $idKey = null;
+            if (is_array($sample)) {
+                foreach ($idCandidates as $k) {
+                    if (array_key_exists($k, $sample)) {
+                        $idKey = $k;
+                        break;
+                    }
+                }
+            } elseif (is_object($sample)) {
+                foreach ($idCandidates as $k) {
+                    if (property_exists($sample, $k)) {
+                        $idKey = $k;
+                        break;
+                    }
+                }
+            }
+
+            if ($idKey) {
+                $map = [];
+                foreach ($output as $item) {
+                    if (is_array($item) && array_key_exists($idKey, $item)) {
+                        $map[$item[$idKey]] = $item;
+                    } elseif (is_object($item) && isset($item->$idKey)) {
+                        $map[$item->$idKey] = $item;
+                    } else {
+                        $map[] = $item;
+                    }
+                }
+                $output = $map;
+            }
+        }
+    }
+}
+
+// If the response indicates failure, set a 400 status code
+if (is_array($response) && array_key_exists('success', $response) && $response['success'] === false) {
+    http_response_code(400);
+}
+
+echo json_encode($output, JSON_PRETTY_PRINT);
 
 $conn->close();
