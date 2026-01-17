@@ -19,11 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Helper function to format time elapsed (simplified version)
-function time_elapsed_string($datetime, $full = false) {
+function time_elapsed_string($datetime, $full = false)
+{
     $now = new DateTime();
     $ago = new DateTime($datetime);
     $diff = $now->diff($ago);
-    
+
     // Convert to array for easier handling
     $diffArray = [
         'y' => $diff->y,
@@ -33,54 +34,54 @@ function time_elapsed_string($datetime, $full = false) {
         'i' => $diff->i,
         's' => $diff->s,
     ];
-    
+
     // Calculate weeks
     $weeks = floor($diff->d / 7);
     $days = $diff->d % 7;
-    
+
     $string = [];
-    
+
     // Add weeks if needed
     if ($weeks > 0) {
         $string['w'] = $weeks . ' week' . ($weeks > 1 ? 's' : '');
     }
-    
+
     // Add remaining days
     if ($days > 0) {
         $string['d'] = $days . ' day' . ($days > 1 ? 's' : '');
     }
-    
+
     // Add other time units
     if ($diff->y > 0) {
         $string['y'] = $diff->y . ' year' . ($diff->y > 1 ? 's' : '');
     }
-    
+
     if ($diff->m > 0) {
         $string['m'] = $diff->m . ' month' . ($diff->m > 1 ? 's' : '');
     }
-    
+
     if ($diff->h > 0) {
         $string['h'] = $diff->h . ' hour' . ($diff->h > 1 ? 's' : '');
     }
-    
+
     if ($diff->i > 0) {
         $string['i'] = $diff->i . ' minute' . ($diff->i > 1 ? 's' : '');
     }
-    
+
     if ($diff->s > 0) {
         $string['s'] = $diff->s . ' second' . ($diff->s > 1 ? 's' : '');
     }
-    
+
     // If no time has passed
     if (empty($string)) {
         return 'just now';
     }
-    
+
     if (!$full) {
         // Return only the largest unit
         return reset($string) . ' ago';
     }
-    
+
     return implode(', ', $string) . ' ago';
 }
 
@@ -159,7 +160,7 @@ function getEmployeeAccounts($conn, $params = [])
                 FROM employee_accounts ea 
                 LEFT JOIN employees e ON ea.employee_id = e.id 
                 $whereClause";
-    
+
     if (!empty($queryParams)) {
         $countStmt = $conn->prepare($countSql);
         $countStmt->bind_param($types, ...$queryParams);
@@ -168,7 +169,7 @@ function getEmployeeAccounts($conn, $params = [])
     } else {
         $totalResult = $conn->query($countSql);
     }
-    
+
     $totalRow = $totalResult->fetch_assoc();
     $totalRecords = $totalRow['total'] ?? 0;
     $totalPages = ceil($totalRecords / $limit);
@@ -279,25 +280,25 @@ function getEmployeeAccounts($conn, $params = [])
             if (isset($row['password'])) {
                 unset($row['password']);
             }
-            
+
             // Format timestamps for account
             if (!empty($row['account_created_at'])) {
                 $row['account_created_ago'] = time_elapsed_string($row['account_created_at']);
             }
-            
+
             if (!empty($row['account_updated_at'])) {
                 $row['account_updated_ago'] = time_elapsed_string($row['account_updated_at']);
             }
-            
+
             // Format timestamps for employee (if exists)
             if (!empty($row['emp_created_at'])) {
                 $row['emp_created_ago'] = time_elapsed_string($row['emp_created_at']);
             }
-            
+
             if (!empty($row['emp_updated_at'])) {
                 $row['emp_updated_ago'] = time_elapsed_string($row['emp_updated_at']);
             }
-            
+
             // Calculate employment duration string (if data exists)
             if (!empty($row['employment_years'])) {
                 $duration = [];
@@ -313,7 +314,7 @@ function getEmployeeAccounts($conn, $params = [])
             } else {
                 $row['employment_duration'] = 'Not Available';
             }
-            
+
             // Format salary fields
             if (!empty($row['salary']) && $row['salary'] > 0) {
                 $row['salary_formatted'] = '₱' . number_format($row['salary'], 2);
@@ -321,40 +322,40 @@ function getEmployeeAccounts($conn, $params = [])
                 $row['salary_formatted'] = 'Not Available';
                 $row['salary'] = 0;
             }
-            
+
             if (!empty($row['basic_salary']) && $row['basic_salary'] > 0) {
                 $row['basic_salary_formatted'] = '₱' . number_format($row['basic_salary'], 2);
             } else {
                 $row['basic_salary_formatted'] = 'Not Available';
                 $row['basic_salary'] = 0;
             }
-            
+
             // Format phone number
             if (!empty($row['emp_phone_number']) && $row['emp_phone_number'] !== 'Not Available') {
                 $row['emp_phone_formatted'] = preg_replace('/(\d{3})(\d{3})(\d{4})/', '$1-$2-$3', $row['emp_phone_number']);
             } else {
                 $row['emp_phone_formatted'] = 'Not Available';
             }
-            
+
             if (!empty($row['emergency_contact_number']) && $row['emergency_contact_number'] !== 'Not Available') {
                 $row['emergency_contact_formatted'] = preg_replace('/(\d{3})(\d{3})(\d{4})/', '$1-$2-$3', $row['emergency_contact_number']);
             } else {
                 $row['emergency_contact_formatted'] = 'Not Available';
             }
-            
+
             // Set default values for null fields
             if (empty($row['emp_age'])) {
                 $row['emp_age'] = 'Not Available';
             }
-            
+
             if (empty($row['emp_date_of_birth'])) {
                 $row['emp_date_of_birth'] = 'Not Available';
             }
-            
+
             if (empty($row['emp_hire_date'])) {
                 $row['emp_hire_date'] = 'Not Available';
             }
-            
+
             $employees[] = $row;
         }
     }
@@ -468,25 +469,25 @@ function getEmployeeAccountById($conn, $id)
         if (isset($row['password'])) {
             unset($row['password']);
         }
-        
+
         // Format timestamps for account
         if (!empty($row['account_created_at'])) {
             $row['account_created_ago'] = time_elapsed_string($row['account_created_at']);
         }
-        
+
         if (!empty($row['account_updated_at'])) {
             $row['account_updated_ago'] = time_elapsed_string($row['account_updated_at']);
         }
-        
+
         // Format timestamps for employee (if exists)
         if (!empty($row['emp_created_at'])) {
             $row['emp_created_ago'] = time_elapsed_string($row['emp_created_at']);
         }
-        
+
         if (!empty($row['emp_updated_at'])) {
             $row['emp_updated_ago'] = time_elapsed_string($row['emp_updated_at']);
         }
-        
+
         // Calculate employment duration string (if data exists)
         if (!empty($row['employment_years'])) {
             $duration = [];
@@ -502,7 +503,7 @@ function getEmployeeAccountById($conn, $id)
         } else {
             $row['employment_duration'] = 'Not Available';
         }
-        
+
         // Format salary fields
         if (!empty($row['salary']) && $row['salary'] > 0) {
             $row['salary_formatted'] = '₱' . number_format($row['salary'], 2);
@@ -510,36 +511,36 @@ function getEmployeeAccountById($conn, $id)
             $row['salary_formatted'] = 'Not Available';
             $row['salary'] = 0;
         }
-        
+
         if (!empty($row['basic_salary']) && $row['basic_salary'] > 0) {
             $row['basic_salary_formatted'] = '₱' . number_format($row['basic_salary'], 2);
         } else {
             $row['basic_salary_formatted'] = 'Not Available';
             $row['basic_salary'] = 0;
         }
-        
+
         // Format phone number
         if (!empty($row['emp_phone_number']) && $row['emp_phone_number'] !== 'Not Available') {
             $row['emp_phone_formatted'] = preg_replace('/(\d{3})(\d{3})(\d{4})/', '$1-$2-$3', $row['emp_phone_number']);
         } else {
             $row['emp_phone_formatted'] = 'Not Available';
         }
-        
+
         if (!empty($row['emergency_contact_number']) && $row['emergency_contact_number'] !== 'Not Available') {
             $row['emergency_contact_formatted'] = preg_replace('/(\d{3})(\d{3})(\d{4})/', '$1-$2-$3', $row['emergency_contact_number']);
         } else {
             $row['emergency_contact_formatted'] = 'Not Available';
         }
-        
+
         // Set default values for null fields
         if (empty($row['emp_age'])) {
             $row['emp_age'] = 'Not Available';
         }
-        
+
         if (empty($row['emp_date_of_birth'])) {
             $row['emp_date_of_birth'] = 'Not Available';
         }
-        
+
         if (empty($row['emp_hire_date'])) {
             $row['emp_hire_date'] = 'Not Available';
         }
@@ -646,13 +647,13 @@ function getDepartments($conn)
 function getEmployeeStats($conn)
 {
     $stats = [];
-    
+
     // Total accounts
     $sql = "SELECT COUNT(*) as total_accounts FROM employee_accounts";
     $result = $conn->query($sql);
     $row = $result->fetch_assoc();
     $stats['total_accounts'] = $row['total_accounts'];
-    
+
     // Accounts with matching employee records
     $sql = "SELECT COUNT(DISTINCT ea.id) as accounts_with_employee 
             FROM employee_accounts ea 
@@ -660,10 +661,10 @@ function getEmployeeStats($conn)
     $result = $conn->query($sql);
     $row = $result->fetch_assoc();
     $stats['accounts_with_employee'] = $row['accounts_with_employee'];
-    
+
     // Accounts without matching employee records
     $stats['accounts_without_employee'] = $stats['total_accounts'] - $stats['accounts_with_employee'];
-    
+
     // Accounts by job title
     $sql = "SELECT COALESCE(ea.job_title, 'Not Specified') as job_title, COUNT(*) as count 
             FROM employee_accounts ea 
@@ -675,7 +676,7 @@ function getEmployeeStats($conn)
     while ($row = $result->fetch_assoc()) {
         $stats['by_job_title'][] = $row;
     }
-    
+
     // Accounts by employment status
     $sql = "SELECT COALESCE(e.employment_status, 'Unknown') as employment_status, COUNT(*) as count 
             FROM employee_accounts ea 
@@ -687,7 +688,7 @@ function getEmployeeStats($conn)
     while ($row = $result->fetch_assoc()) {
         $stats['by_employment_status'][] = $row;
     }
-    
+
     // Recent accounts (last 30 days)
     $sql = "SELECT COUNT(*) as recent_accounts 
             FROM employee_accounts ea 
@@ -696,7 +697,7 @@ function getEmployeeStats($conn)
     $result = $conn->query($sql);
     $row = $result->fetch_assoc();
     $stats['recent_accounts_30_days'] = $row['recent_accounts'];
-    
+
     // Record status breakdown
     $sql = "SELECT 
                 CASE 
@@ -712,7 +713,7 @@ function getEmployeeStats($conn)
     while ($row = $result->fetch_assoc()) {
         $stats['by_record_type'][] = $row;
     }
-    
+
     return [
         'success' => true,
         'data' => $stats
@@ -762,14 +763,14 @@ function getEmployeesWithoutAccounts($conn, $params = [])
         } else {
             $row['salary_formatted'] = 'Not Available';
         }
-        
+
         // Format phone number
         if (!empty($row['phone_number']) && $row['phone_number'] !== 'Not Available') {
             $row['phone_formatted'] = preg_replace('/(\d{3})(\d{3})(\d{4})/', '$1-$2-$3', $row['phone_number']);
         } else {
             $row['phone_formatted'] = 'Not Available';
         }
-        
+
         $employees[] = $row;
     }
 
@@ -922,4 +923,3 @@ if (is_array($response) && array_key_exists('success', $response) && $response['
 echo json_encode($output, JSON_PRETTY_PRINT);
 
 $conn->close();
-?>
