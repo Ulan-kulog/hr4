@@ -11,8 +11,14 @@ if (!isset($connections['hr4_hr_4'])) {
 $conn = $connections['hr4_hr_4'];
 
 $candidates = [
-    'sub_departments', 'subdepartments', 'sub_department', 'sub-departments',
-    'sub_depts', 'sub_dept', 'department_subs', 'department_sub'
+    'sub_departments',
+    'subdepartments',
+    'sub_department',
+    'sub-departments',
+    'sub_depts',
+    'sub_dept',
+    'department_subs',
+    'department_sub'
 ];
 
 foreach ($candidates as $tbl) {

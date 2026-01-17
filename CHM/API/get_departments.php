@@ -29,4 +29,3 @@ mysqli_free_result($result);
 if ($conn) mysqli_close($conn);
 
 echo json_encode($rows);
-
