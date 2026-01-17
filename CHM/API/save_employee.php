@@ -105,6 +105,67 @@ function getJobPositions($conn, $params = [])
         }
     }
 
+    // Attach department and sub-department names for returned positions
+    $deptIds = [];
+    $subDeptIds = [];
+    foreach ($positions as $p) {
+        if (!empty($p['department_id'])) $deptIds[] = (int)$p['department_id'];
+        if (!empty($p['sub_department_id'])) $subDeptIds[] = (int)$p['sub_department_id'];
+    }
+    $deptIds = array_values(array_unique(array_filter($deptIds)));
+    $subDeptIds = array_values(array_unique(array_filter($subDeptIds)));
+
+    $deptMap = [];
+    if (!empty($deptIds)) {
+        $ids = implode(',', array_map('intval', $deptIds));
+        $dsql = "SELECT id, name FROM departments WHERE id IN ($ids)";
+        $dres = $conn->query($dsql);
+        if ($dres) {
+            while ($dr = $dres->fetch_assoc()) {
+                $deptMap[(int)$dr['id']] = $dr['name'];
+            }
+        }
+    }
+
+    $subDeptMap = [];
+    if (!empty($subDeptIds)) {
+        $ids = implode(',', array_map('intval', $subDeptIds));
+        // Prefer a dedicated sub_departments table if present
+        $exists = @$conn->query("SELECT 1 FROM sub_departments LIMIT 1");
+        if ($exists !== false) {
+            $sSql = "SELECT id, name FROM sub_departments WHERE id IN ($ids)";
+            $sRes = $conn->query($sSql);
+            if ($sRes) {
+                while ($sr = $sRes->fetch_assoc()) {
+                    $subDeptMap[(int)$sr['id']] = $sr['name'];
+                }
+            }
+        } else {
+            // Fallback to departments table
+            $sSql = "SELECT id, name FROM departments WHERE id IN ($ids)";
+            $sRes = $conn->query($sSql);
+            if ($sRes) {
+                while ($sr = $sRes->fetch_assoc()) {
+                    $subDeptMap[(int)$sr['id']] = $sr['name'];
+                }
+            }
+        }
+    }
+
+    foreach ($positions as &$pr) {
+        $pr['department'] = $pr['department_name'] ?? null;
+        $pr['sub_department'] = null;
+        if (!empty($pr['department_id'])) {
+            $dkey = (int)$pr['department_id'];
+            if (isset($deptMap[$dkey])) $pr['department'] = $deptMap[$dkey];
+        }
+        if (!empty($pr['sub_department_id'])) {
+            $skey = (int)$pr['sub_department_id'];
+            if (isset($subDeptMap[$skey])) $pr['sub_department'] = $subDeptMap[$skey];
+        }
+    }
+    unset($pr);
+
     return [
         'success' => true,
         'data' => $positions,
@@ -138,6 +199,7 @@ function getJobPositionById($conn, $id)
     $result = $stmt->get_result();
 
     if ($row = $result->fetch_assoc()) {
+
         // Format salary range
         $row['salary_range'] = '₱' . number_format($row['salary_min'], 2) . ' - ₱' . number_format($row['salary_max'], 2);
 
@@ -148,6 +210,33 @@ function getJobPositionById($conn, $id)
             $interval = $today->diff($endDate);
             $row['days_remaining'] = $interval->days;
             $row['is_expired'] = $today > $endDate;
+        }
+
+        // Attach department/sub-department names for single record
+        $row['department'] = $row['department_name'] ?? null;
+        $row['sub_department'] = null;
+        if (!empty($row['department_id'])) {
+            $dsql = "SELECT name FROM departments WHERE id = " . ((int)$row['department_id']) . " LIMIT 1";
+            $dres = $conn->query($dsql);
+            if ($dres && $drow = $dres->fetch_assoc()) {
+                $row['department'] = $drow['name'];
+            }
+        }
+        if (!empty($row['sub_department_id'])) {
+            $sExists = @$conn->query("SELECT 1 FROM sub_departments LIMIT 1");
+            if ($sExists !== false) {
+                $sSql = "SELECT name FROM sub_departments WHERE id = " . ((int)$row['sub_department_id']) . " LIMIT 1";
+                $sRes = $conn->query($sSql);
+                if ($sRes && $srow = $sRes->fetch_assoc()) {
+                    $row['sub_department'] = $srow['name'];
+                }
+            } else {
+                $sSql = "SELECT name FROM departments WHERE id = " . ((int)$row['sub_department_id']) . " LIMIT 1";
+                $sRes = $conn->query($sSql);
+                if ($sRes && $srow = $sRes->fetch_assoc()) {
+                    $row['sub_department'] = $srow['name'];
+                }
+            }
         }
 
         return [
