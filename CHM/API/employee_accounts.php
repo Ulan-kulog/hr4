@@ -127,11 +127,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
 
     if ($conn) $conn->close();
+
     if (empty($results)) {
         echo json_encode((object)[]);
-    } else {
-        echo json_encode($results, JSON_PRETTY_PRINT);
+        exit;
     }
+
+    // Convert numeric array to object map keyed by `id`
+    $map = [];
+    foreach ($results as $item) {
+        if (is_array($item) && array_key_exists('id', $item)) {
+            $map[$item['id']] = $item;
+        } elseif (is_object($item) && property_exists($item, 'id')) {
+            $map[$item->id] = $item;
+        } else {
+            // fallback: push item without key
+            $map[] = $item;
+        }
+    }
+
+    echo json_encode($map, JSON_PRETTY_PRINT);
     exit;
 }
 
