@@ -7,6 +7,23 @@ require_once __DIR__ . '/../COMPENSATION/DB.php';
 
 $apiUrl = 'https://hr1.soliera-hotel-restaurant.com/api/employees';
 
+/**
+ * Convert ISO 8601 timestamp to MySQL DATETIME string (Y-m-d H:i:s)
+ * Returns null on empty/invalid input.
+ */
+function isoToMySQLDatetime($iso)
+{
+    if (empty($iso)) {
+        return null;
+    }
+    try {
+        $dt = new DateTime($iso);
+        return $dt->format('Y-m-d H:i:s');
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
 try {
     $ch = curl_init();
     curl_setopt_array($ch, [
@@ -90,8 +107,8 @@ try {
             'separation_status' => $item['separation_status'] ?? null,
             'task_id' => $item['task_id'] ?? null,
             'has_contract' => $item['has_contract'] ?? null,
-            'created_at' => $item['created_at'] ?? null,
-            'updated_at' => $item['updated_at'] ?? null,
+            'created_at' => isset($item['created_at']) ? isoToMySQLDatetime($item['created_at']) : null,
+            'updated_at' => isset($item['updated_at']) ? isoToMySQLDatetime($item['updated_at']) : null,
         ];
 
         if (Database::exists('SELECT COUNT(*) FROM employees WHERE id = ?', [$employee_id])) {
