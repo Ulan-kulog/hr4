@@ -409,7 +409,7 @@
                         </div>
                     </div>
 
-                    <!-- Employee Enrollment Table -->
+                    <!-- Employee Enrollment Table - FIXED WITH DEPARTMENT JOINS -->
                     <div class="bg-white shadow-sm mb-6 p-6 border border-gray-100 rounded-xl">
                         <div class="flex justify-between items-center mb-6">
                             <div>
@@ -417,20 +417,20 @@
                                 <p class="text-gray-500 text-sm">View and manage employee benefit enrollments</p>
                             </div>
                             <div class="flex gap-2">
-                                <input type="text" placeholder="Search employees..." class="px-4 py-2 border border-gray-300 rounded-lg w-64">
-                                <select class="px-4 py-2 border border-gray-300 rounded-lg">
-                                    <option>All Benefits</option>
-                                    <option>Premium HMO</option>
-                                    <option>Dental Insurance</option>
-                                    <option>401(k) Match</option>
-                                    <option>Gym Membership</option>
+                                <input type="text" placeholder="Search employees..." class="px-4 py-2 border border-gray-300 rounded-lg w-64" id="searchEmployees">
+                                <select class="px-4 py-2 border border-gray-300 rounded-lg" id="benefitFilter">
+                                    <option value="">All Benefits</option>
+                                    <option value="Premium HMO">Premium HMO</option>
+                                    <option value="Dental Insurance">Dental Insurance</option>
+                                    <option value="401(k) Match">401(k) Match</option>
+                                    <option value="Gym Membership">Gym Membership</option>
                                 </select>
-                                <select class="px-4 py-2 border border-gray-300 rounded-lg">
-                                    <option>All Status</option>
-                                    <option>Active</option>
-                                    <option>Pending</option>
-                                    <option>Cancelled</option>
-                                    <option>Expired</option>
+                                <select class="px-4 py-2 border border-gray-300 rounded-lg" id="statusFilter">
+                                    <option value="">All Status</option>
+                                    <option value="active">Active</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="cancelled">Cancelled</option>
+                                    <option value="expired">Expired</option>
                                 </select>
                             </div>
                         </div>
@@ -442,6 +442,7 @@
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Employee</th>
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Employee ID</th>
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Department</th>
+                                        <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Sub-Department</th>
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Enrolled Benefits</th>
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Total Cost</th>
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Last Updated</th>
@@ -450,123 +451,144 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($employee_benefits as $eb) : ?>
-                                        <tr class="hover:bg-gray-50 border-gray-100 border-b">
-
-                                            <!-- Employee -->
-                                            <td class="px-4 py-3">
-                                                <div class="flex items-center">
-                                                    <div class="flex justify-center items-center bg-blue-100 mr-3 rounded-full w-8 h-8">
-                                                        <span class="font-medium text-blue-600 text-sm">
-                                                            <?= strtoupper(mb_substr($eb['first_name'], 0, 1)) ?>
-                                                            <?= strtoupper(mb_substr($eb['last_name'], 0, 1)) ?>
-                                                        </span>
+                                    <?php if (count($employee_benefits) > 0): ?>
+                                        <?php foreach ($employee_benefits as $eb): ?>
+                                            <tr class="hover:bg-gray-50 border-gray-100 border-b">
+                                                <!-- Employee -->
+                                                <td class="px-4 py-3">
+                                                    <div class="flex items-center">
+                                                        <div class="flex justify-center items-center bg-blue-100 mr-3 rounded-full w-8 h-8">
+                                                            <span class="font-medium text-blue-600 text-sm">
+                                                                <?= strtoupper(mb_substr($eb['first_name'] ?? '', 0, 1)) ?>
+                                                                <?= strtoupper(mb_substr($eb['last_name'] ?? '', 0, 1)) ?>
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <p class="font-medium text-gray-900 text-sm">
+                                                                <?= htmlspecialchars(($eb['first_name'] ?? '') . ' ' . ($eb['last_name'] ?? '')) ?>
+                                                            </p>
+                                                            <p class="text-gray-500 text-xs">
+                                                                <?= htmlspecialchars($eb['email'] ?? '') ?>
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p class="font-medium text-gray-900 text-sm">
-                                                            <?= htmlspecialchars($eb['first_name'] . ' ' . $eb['last_name']) ?>
-                                                        </p>
-                                                        <p class="text-gray-500 text-xs">
-                                                            <?= htmlspecialchars($eb['email']) ?>
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </td>
+                                                </td>
 
-                                            <!-- Employee ID -->
-                                            <td class="px-4 py-3">
-                                                <span class="text-gray-700 text-sm">
-                                                    <?= htmlspecialchars($eb['employee_code']) ?>
-                                                </span>
-                                            </td>
-
-                                            <!-- Department -->
-                                            <td class="px-4 py-3">
-                                                <span class="text-gray-700 text-sm">
-                                                    <?= htmlspecialchars($eb['department']) ?>
-                                                </span>
-                                            </td>
-
-                                            <!-- Enrolled Benefits -->
-                                            <td class="px-4 py-3">
-                                                <div class="flex flex-wrap gap-1">
-                                                    <?php foreach ($eb['benefits'] as $benefit) : ?>
-                                                        <span class="bg-blue-100 px-2 py-1 rounded text-blue-800 text-xs">
-                                                            <?= htmlspecialchars($benefit['benefit_name']) ?>
-                                                        </span>
-                                                    <?php endforeach; ?>
-                                                </div>
-                                            </td>
-
-                                            <!-- Total Cost -->
-                                            <td class="px-4 py-3">
-                                                <div class="flex flex-col">
-                                                    <span class="font-medium text-gray-900 text-sm">
-                                                        <!-- ₱<?= number_format($eb['total_employee_cost'], 2) ?>/mo -->
-                                                        -
+                                                <!-- Employee ID -->
+                                                <td class="px-4 py-3">
+                                                    <span class="text-gray-700 text-sm">
+                                                        <?= htmlspecialchars($eb['employee_code'] ?? 'N/A') ?>
                                                     </span>
-                                                    <span class="text-gray-500 text-xs">Employee pays</span>
+                                                </td>
+
+                                                <!-- Department -->
+                                                <td class="px-4 py-3">
+                                                    <span class="text-gray-700 text-sm">
+                                                        <?= htmlspecialchars($eb['department_name'] ?? 'No Department') ?>
+                                                    </span>
+                                                </td>
+
+                                                <!-- Sub-Department -->
+                                                <td class="px-4 py-3">
+                                                    <span class="text-gray-700 text-sm">
+                                                        <?= htmlspecialchars($eb['sub_department_name'] ?? '-') ?>
+                                                    </span>
+                                                </td>
+
+                                                <!-- Enrolled Benefits -->
+                                                <td class="px-4 py-3">
+                                                    <div class="flex flex-wrap gap-1">
+                                                        <?php if (!empty($eb['benefits'])): ?>
+                                                            <?php foreach ($eb['benefits'] as $benefit): ?>
+                                                                <span class="bg-blue-100 px-2 py-1 rounded text-blue-800 text-xs">
+                                                                    <?= htmlspecialchars($benefit['benefit_name'] ?? 'Unknown Benefit') ?>
+                                                                </span>
+                                                            <?php endforeach; ?>
+                                                        <?php else: ?>
+                                                            <span class="text-gray-400 text-xs">No benefits enrolled</span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </td>
+
+                                                <!-- Total Cost -->
+                                                <td class="px-4 py-3">
+                                                    <div class="flex flex-col">
+                                                        <span class="font-medium text-gray-900 text-sm">
+                                                            -
+                                                        </span>
+                                                        <span class="text-gray-500 text-xs">Employee pays</span>
+                                                    </div>
+                                                </td>
+
+                                                <!-- Last Updated -->
+                                                <td class="px-4 py-3">
+                                                    <span class="text-gray-700 text-sm">
+                                                        <?= !empty($eb['updated_at']) ? date('Y-m-d', strtotime($eb['updated_at'])) : '-' ?>
+                                                    </span>
+                                                </td>
+
+                                                <!-- Status -->
+                                                <td class="px-4 py-3">
+                                                    <?php
+                                                    $status = $eb['status'] ?? 'pending';
+                                                    $statusMap = [
+                                                        'active' => 'bg-green-100 text-green-700',
+                                                        'pending' => 'bg-yellow-100 text-yellow-700',
+                                                        'cancelled' => 'bg-red-100 text-red-700',
+                                                        'expired' => 'bg-gray-100 text-gray-600',
+                                                        'inactive' => 'bg-red-100 text-red-700',
+                                                    ];
+
+                                                    $statusClass = $statusMap[$status] ?? 'bg-gray-100 text-gray-600';
+                                                    ?>
+                                                    <span class="px-2 py-1 rounded text-xs font-medium <?= $statusClass ?>">
+                                                        <?= ucfirst($status) ?>
+                                                    </span>
+                                                </td>
+
+                                                <!-- Actions -->
+                                                <td class="px-4 py-3">
+                                                    <div class="flex gap-2">
+                                                        <button onclick="viewEmployeeEnrollment(<?= $eb['employee_id'] ?>)"
+                                                            class="hover:bg-purple-50 p-1 rounded text-purple-600 hover:text-purple-800"
+                                                            title="View Enrollment">
+                                                            <i data-lucide="eye" class="w-4 h-4"></i>
+                                                        </button>
+
+                                                        <button onclick="openEditEnrollmentModal(<?= $eb['employee_id'] ?>)"
+                                                            class="hover:bg-blue-50 p-1 rounded text-blue-600 hover:text-blue-800"
+                                                            title="Edit Enrollment">
+                                                            <i data-lucide="edit" class="w-4 h-4"></i>
+                                                        </button>
+
+                                                        <button onclick="deleteEmployeeEnrollment(<?= $eb['benefit_enrollment_id'] ?? 0 ?>, <?= $eb['employee_id'] ?>, '<?= addslashes(($eb['first_name'] ?? '') . ' ' . ($eb['last_name'] ?? '')) ?>')"
+                                                            class="hover:bg-red-50 p-1 rounded text-red-600 hover:text-red-800"
+                                                            title="Delete Enrollment">
+                                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <tr>
+                                            <td colspan="9" class="px-4 py-6 text-gray-500 text-center">
+                                                <div class="flex flex-col items-center">
+                                                    <i data-lucide="users" class="mb-2 w-12 h-12 text-gray-300"></i>
+                                                    <p class="text-gray-500">No employee enrollments found</p>
+                                                    <p class="mt-1 text-gray-400 text-sm">Create your first enrollment to get started</p>
                                                 </div>
                                             </td>
-
-                                            <!-- Last Updated -->
-                                            <td class="px-4 py-3">
-                                                <span class="text-gray-700 text-sm">
-                                                    <?= date('Y-m-d', strtotime($eb['updated_at'])) ?>
-                                                </span>
-                                            </td>
-
-                                            <!-- Status -->
-                                            <td class="px-4 py-3">
-                                                <?php
-                                                $statusMap = [
-                                                    'active' => 'bg-green-100 text-green-700',
-                                                    'pending' => 'bg-yellow-100 text-yellow-700',
-                                                    'inactive' => 'bg-red-100 text-red-700',
-                                                ];
-
-                                                $statusClass = $statusMap[$eb['status']] ?? 'bg-gray-100 text-gray-600';
-
-                                                ?>
-                                                <span class="px-2 py-1 rounded text-xs font-medium <?= $statusClass ?>">
-                                                    <?= ucfirst($eb['status']) ?>
-                                                </span>
-                                            </td>
-
-                                            <!-- Actions -->
-                                            <td class="px-4 py-3">
-                                                <div class="flex gap-2">
-                                                    <button onclick="viewEmployeeEnrollment(<?= $eb['employee_id'] ?>)"
-                                                        class="hover:bg-purple-50 p-1 rounded text-purple-600 hover:text-purple-800"
-                                                        title="View Enrollment">
-                                                        <i data-lucide="eye" class="w-4 h-4"></i>
-                                                    </button>
-
-                                                    <button onclick="openEditEnrollmentModal(<?= $eb['employee_id'] ?>)"
-                                                        class="hover:bg-blue-50 p-1 rounded text-blue-600 hover:text-blue-800"
-                                                        title="Edit Enrollment">
-                                                        <i data-lucide="edit" class="w-4 h-4"></i>
-                                                    </button>
-
-                                                    <button onclick="deleteEmployeeEnrollment(<?= $eb['benefit_enrollment_id'] ?>, <?= $eb['employee_id'] ?>, '<?= addslashes($eb['first_name'] . ' ' . $eb['last_name']) ?>')"
-                                                        class="hover:bg-red-50 p-1 rounded text-red-600 hover:text-red-800"
-                                                        title="Delete Enrollment">
-                                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                                    </button>
-                                                </div>
-                                            </td>
-
                                         </tr>
-                                    <?php endforeach; ?>
+                                    <?php endif; ?>
                                 </tbody>
-
                             </table>
                         </div>
 
                         <!-- Table Footer -->
                         <div class="flex justify-between items-center mt-6 pt-6 border-gray-200 border-t">
                             <div class="text-gray-500 text-sm">
-                                Showing 4 of 342 enrollments
+                                Showing <?= count($employee_benefits) ?> of <?= $total_employees ?> employees
                             </div>
                             <div class="flex gap-2">
                                 <button class="hover:bg-gray-50 px-3 py-1 border border-gray-300 rounded-lg text-sm">
@@ -753,15 +775,16 @@
             </div>
         </div>
 
-
         <script src="js/enrollment.js"></script>
         <script>
+            // View Employee Enrollment Function
             function viewEmployeeEnrollment(employeeId) {
-                // Find the employee data from your PHP array
-                const employeeData = <?php echo json_encode($employee_benefits); ?>[employeeId];
+                const employeeBenefits = <?php echo json_encode($employee_benefits); ?>;
+                const employeeData = employeeBenefits.find(emp => emp.employee_id == employeeId);
 
                 if (!employeeData) {
                     console.error('Employee data not found');
+                    alert('Employee data not found!');
                     return;
                 }
 
@@ -769,12 +792,23 @@
                 document.getElementById('view_employee_code').value = employeeData.employee_code || '';
                 document.getElementById('view_full_name').value =
                     `${employeeData.first_name || ''} ${employeeData.last_name || ''}`;
-                document.getElementById('view_department').value = employeeData.department || '';
+
+                // Show department and sub-department
+                let departmentText = employeeData.department_name || '';
+                if (employeeData.sub_department_name) {
+                    departmentText += ` (${employeeData.sub_department_name})`;
+                }
+                document.getElementById('view_department').value = departmentText;
+
                 document.getElementById('view_email').value = employeeData.email || '';
 
                 // Populate Enrollment Information
-                document.getElementById('view_benefit_enrollment_id').value =
-                    `ENR-${String(employeeData.benefit_enrollment_id).padStart(3, '0')}`;
+                if (employeeData.benefit_enrollment_id) {
+                    document.getElementById('view_benefit_enrollment_id').value =
+                        `ENR-${String(employeeData.benefit_enrollment_id).padStart(3, '0')}`;
+                } else {
+                    document.getElementById('view_benefit_enrollment_id').value = 'N/A';
+                }
 
                 // Status with badge styling
                 const statusElement = document.getElementById('view_status');
@@ -782,7 +816,9 @@
                 const statusMap = {
                     'active': 'bg-green-100 text-green-700',
                     'pending': 'bg-yellow-100 text-yellow-700',
-                    'inactive': 'bg-red-100 text-red-700'
+                    'inactive': 'bg-red-100 text-red-700',
+                    'cancelled': 'bg-red-100 text-red-700',
+                    'expired': 'bg-gray-100 text-gray-600'
                 };
                 statusElement.textContent = status.charAt(0).toUpperCase() + status.slice(1);
                 statusElement.className = `px-3 py-2 rounded-lg text-sm font-medium inline-block ${statusMap[status] || 'bg-gray-100 text-gray-600'}`;
@@ -808,9 +844,9 @@
 
                         // Determine benefit value display
                         let valueDisplay = benefit.value || '';
-                        if (benefit.type === 'percentage' && benefit.value) {
+                        if (benefit.unit === 'percentage' && benefit.value) {
                             valueDisplay = `${benefit.value}%`;
-                        } else if (benefit.type === 'fixed' && benefit.value) {
+                        } else if (benefit.unit === 'fixed' && benefit.value) {
                             valueDisplay = `$${parseFloat(benefit.value).toFixed(2)}`;
                         }
 
@@ -824,38 +860,37 @@
                         const benefitStatusClass = benefitStatusMap[benefitStatus] || 'bg-gray-100 text-gray-600';
 
                         row.innerHTML = `
-    <td class="px-4 py-3">
-        <span class="font-medium text-white text-sm">
-            ${benefit.benefit_name || 'N/A'}
-        </span>
-    </td>
-    <td class="px-4 py-3">
-        <span class="text-white text-sm">
-            ${benefit.type ? benefit.type.charAt(0).toUpperCase() + benefit.type.slice(1) : 'N/A'}
-        </span>
-    </td>
-    <td class="px-4 py-3">
-        <span class="font-medium text-white text-sm">
-            ${valueDisplay}
-        </span>
-    </td>
-    <td class="px-4 py-3">
-        <span class="text-sm text-white ${taxableClass}">
-            ${taxableText}
-        </span>
-    </td>
-    <td class="px-4 py-3">
-        <span class="px-2 py-1 rounded text-xs font-medium text-white ${benefitStatusClass}">
-            ${benefitStatus.charAt(0).toUpperCase() + benefitStatus.slice(1)}
-        </span>
-    </td>
-    <td class="px-4 py-3">
-        <span class="text-white text-sm">
-            ${benefit.enrollment_id || 'N/A'}
-        </span>
-    </td>
-`;
-
+                            <td class="px-4 py-3">
+                                <span class="font-medium text-gray-900 text-sm">
+                                    ${benefit.benefit_name || 'N/A'}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="text-gray-700 text-sm">
+                                    ${benefit.type ? benefit.type.charAt(0).toUpperCase() + benefit.type.slice(1) : 'N/A'}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="font-medium text-gray-900 text-sm">
+                                    ${valueDisplay}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="text-sm ${taxableClass}">
+                                    ${taxableText}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-1 rounded text-xs font-medium ${benefitStatusClass}">
+                                    ${benefitStatus.charAt(0).toUpperCase() + benefitStatus.slice(1)}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="text-gray-700 text-sm">
+                                    ${benefit.enrollment_id || 'N/A'}
+                                </span>
+                            </td>
+                        `;
 
                         benefitsTableBody.appendChild(row);
                     });
@@ -863,44 +898,63 @@
                     // Show empty state
                     const row = document.createElement('tr');
                     row.innerHTML = `
-            <td colspan="6" class="px-4 py-6 text-gray-500 text-center">
-                <div class="flex flex-col items-center">
-                    <i data-lucide="package" class="mb-2 w-12 h-12 text-gray-300"></i>
-                    <p class="text-gray-500">No benefits enrolled</p>
-                </div>
-            </td>
-        `;
+                        <td colspan="6" class="px-4 py-6 text-gray-500 text-center">
+                            <div class="flex flex-col items-center">
+                                <i data-lucide="package" class="mb-2 w-12 h-12 text-gray-300"></i>
+                                <p class="text-gray-500">No benefits enrolled</p>
+                            </div>
+                        </td>
+                    `;
                     benefitsTableBody.appendChild(row);
                 }
 
                 // Show the modal
-                document.getElementById('viewEmployeeModal').showModal();
+                const modal = document.getElementById('viewEmployeeModal');
+                if (modal) {
+                    modal.showModal();
+                } else {
+                    console.error('Modal element not found');
+                }
 
                 // Re-initialize icons for any new lucide icons
-                lucide.createIcons();
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
             }
 
-            // Edit Enrollment Functions
+            // Edit Enrollment Function
             function openEditEnrollmentModal(employeeId) {
-                // Get employee data from PHP array
-                const employeeData = <?php echo json_encode($employee_benefits); ?>[employeeId];
+                const employeeBenefits = <?php echo json_encode($employee_benefits); ?>;
+                const employeeData = employeeBenefits.find(emp => emp.employee_id == employeeId);
 
                 if (!employeeData) {
                     console.error('Employee data not found');
+                    alert('Employee data not found!');
                     return;
                 }
 
                 // Populate Employee Information
                 document.getElementById('edit_employee_id').value = employeeData.employee_id;
-                document.getElementById('edit_benefit_enrollment_id').value = employeeData.benefit_enrollment_id;
+                document.getElementById('edit_benefit_enrollment_id').value = employeeData.benefit_enrollment_id || '';
                 document.getElementById('edit_employee_code').value = employeeData.employee_code || '';
                 document.getElementById('edit_full_name').value = `${employeeData.first_name || ''} ${employeeData.last_name || ''}`;
-                document.getElementById('edit_department').value = employeeData.department || '';
+
+                // Show department and sub-department
+                let departmentText = employeeData.department_name || '';
+                if (employeeData.sub_department_name) {
+                    departmentText += ` (${employeeData.sub_department_name})`;
+                }
+                document.getElementById('edit_department').value = departmentText;
+
                 document.getElementById('edit_email').value = employeeData.email || '';
 
                 // Populate Enrollment Details
-                document.getElementById('edit_benefit_enrollment_id_display').value =
-                    `ENR-${String(employeeData.benefit_enrollment_id).padStart(3, '0')}`;
+                if (employeeData.benefit_enrollment_id) {
+                    document.getElementById('edit_benefit_enrollment_id_display').value =
+                        `ENR-${String(employeeData.benefit_enrollment_id).padStart(3, '0')}`;
+                } else {
+                    document.getElementById('edit_benefit_enrollment_id_display').value = 'N/A';
+                }
                 document.getElementById('edit_status').value = employeeData.status || 'pending';
                 document.getElementById('edit_start_date').value = employeeData.start_date || '';
                 document.getElementById('edit_end_date').value = employeeData.end_date || '';
@@ -919,13 +973,13 @@
 
                     employeeData.benefits.forEach((benefit, index) => {
                         const benefitCard = document.createElement('div');
-                        benefitCard.className = 'bg-white p-4 rounded-lg border border-gray-200';
+                        benefitCard.className = 'bg-white p-4 rounded-lg border border-gray-200 mb-2';
 
                         // Format value based on type
                         let valueDisplay = benefit.value || '0';
-                        if (benefit.type === 'percentage' && benefit.value) {
+                        if (benefit.unit === 'percentage' && benefit.value) {
                             valueDisplay = `${benefit.value}%`;
-                        } else if (benefit.type === 'fixed' && benefit.value) {
+                        } else if (benefit.unit === 'fixed' && benefit.value) {
                             valueDisplay = `$${parseFloat(benefit.value).toFixed(2)}`;
                         }
 
@@ -945,75 +999,114 @@
                         const taxableClass = benefit.is_taxable == 1 ? 'badge-success' : 'badge-info';
 
                         benefitCard.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-3 mb-2">
-                            <div class="flex justify-center items-center bg-[#000a19]/10 rounded-lg w-8 h-8">
-                                <i data-lucide="package" class="w-4 h-4 text-[#000a19]"></i>
-                            </div>
-                            <div>
-                                <h5 class="font-bold text-gray-900">${benefit.benefit_name || 'Unnamed Benefit'}</h5>
-                                <p class="text-gray-500 text-sm">Benefit ID: ${benefit.benefit_id} • Enrollment ID: ${benefit.enrollment_id}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="gap-3 grid grid-cols-3 mt-3">
-                            <div class="bg-gray-50 p-2 rounded text-center">
-                                <div class="font-medium text-gray-500 text-sm">Type</div>
-                                <div class="mt-1 font-bold text-gray-900">${benefit.type ? benefit.type.charAt(0).toUpperCase() + benefit.type.slice(1) : 'N/A'}</div>
-                            </div>
-                            
-                            <div class="bg-gray-50 p-2 rounded text-center">
-                                <div class="font-medium text-gray-500 text-sm">Value</div>
-                                <div class="mt-1 font-bold text-gray-900">${valueDisplay}</div>
-                            </div>
-                            
-                            <div class="bg-gray-50 p-2 rounded text-center">
-                                <div class="font-medium text-gray-500 text-sm">Taxable</div>
-                                <div class="mt-1">
-                                    <span class="badge badge-sm ${taxableClass}">${taxableText}</span>
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-3 mb-2">
+                                        <div class="flex justify-center items-center bg-blue-100 rounded-lg w-8 h-8">
+                                            <i data-lucide="package" class="w-4 h-4 text-blue-600"></i>
+                                        </div>
+                                        <div>
+                                            <h5 class="font-bold text-gray-900">${benefit.benefit_name || 'Unnamed Benefit'}</h5>
+                                            <p class="text-gray-500 text-sm">Benefit ID: ${benefit.benefit_id || 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="gap-3 grid grid-cols-3 mt-3">
+                                        <div class="bg-gray-50 p-2 rounded text-center">
+                                            <div class="font-medium text-gray-500 text-sm">Type</div>
+                                            <div class="mt-1 font-bold text-gray-900">${benefit.type ? benefit.type.charAt(0).toUpperCase() + benefit.type.slice(1) : 'N/A'}</div>
+                                        </div>
+                                        
+                                        <div class="bg-gray-50 p-2 rounded text-center">
+                                            <div class="font-medium text-gray-500 text-sm">Value</div>
+                                            <div class="mt-1 font-bold text-gray-900">${valueDisplay}</div>
+                                        </div>
+                                        
+                                        <div class="bg-gray-50 p-2 rounded text-center">
+                                            <div class="font-medium text-gray-500 text-sm">Taxable</div>
+                                            <div class="mt-1">
+                                                <span class="badge badge-sm ${taxableClass}">${taxableText}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="ml-4">
+                                    <span class="badge ${statusClass} gap-1">
+                                        <i data-lucide="${statusIcon}" class="w-3 h-3"></i>
+                                        ${benefit.status ? benefit.status.charAt(0).toUpperCase() + benefit.status.slice(1) : 'Pending'}
+                                    </span>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <div class="ml-4">
-                        <span class="badge ${statusClass} gap-1">
-                            <i data-lucide="${statusIcon}" class="w-3 h-3"></i>
-                            ${benefit.status ? benefit.status.charAt(0).toUpperCase() + benefit.status.slice(1) : 'Pending'}
-                        </span>
-                    </div>
-                </div>
-            `;
+                        `;
 
                         benefitsList.appendChild(benefitCard);
                     });
                 } else {
                     benefitsCount.textContent = '0';
                     benefitsList.innerHTML = `
-            <div class="py-8 text-center">
-                <i data-lucide="package-x" class="mx-auto mb-3 w-12 h-12 text-gray-300"></i>
-                <p class="text-gray-500">No benefits enrolled</p>
-                <p class="mt-1 text-gray-400 text-sm">This employee has not enrolled in any benefits</p>
-            </div>
-        `;
+                        <div class="py-8 text-center">
+                            <i data-lucide="package-x" class="mx-auto mb-3 w-12 h-12 text-gray-300"></i>
+                            <p class="text-gray-500">No benefits enrolled</p>
+                            <p class="mt-1 text-gray-400 text-sm">This employee has not enrolled in any benefits</p>
+                        </div>
+                    `;
                 }
 
                 // Show modal
-                document.getElementById('editEnrollmentModal').showModal();
+                const modal = document.getElementById('editEnrollmentModal');
+                if (modal) {
+                    modal.showModal();
+                } else {
+                    console.error('Modal element not found');
+                }
 
                 // Re-initialize icons
-                lucide.createIcons();
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            }
+
+            // Delete Employee Enrollment
+            function deleteEmployeeEnrollment(enrollmentId, employeeId, employeeName) {
+                if (confirm(`Are you sure you want to delete enrollment for ${employeeName}?`)) {
+                    // AJAX call to delete enrollment
+                    fetch('API/delete_enrollment.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                enrollment_id: enrollmentId,
+                                employee_id: employeeId
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('Enrollment deleted successfully!');
+                                location.reload();
+                            } else {
+                                alert('Error deleting enrollment: ' + (data.message || 'Unknown error'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Error deleting enrollment');
+                        });
+                }
             }
         </script>
 
         <script src="js/benefit.js"></script>
         <script src="js/policy.js"></script>
         <script>
-            lucide.createIcons();
+            // Initialize lucide icons
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+            }
 
             function initializeCharts() {
-
                 // Plan Distribution Chart
                 const planCtx = document.getElementById('planDistributionChart');
                 if (planCtx) {
@@ -1112,7 +1205,7 @@
                     });
                 }
 
-                // Monthly Trend Chart - Only if canvas exists
+                // Monthly Trend Chart
                 const trendCtx = document.getElementById('monthlyTrendChart');
                 if (trendCtx) {
                     const monthlyData = <?= json_encode($monthly_enrollments) ?>;
@@ -1172,7 +1265,7 @@
                     });
                 }
 
-                // Department Chart - FIXED: Use 'bar' with indexAxis: 'y' instead of 'horizontalBar'
+                // Department Chart
                 const deptCtx = document.getElementById('departmentChart');
                 if (deptCtx) {
                     const deptData = <?= json_encode($department_enrollment) ?>;
@@ -1230,28 +1323,7 @@
                         }
                     });
                 }
-
             }
-
-            // Update the existing button click handlers in your main script
-            document.addEventListener('DOMContentLoaded', function() {
-                // Update existing button handlers if they exist
-                const newEnrollmentBtn = document.querySelector('button[onclick*="openNewEnrollmentModal"]');
-                const createBenefitBtn = document.querySelector('button[onclick*="openCreateBenefitModal"]');
-                const createPolicyBtn = document.querySelector('button[onclick*="openCreatePolicyModal"]');
-
-                if (newEnrollmentBtn) {
-                    newEnrollmentBtn.onclick = openNewEnrollmentModal;
-                }
-
-                if (createBenefitBtn) {
-                    createBenefitBtn.onclick = openCreateBenefitModal;
-                }
-
-                if (createPolicyBtn) {
-                    createPolicyBtn.onclick = openCreatePolicyModal;
-                }
-            });
 
             // Initialize charts on page load
             document.addEventListener('DOMContentLoaded', function() {
@@ -1261,8 +1333,70 @@
                         initializeCharts();
                     }
                 }, 100);
+
+                // Add search functionality for employee table
+                const searchInput = document.getElementById('searchEmployees');
+                if (searchInput) {
+                    searchInput.addEventListener('input', function(e) {
+                        const searchTerm = e.target.value.toLowerCase();
+                        const rows = document.querySelectorAll('#enrollmentsTable tbody tr');
+
+                        rows.forEach(row => {
+                            const employeeName = row.querySelector('td:nth-child(1) .font-medium').textContent.toLowerCase();
+                            const employeeId = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                            const department = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+                            const subDepartment = row.querySelector('td:nth-child(4)').textContent.toLowerCase();
+
+                            if (employeeName.includes(searchTerm) ||
+                                employeeId.includes(searchTerm) ||
+                                department.includes(searchTerm) ||
+                                subDepartment.includes(searchTerm)) {
+                                row.style.display = '';
+                            } else {
+                                row.style.display = 'none';
+                            }
+                        });
+                    });
+                }
+
+                // Add filter functionality for benefit type
+                const benefitFilter = document.getElementById('benefitFilter');
+                if (benefitFilter) {
+                    benefitFilter.addEventListener('change', function(e) {
+                        const selectedBenefit = e.target.value;
+                        const rows = document.querySelectorAll('#enrollmentsTable tbody tr');
+
+                        rows.forEach(row => {
+                            const benefitsCell = row.querySelector('td:nth-child(5)');
+                            if (!selectedBenefit || benefitsCell.textContent.includes(selectedBenefit)) {
+                                row.style.display = '';
+                            } else {
+                                row.style.display = 'none';
+                            }
+                        });
+                    });
+                }
+
+                // Add filter functionality for status
+                const statusFilter = document.getElementById('statusFilter');
+                if (statusFilter) {
+                    statusFilter.addEventListener('change', function(e) {
+                        const selectedStatus = e.target.value;
+                        const rows = document.querySelectorAll('#enrollmentsTable tbody tr');
+
+                        rows.forEach(row => {
+                            const statusCell = row.querySelector('td:nth-child(8) span');
+                            if (!selectedStatus || statusCell.textContent.toLowerCase().includes(selectedStatus.toLowerCase())) {
+                                row.style.display = '';
+                            } else {
+                                row.style.display = 'none';
+                            }
+                        });
+                    });
+                }
             });
         </script>
+    </div>
 </body>
 
 </html>

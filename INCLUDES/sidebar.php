@@ -16,14 +16,14 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <!-- Sidebar Header -->
     <div class="flex flex-shrink-0 justify-between items-center mb-6 px-4 text-center">
         <h1 class="flex items-center gap-2 font-bold text-white text-xl">
-               <img src="<?php echo $base_url; ?>/images/tagline_no_bg.png" 
-            alt="Full Logo" 
-            class="h-25 w-auto "
-            id="sidebar-logo">
-        <img src="<?php echo $base_url; ?>/images/soliera_S.png" 
-            alt="Icon Logo" 
-            class="h-25 w-auto"
-            id="sonly">
+            <img src="<?php echo $base_url; ?>/images/tagline_no_bg.png"
+                alt="Full Logo"
+                class="w-auto h-25"
+                id="sidebar-logo">
+            <img src="<?php echo $base_url; ?>/images/soliera_S.png"
+                alt="Icon Logo"
+                class="w-auto h-25"
+                id="sonly">
         </h1>
     </div>
 
@@ -163,9 +163,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
                         </a>
 
                         <!-- Claims Processing -->
-                        <a href="<?php echo $base_url; ?>/COMPENSATION/claims_reimbursement.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'claims_reimbursement.php') ? 'bg-blue-600/30 text-white' : ''; ?>">
+                        <a href="<?php echo $base_url; ?>/COMPENSATION/compensation.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'compensation.php') ? 'bg-blue-600/30 text-white' : ''; ?>">
                             <i data-lucide="file-text" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>Claims Reimbursement</span>
+                            <span>Compensations</span>
                         </a>
 
                     </div>

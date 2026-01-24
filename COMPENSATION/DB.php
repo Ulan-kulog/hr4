@@ -76,6 +76,19 @@ class Database
     }
 
     /**
+     * Execute a query and fetch a single row as an associative array
+     * @param string $sql SQL query with placeholders
+     * @param array $params Parameters for the query
+     * @return array|null
+     */
+    public static function fetchRow(string $sql, array $params = []): ?array
+    {
+        $stmt = self::query($sql, $params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row !== false ? $row : null;
+    }
+
+    /**
      * Execute a query and fetch a single column value
      * @param string $sql SQL query with placeholders
      * @param array $params Parameters for the query
@@ -98,6 +111,32 @@ class Database
     {
         self::query($sql, $params);
         return self::connect()->lastInsertId();
+    }
+
+    public static function update($table, $data, $where)
+    {
+        $fields = "";
+        foreach ($data as $key => $value) {
+            $fields .= "$key = :$key, ";
+        }
+        $fields = rtrim($fields, ", ");
+
+        $whereField = array_key_first($where);
+        $sql = "UPDATE $table SET $fields WHERE $whereField = :where_$whereField";
+
+        // Merge data and where for execution
+        $params = $data;
+        $params["where_$whereField"] = $where[$whereField];
+
+        // Use your existing execution logic here
+        // return self::execute($sql, $params); 
+    }
+
+    public static function delete($table, $where)
+    {
+        $whereField = array_key_first($where);
+        $sql = "DELETE FROM $table WHERE $whereField = :$whereField";
+        // return self::execute($sql, $where);
     }
 
     /**
