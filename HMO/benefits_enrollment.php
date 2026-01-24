@@ -779,7 +779,7 @@
         <script>
             // View Employee Enrollment Function
             function viewEmployeeEnrollment(employeeId) {
-                const employeeBenefits = <?php echo json_encode($employee_benefits); ?>;
+                const employeeBenefits = <?php echo json_encode(array_values($employee_benefits)); ?>;
                 const employeeData = employeeBenefits.find(emp => emp.employee_id == employeeId);
 
                 if (!employeeData) {
@@ -924,7 +924,7 @@
 
             // Edit Enrollment Function
             function openEditEnrollmentModal(employeeId) {
-                const employeeBenefits = <?php echo json_encode($employee_benefits); ?>;
+                const employeeBenefits = <?php echo json_encode(array_values($employee_benefits)); ?>;
                 const employeeData = employeeBenefits.find(emp => emp.employee_id == employeeId);
 
                 if (!employeeData) {
@@ -1269,7 +1269,7 @@
                 const deptCtx = document.getElementById('departmentChart');
                 if (deptCtx) {
                     const deptData = <?= json_encode($department_enrollment) ?>;
-                    const deptLabels = deptData.map(item => item.department || 'Unknown');
+                    const deptLabels = deptData.map(item => item.department_name || 'Unknown');
                     const deptRates = deptData.map(item => {
                         return item.total_employees > 0 ?
                             Math.round((item.enrolled_count / item.total_employees) * 100) : 0;

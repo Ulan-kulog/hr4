@@ -92,7 +92,7 @@ function generateEnrollmentSummary($dateFrom = null, $dateTo = null, $department
 {
     $query = "
         SELECT 
-            e.department,
+            COALESCE(d.name, "No Department") AS department_name,
             COUNT(DISTINCT e.id) as total_employees,
             COUNT(DISTINCT eb.employee_id) as enrolled_employees,
             ROUND((COUNT(DISTINCT eb.employee_id) * 100.0 / COUNT(DISTINCT e.id)), 2) as enrollment_rate,
@@ -101,6 +101,7 @@ function generateEnrollmentSummary($dateFrom = null, $dateTo = null, $department
         FROM employees e
         LEFT JOIN employee_benefits eb ON e.id = eb.employee_id
         LEFT JOIN benefit_enrollment be ON be.id = eb.benefit_enrollment_id
+        LEFT JOIN departments d ON e.department_id = d.id
         WHERE 1=1
     ";
 
@@ -117,11 +118,16 @@ function generateEnrollmentSummary($dateFrom = null, $dateTo = null, $department
     }
 
     if ($department) {
-        $query .= " AND e.department = ?";
-        $params[] = $department;
+        if (is_numeric($department)) {
+            $query .= " AND e.department_id = ?";
+            $params[] = (int)$department;
+        } else {
+            $query .= " AND d.name = ?";
+            $params[] = $department;
+        }
     }
 
-    $query .= " GROUP BY e.department";
+    $query .= " GROUP BY d.name";
 
     return Database::fetchAll($query, $params);
 }
@@ -170,7 +176,7 @@ function generateCostAnalysis($dateFrom = null, $dateTo = null, $department = nu
 {
     $query = "
         SELECT 
-            e.department,
+            COALESCE(d.name, "No Department") AS department_name,
             b.benefit_name,
             b.benefit_type,
             COUNT(DISTINCT eb.employee_id) as employee_count,
@@ -180,6 +186,7 @@ function generateCostAnalysis($dateFrom = null, $dateTo = null, $department = nu
             END) as estimated_monthly_cost
         FROM employee_benefits eb
         JOIN employees e ON e.id = eb.employee_id
+        LEFT JOIN departments d ON e.department_id = d.id
         JOIN benefits b ON b.id = eb.benefit_id
         JOIN benefit_enrollment be ON be.id = eb.benefit_enrollment_id
         WHERE be.status = 'active'
@@ -199,12 +206,17 @@ function generateCostAnalysis($dateFrom = null, $dateTo = null, $department = nu
     }
 
     if ($department) {
-        $query .= " AND e.department = ?";
-        $params[] = $department;
+        if (is_numeric($department)) {
+            $query .= " AND e.department_id = ?";
+            $params[] = (int)$department;
+        } else {
+            $query .= " AND d.name = ?";
+            $params[] = $department;
+        }
     }
 
-    $query .= " GROUP BY e.department, b.benefit_name, b.benefit_type
-                ORDER BY e.department, estimated_monthly_cost DESC";
+    $query .= " GROUP BY d.name, b.benefit_name, b.benefit_type
+                ORDER BY d.name, estimated_monthly_cost DESC";
 
     return Database::fetchAll($query, $params);
 }
@@ -213,7 +225,7 @@ function generateDepartmentCoverage()
 {
     $query = "
         SELECT 
-            e.department,
+            COALESCE(d.name, "No Department") AS department_name,
             COUNT(DISTINCT e.id) as total_employees,
             COUNT(DISTINCT eb.employee_id) as enrolled_employees,
             ROUND((COUNT(DISTINCT eb.employee_id) * 100.0 / COUNT(DISTINCT e.id)), 2) as coverage_rate,
@@ -221,7 +233,8 @@ function generateDepartmentCoverage()
         FROM employees e
         LEFT JOIN employee_benefits eb ON e.id = eb.employee_id
         LEFT JOIN benefits b ON b.id = eb.benefit_id
-        GROUP BY e.department
+        LEFT JOIN departments d ON e.department_id = d.id
+        GROUP BY d.name
         ORDER BY coverage_rate DESC
     ";
 
@@ -257,7 +270,7 @@ function generateEmployeeBenefitStatement($employeeId)
         SELECT 
             e.employee_code,
             CONCAT(e.first_name, ' ', e.last_name) as employee_name,
-            e.department,
+            COALESCE(d.name, "No Department") AS department_name,
             e.email,
             b.benefit_name,
             b.benefit_type,
@@ -279,6 +292,7 @@ function generateEmployeeBenefitStatement($employeeId)
         JOIN benefits b ON b.id = eb.benefit_id
         LEFT JOIN providers p ON b.provider_id = p.id
         LEFT JOIN benefit_enrollment be ON be.id = eb.benefit_enrollment_id
+        LEFT JOIN departments d ON e.department_id = d.id
         WHERE e.id = ?
         ORDER BY b.benefit_name
     ";
@@ -293,7 +307,7 @@ function generateEmployeeBenefitStatement($employeeId)
         'employee_info' => [
             'employee_code' => $data[0]->employee_code,
             'employee_name' => $data[0]->employee_name,
-            'department' => $data[0]->department,
+            'department' => $data[0]->department_name,
             'email' => $data[0]->email
         ],
         'benefits' => $data
@@ -317,7 +331,7 @@ function generateCSVContent($reportData, $reportType)
             fputcsv($output, ['Department', 'Total Employees', 'Enrolled Employees', 'Enrollment Rate (%)', 'Active Enrollments', 'Pending Enrollments']);
             foreach ($reportData as $row) {
                 fputcsv($output, [
-                    $row->department ?? 'Unknown',
+                    $row->department_name ?? 'Unknown',
                     $row->total_employees ?? 0,
                     $row->enrolled_employees ?? 0,
                     $row->enrollment_rate ?? 0,
@@ -345,7 +359,7 @@ function generateCSVContent($reportData, $reportType)
             fputcsv($output, ['Department', 'Benefit Name', 'Benefit Type', 'Employee Count', 'Estimated Monthly Cost']);
             foreach ($reportData as $row) {
                 fputcsv($output, [
-                    $row->department ?? 'Unknown',
+                    $row->department_name ?? 'Unknown',
                     $row->benefit_name ?? 'Unknown',
                     $row->benefit_type ?? 'N/A',
                     $row->employee_count ?? 0,
@@ -358,7 +372,7 @@ function generateCSVContent($reportData, $reportType)
             fputcsv($output, ['Department', 'Total Employees', 'Enrolled Employees', 'Coverage Rate (%)', 'Benefits Offered']);
             foreach ($reportData as $row) {
                 fputcsv($output, [
-                    $row->department ?? 'Unknown',
+                    $row->department_name ?? 'Unknown',
                     $row->total_employees ?? 0,
                     $row->enrolled_employees ?? 0,
                     $row->coverage_rate ?? 0,

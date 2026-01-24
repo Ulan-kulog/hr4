@@ -19,7 +19,7 @@ $benefit_categories = Database::fetchAll('SELECT id, name FROM benefit_categorie
 
 $policies = Database::fetchAll('SELECT * FROM policies ORDER BY id DESC');
 
-$employees = Database::fetchAll('SELECT id, first_name, last_name, employee_code, department FROM employees');
+$employees = Database::fetchAll('SELECT e.id, e.first_name, e.last_name, e.employee_code, e.department_id, d.name AS department_name FROM employees e LEFT JOIN departments d ON e.department_id = d.id');
 
 $employee_benefits_query = Database::fetchAll(
     'SELECT
@@ -29,7 +29,8 @@ $employee_benefits_query = Database::fetchAll(
     e.id AS employee_id, 
     e.first_name,
     e.last_name,
-    e.department,
+    e.department_id,
+    d.name AS department_name,
     e.email,
     e.employee_code,
 
@@ -51,9 +52,9 @@ $employee_benefits_query = Database::fetchAll(
     b.status
 
     FROM employee_benefits eb
-    LEFT JOIN benefit_enrollment be 
-            ON be.id = eb.benefit_enrollment_id
+    LEFT JOIN benefit_enrollment be ON be.id = eb.benefit_enrollment_id
     JOIN employees e ON e.id = eb.employee_id
+    LEFT JOIN departments d ON e.department_id = d.id
     JOIN benefits b ON b.id = eb.benefit_id
 '
 );
@@ -68,7 +69,7 @@ foreach ($employee_benefits_query as $eb) {
             'employee_id' => $empId,
             'first_name' => $eb->first_name,
             'last_name' => $eb->last_name,
-            'department' => $eb->department,
+            'department' => $eb->department_name ?? null,
             'email' => $eb->email,
             'employee_code' => $eb->employee_code,
             'benefit_enrollment_id' => $eb->benefit_enrollment_id,
@@ -194,12 +195,13 @@ $monthly_enrollments = Database::fetchAll('
 // 4. Department-wise Enrollment
 $department_enrollment = Database::fetchAll('
     SELECT 
-        e.department,
+        COALESCE(d.name, "No Department") AS department_name,
         COUNT(DISTINCT eb.employee_id) as enrolled_count,
         COUNT(DISTINCT e.id) as total_employees
     FROM employees e
     LEFT JOIN employee_benefits eb ON e.id = eb.employee_id
-    GROUP BY e.department
+    LEFT JOIN departments d ON e.department_id = d.id
+    GROUP BY d.name
     ORDER BY enrolled_count DESC
     LIMIT 5
 ');

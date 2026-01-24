@@ -111,12 +111,13 @@ try {
         case 'dept':
             // Department-wise Enrollment
             $query = 'SELECT 
-                e.department,
+                COALESCE(d.name, "Unknown") AS department_name,
                 COUNT(DISTINCT eb.employee_id) as enrolled_count,
                 COUNT(DISTINCT e.id) as total_employees
             FROM employees e
             LEFT JOIN employee_benefits eb ON e.id = eb.employee_id
-            GROUP BY e.department
+            LEFT JOIN departments d ON e.department_id = d.id
+            GROUP BY d.name
             ORDER BY enrolled_count DESC';
 
             if ($filter === 'top5') {
@@ -128,7 +129,7 @@ try {
             $labels = [];
             $data = [];
             foreach ($result as $row) {
-                $labels[] = $row->department ?: 'Unknown';
+                $labels[] = $row->department_name ?: 'Unknown';
                 $rate = ($row->total_employees > 0) ?
                     round(($row->enrolled_count / $row->total_employees) * 100) : 0;
                 $data[] = $rate;
