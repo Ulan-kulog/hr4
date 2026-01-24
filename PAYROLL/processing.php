@@ -32,154 +32,10 @@ function buildFullName($first_name, $middle_name, $last_name) {
     return trim($name);
 }
 
-// Fetch ALL employees from API and save to database
-function fetchAndSaveEmployees($conn) {
-    $api_url = "https://hr1.soliera-hotel-restaurant.com/api/employees";
-    
-    // Initialize cURL
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $api_url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Accept: application/json',
-    ]);
-    
-    $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-    if ($http_code == 200) {
-        $data = json_decode($response, true);
-        if (is_array($data)) {
-            foreach ($data as $employee) {
-                // Save or update employee in database
-                saveEmployeeToDB($conn, $employee);
-            }
-            return $data;
-        }
-    } else {
-        error_log("Failed to fetch employees from API. HTTP Code: $http_code");
-    }
-    return [];
-}
+// REMOVED: fetchAndSaveEmployees function since we're not using API anymore
+// REMOVED: saveEmployeeToDB function since we're not using API anymore
 
-// Save employee to database
-function saveEmployeeToDB($conn, $api_employee) {
-    // Safely extract values from API
-    $employee_code = getStringValue($api_employee['employee_code'] ?? $api_employee['id'] ?? '');
-    
-    // Build name components
-    $first_name = $conn->real_escape_string(getStringValue($api_employee['first_name'] ?? ''));
-    $middle_name = $conn->real_escape_string(getStringValue($api_employee['middle_name'] ?? ''));
-    $last_name = $conn->real_escape_string(getStringValue($api_employee['last_name'] ?? ''));
-    
-    // If API provides full_name, try to parse it
-    if (empty($first_name) && isset($api_employee['full_name'])) {
-        $full_name = getStringValue($api_employee['full_name']);
-        $name_parts = explode(' ', $full_name, 3);
-        $first_name = $conn->real_escape_string($name_parts[0] ?? '');
-        if (isset($name_parts[1])) {
-            if (isset($name_parts[2])) {
-                $middle_name = $conn->real_escape_string($name_parts[1]);
-                $last_name = $conn->real_escape_string($name_parts[2]);
-            } else {
-                $last_name = $conn->real_escape_string($name_parts[1]);
-            }
-        }
-    }
-    
-    $email = $conn->real_escape_string(getStringValue($api_employee['email'] ?? ''));
-    $phone_number = $conn->real_escape_string(getStringValue($api_employee['phone'] ?? $api_employee['phone_number'] ?? ''));
-    $job = $conn->real_escape_string(getStringValue($api_employee['job'] ?? $api_employee['position'] ?? 'N/A'));
-    
-    // Handle department - your table uses department_id, not department name
-    $department_id = $api_employee['department_id'] ?? null;
-    
-    // Handle salary (ensure it's numeric)
-    $salary_value = $api_employee['expected_salary'] ?? $api_employee['basic_salary'] ?? $api_employee['salary'] ?? 0;
-    $salary = is_numeric($salary_value) ? $salary_value : 0;
-    $basic_salary = $api_employee['basic_salary'] ?? $salary;
-    
-    $work_status = $conn->real_escape_string(getStringValue($api_employee['work_status'] ?? 'Active'));
-    $employment_status = $conn->real_escape_string(getStringValue($api_employee['employment_status'] ?? 'Active'));
-    
-    // Check if employee exists by employee_code
-    $check_sql = "SELECT id, employee_code FROM employees WHERE employee_code = '$employee_code'";
-    $result = $conn->query($check_sql);
-    
-    if ($result && $result->num_rows > 0) {
-        // Update existing employee
-        $row = $result->fetch_assoc();
-        $employee_id = $row['id'];
-        
-        $update_sql = "UPDATE employees SET 
-            first_name = '$first_name',
-            middle_name = '$middle_name',
-            last_name = '$last_name',
-            email = '$email',
-            phone_number = '$phone_number',
-            job = '$job',
-            salary = '$salary',
-            basic_salary = '$basic_salary',
-            work_status = '$work_status',
-            employment_status = '$employment_status',
-            updated_at = CURRENT_TIMESTAMP";
-        
-        if ($department_id !== null) {
-            $update_sql .= ", department_id = '$department_id'";
-        }
-        
-        $update_sql .= " WHERE employee_code = '$employee_code'";
-        
-        $conn->query($update_sql);
-        
-        // Update salary_status to 'Under review' if not already set
-        $conn->query("UPDATE employees SET salary_status = 'Under review' WHERE employee_code = '$employee_code' AND (salary_status IS NULL OR salary_status = '')");
-        
-        return $employee_id;
-    } else {
-        // Insert new employee
-        $insert_sql = "INSERT INTO employees (
-            employee_code,
-            first_name,
-            middle_name,
-            last_name,
-            email,
-            phone_number,
-            job,
-            salary,
-            basic_salary,
-            work_status,
-            employment_status,
-            salary_status
-        ) VALUES (
-            '$employee_code',
-            '$first_name',
-            '$middle_name',
-            '$last_name',
-            '$email',
-            '$phone_number',
-            '$job',
-            '$salary',
-            '$basic_salary',
-            '$work_status',
-            '$employment_status',
-            'Under review'
-        )";
-        
-        if ($conn->query($insert_sql)) {
-            return $conn->insert_id;
-        }
-    }
-    return null;
-}
-
-// Fetch employees from API and save to DB
-$api_employees = fetchAndSaveEmployees($conn);
-
-// Fetch local employees from database with payroll info
+// Fetch ALL employees directly from database
 $current_month = date('Y-m');
 $local_query = "SELECT 
                 e.id,
@@ -197,6 +53,8 @@ $local_query = "SELECT
                 e.salary_status,
                 e.salary_reason,
                 e.department_id,
+                e.date_of_birth,
+                e.hire_date,
                 p.id as payroll_id,
                 p.basic_salary as payroll_basic,
                 p.overtime_hours,
@@ -479,10 +337,7 @@ foreach($employees_data as $employee) {
                             <p class="text-gray-500">Manage salary status and payroll</p>
                         </div>
                         <div class="flex flex-wrap gap-3">
-                            <button onclick="syncEmployees()" class="btn btn-primary">
-                                <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
-                                Sync from API
-                            </button>
+                            <!-- REMOVED: Sync from API button since we're not using API -->
                             <button onclick="exportToExcel()" class="btn btn-outline">
                                 <i data-lucide="download" class="w-4 h-4 mr-2"></i>
                                 Export Excel
@@ -876,64 +731,7 @@ foreach($employees_data as $employee) {
         });
     });
 
-    // Sync employees from API
-    async function syncEmployees() {
-        const result = await Swal.fire({
-            title: 'Sync Employees?',
-            text: 'This will fetch the latest employee data from API',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Yes, sync',
-            cancelButtonText: 'Cancel'
-        });
-        
-        if (result.isConfirmed) {
-            Swal.fire({
-                title: 'Syncing...',
-                text: 'Please wait while we sync employees from API',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-            
-            try {
-                const response = await fetch('API/payroll_api.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: 'action=sync_employees'
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Success!',
-                        text: data.message,
-                        timer: 2000,
-                        showConfirmButton: false
-                    }).then(() => {
-                        location.reload();
-                    });
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: data.message
-                    });
-                }
-            } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to sync employees'
-                });
-            }
-        }
-    }
+    // REMOVED: syncEmployees function since we're not using API anymore
 
     // View Employee Details
     async function viewEmployee(employeeId) {
