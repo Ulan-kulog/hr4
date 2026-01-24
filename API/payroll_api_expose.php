@@ -1,12 +1,22 @@
 <?php
 session_start();
-include("../../connection.php");
+include("../connection.php");
 
 header('Content-Type: application/json');
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+// Handle preflight requests
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
 
 // Database connection
 $db_name = "hr4_hr_4";
 if (!isset($connections[$db_name])) {
+    http_response_code(500);
     die(json_encode(['success' => false, 'message' => 'Database connection not found']));
 }
 $conn = $connections[$db_name];
@@ -22,57 +32,137 @@ function getStringValue($value, $default = '') {
     return (string) $value ?: (string) $default;
 }
 
-// Get action from request
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
+// Parse PUT request data
+function parsePutRequest() {
+    $putData = [];
+    
+    // Handle JSON PUT requests
+    $input = file_get_contents('php://input');
+    if (!empty($input)) {
+        $jsonData = json_decode($input, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $putData = $jsonData;
+        } else {
+            // Handle form-encoded PUT data
+            parse_str($input, $putData);
+        }
+    }
+    
+    // Merge with $_POST for backward compatibility
+    return array_merge($_POST, $putData);
+}
 
-// Handle different actions
-switch ($action) {
-    case 'sync_employees':
-        syncEmployees($conn);
+// Get request method and action
+$method = $_SERVER['REQUEST_METHOD'];
+$action = $_GET['action'] ?? '';
+
+// For PUT requests, parse the data
+if ($method === 'PUT') {
+    $_POST = parsePutRequest();
+    $action = $_POST['action'] ?? $_GET['action'] ?? '';
+}
+
+// Handle different actions based on HTTP method
+switch ($method) {
+    case 'GET':
+        handleGetRequests($conn, $action);
         break;
         
-    case 'get_employee_details':
-        getEmployeeDetails($conn);
+    case 'POST':
+        handlePostRequests($conn, $action);
         break;
         
-    case 'update_salary_status':
-        updateSalaryStatus($conn);
+    case 'PUT':
+        handlePutRequests($conn, $action);
         break;
         
-    case 'update_work_status':
-        updateWorkStatus($conn);
-        break;
-        
-    case 'create_payroll':
-        createPayroll($conn);
-        break;
-        
-    case 'update_payroll':
-        updatePayroll($conn);
-        break;
-        
-    case 'delete_payroll':
-        deletePayroll($conn);
-        break;
-        
-    case 'get_payroll_history':
-        getPayrollHistory($conn);
-        break;
-        
-    case 'get_payroll_details':
-        getPayrollDetails($conn);
-        break;
-        
-    case 'get_current_payroll':
-        getCurrentPayroll($conn);
-        break;
-        
-    case 'export_employees':
-        exportEmployees($conn);
+    case 'DELETE':
+        handleDeleteRequests($conn, $action);
         break;
         
     default:
-        echo json_encode(['success' => false, 'message' => 'Invalid action']);
+        http_response_code(405);
+        echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+}
+
+// Handle GET requests
+function handleGetRequests($conn, $action) {
+    switch ($action) {
+        case 'get_employee_details':
+            getEmployeeDetails($conn);
+            break;
+            
+        case 'get_payroll_history':
+            getPayrollHistory($conn);
+            break;
+            
+        case 'get_payroll_details':
+            getPayrollDetails($conn);
+            break;
+            
+        case 'get_current_payroll':
+            getCurrentPayroll($conn);
+            break;
+            
+        case 'export_employees':
+            exportEmployees($conn);
+            break;
+            
+        default:
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Invalid GET action']);
+    }
+}
+
+// Handle POST requests
+function handlePostRequests($conn, $action) {
+    switch ($action) {
+        case 'sync_employees':
+            syncEmployees($conn);
+            break;
+            
+        case 'create_payroll':
+            createPayroll($conn);
+            break;
+            
+        default:
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Invalid POST action']);
+    }
+}
+
+// Handle PUT requests
+function handlePutRequests($conn, $action) {
+    switch ($action) {
+        case 'update_salary_status':
+            updateSalaryStatus($conn);
+            break;
+            
+        case 'update_work_status':
+            updateWorkStatus($conn);
+            break;
+            
+        case 'update_payroll':
+            updatePayroll($conn);
+            break;
+            
+        default:
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Invalid PUT action']);
+    }
+}
+
+// Handle DELETE requests
+function handleDeleteRequests($conn, $action) {
+    switch ($action) {
+        case 'delete_payroll':
+            deletePayroll($conn);
+            break;
+            
+        default:
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Invalid DELETE action']);
+    }
 }
 
 // Sync employees from API
@@ -203,18 +293,21 @@ function syncEmployees($conn) {
                 'count' => $count
             ]);
         } else {
+            http_response_code(400);
             echo json_encode(['success' => false, 'message' => 'Invalid data format from API']);
         }
     } else {
+        http_response_code($http_code);
         echo json_encode(['success' => false, 'message' => "Failed to fetch from API. HTTP Code: $http_code"]);
     }
 }
 
 // Get employee details
 function getEmployeeDetails($conn) {
-    $id = $_POST['id'] ?? 0;
+    $id = $_POST['id'] ?? $_GET['id'] ?? 0;
     
     if (!$id) {
+        http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Employee ID is required']);
         return;
     }
@@ -283,6 +376,7 @@ function getEmployeeDetails($conn) {
         
         echo json_encode(['success' => true, 'data' => $data]);
     } else {
+        http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Employee not found']);
     }
 }
@@ -294,12 +388,14 @@ function updateSalaryStatus($conn) {
     $reason = $_POST['reason'] ?? '';
     
     if (!$id || !$status) {
+        http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Employee ID and status are required']);
         return;
     }
     
     $allowed_statuses = ['Under review', 'Approved', 'Denied', 'For compliance'];
     if (!in_array($status, $allowed_statuses)) {
+        http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Invalid status']);
         return;
     }
@@ -343,6 +439,7 @@ function updateSalaryStatus($conn) {
             'reason' => $reason
         ]);
     } else {
+        http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Failed to update: ' . $conn->error]);
     }
 }
@@ -353,12 +450,14 @@ function updateWorkStatus($conn) {
     $status = $_POST['status'] ?? '';
     
     if (!$id || !$status) {
+        http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Employee ID and status are required']);
         return;
     }
     
     $allowed_statuses = ['Active', 'Inactive', 'On Leave', 'Under Review'];
     if (!in_array($status, $allowed_statuses)) {
+        http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Invalid work status']);
         return;
     }
@@ -376,6 +475,7 @@ function updateWorkStatus($conn) {
             'status' => $status
         ]);
     } else {
+        http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Failed to update: ' . $conn->error]);
     }
 }
@@ -395,6 +495,7 @@ function createPayroll($conn) {
     $notes = $_POST['notes'] ?? '';
     
     if (!$employee_id) {
+        http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Employee ID is required']);
         return;
     }
@@ -403,6 +504,7 @@ function createPayroll($conn) {
     $emp_sql = "SELECT employee_code FROM employees WHERE id = '$employee_id'";
     $emp_result = $conn->query($emp_sql);
     if (!$emp_result || $emp_result->num_rows == 0) {
+        http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Employee not found']);
         return;
     }
@@ -414,6 +516,7 @@ function createPayroll($conn) {
     $result = $conn->query($check_sql);
     
     if ($result && $result->num_rows > 0) {
+        http_response_code(409);
         echo json_encode(['success' => false, 'message' => 'Payroll already exists for this period']);
         return;
     }
@@ -478,6 +581,7 @@ function createPayroll($conn) {
             'payroll_id' => $payroll_id
         ]);
     } else {
+        http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Failed to create payroll: ' . $conn->error]);
     }
 }
@@ -497,6 +601,7 @@ function updatePayroll($conn) {
     $notes = $_POST['notes'] ?? '';
     
     if (!$payroll_id) {
+        http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Payroll ID is required']);
         return;
     }
@@ -557,15 +662,17 @@ function updatePayroll($conn) {
             'payroll_id' => $payroll_id
         ]);
     } else {
+        http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Failed to update payroll: ' . $conn->error]);
     }
 }
 
 // Get payroll history
 function getPayrollHistory($conn) {
-    $employee_id = $_POST['employee_id'] ?? 0;
+    $employee_id = $_POST['employee_id'] ?? $_GET['employee_id'] ?? 0;
     
     if (!$employee_id) {
+        http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Employee ID is required']);
         return;
     }
@@ -609,15 +716,17 @@ function getPayrollHistory($conn) {
             'count' => count($history)
         ]);
     } else {
+        http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Failed to fetch payroll history: ' . $conn->error]);
     }
 }
 
 // Get payroll details
 function getPayrollDetails($conn) {
-    $payroll_id = $_POST['payroll_id'] ?? 0;
+    $payroll_id = $_POST['payroll_id'] ?? $_GET['payroll_id'] ?? 0;
     
     if (!$payroll_id) {
+        http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Payroll ID is required']);
         return;
     }
@@ -660,16 +769,18 @@ function getPayrollDetails($conn) {
             'payroll' => $payroll
         ]);
     } else {
+        http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Payroll not found']);
     }
 }
 
 // Get current payroll for editing
 function getCurrentPayroll($conn) {
-    $employee_id = $_POST['employee_id'] ?? 0;
+    $employee_id = $_POST['employee_id'] ?? $_GET['employee_id'] ?? 0;
     $period = date('Y-m');
     
     if (!$employee_id) {
+        http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Employee ID is required']);
         return;
     }
@@ -704,6 +815,7 @@ function getCurrentPayroll($conn) {
             'payroll' => $payroll
         ]);
     } else {
+        http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'No current payroll found']);
     }
 }
@@ -713,6 +825,7 @@ function deletePayroll($conn) {
     $payroll_id = $_POST['payroll_id'] ?? 0;
     
     if (!$payroll_id) {
+        http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Payroll ID is required']);
         return;
     }
@@ -722,13 +835,12 @@ function deletePayroll($conn) {
     if ($conn->query($sql)) {
         echo json_encode(['success' => true, 'message' => 'Payroll deleted successfully']);
     } else {
+        http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Failed to delete payroll: ' . $conn->error]);
     }
 }
 
 // Export employees to Excel
 function exportEmployees($conn) {
-    // This would typically generate an Excel file
-    // For now, we'll just return a success message
     echo json_encode(['success' => true, 'message' => 'Export functionality to be implemented']);
 }
