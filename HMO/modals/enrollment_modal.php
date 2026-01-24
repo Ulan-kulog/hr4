@@ -18,7 +18,8 @@
                         <select id="employeeSelect" class="w-full select-bordered select" name="employee_id" onchange="updateEmployeeInfo()">
                             <option disabled selected>Choose employee</option>
                             <?php foreach ($employees as $employee) : ?>
-                                <option value="<?= $employee->id ?>" data-name="<?= $employee->first_name . ' ' . $employee->last_name ?>" data-department="<?= $employee->department ?>" data-code="<?= $employee->employee_code ?>"><?= $employee->first_name . ' ' . $employee->last_name ?> {<?= $employee->employee_code ?>}</option>
+                                <?php $dept = htmlspecialchars($employee->department_name ?? $employee->department ?? ''); ?>
+                                <option value="<?= $employee->id ?>" data-name="<?= htmlspecialchars($employee->first_name . ' ' . $employee->last_name) ?>" data-department="<?= $dept ?>" data-code="<?= htmlspecialchars($employee->employee_code) ?>"><?= htmlspecialchars($employee->first_name . ' ' . $employee->last_name) ?> {<?= htmlspecialchars($employee->employee_code) ?>}</option>
                             <?php endforeach ?>
                         </select>
                     </div>

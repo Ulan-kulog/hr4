@@ -20,7 +20,7 @@ $eb = Database::fetchAll(
     e.id AS employee_id, 
     e.first_name,
     e.last_name,
-    e.department,
+    d.name AS department_name,
     e.email,
     e.employee_code,
 
@@ -44,6 +44,7 @@ $eb = Database::fetchAll(
     LEFT JOIN benefit_enrollment be 
             ON be.id = eb.benefit_enrollment_id
     JOIN employees e ON e.id = eb.employee_id
+    LEFT JOIN departments d ON e.department_id = d.id
     JOIN benefits b ON b.id = eb.benefit_id
     WHERE e.id = :id
 ',
@@ -62,7 +63,7 @@ foreach ($eb as $row) {
             'employee_id' => $empId,
             'first_name' => $row->first_name,
             'last_name' => $row->last_name,
-            'department' => $row->department,
+            'department' => $row->department_name ?? null,
             'email' => $row->email,
             'employee_code' => $row->employee_code,
             'benefit_enrollment_id' => $row->benefit_enrollment_id,

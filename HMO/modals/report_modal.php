@@ -90,8 +90,9 @@
                                         <?php
                                         $departments = [];
                                         foreach ($employees as $employee) {
-                                            if (!empty($employee->department)) {
-                                                $departments[$employee->department] = $employee->department;
+                                            $deptVal = $employee->department_name ?? $employee->department ?? '';
+                                            if ($deptVal !== '') {
+                                                $departments[$deptVal] = $deptVal;
                                             }
                                         }
                                         sort($departments);
