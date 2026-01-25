@@ -18,10 +18,10 @@
                 </div>
             </div>
             <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                <div>
+                <!-- <div>
                     <label class="block mb-1 font-medium text-gray-700 text-sm">Minimum Salary</label>
                     <input name="min_salary" type="number" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" placeholder="15000">
-                </div>
+                </div> -->
                 <div>
                     <label class="block mb-1 font-medium text-gray-700 text-sm">Maximum Salary</label>
                     <input name="max_salary" type="number" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" placeholder="25000">

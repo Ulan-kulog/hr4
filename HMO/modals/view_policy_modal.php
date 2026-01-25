@@ -1,6 +1,6 @@
 <!-- Policy View Modal -->
 <dialog id="policy_modal" class="modal">
-    <div class="max-w-4xl modal-box">
+    <div class="bg-white/90 max-w-4xl text-black modal-box">
         <!-- Header -->
         <div class="flex justify-between items-center mb-6">
             <h3 class="font-bold text-2xl">Policy Details</h3>

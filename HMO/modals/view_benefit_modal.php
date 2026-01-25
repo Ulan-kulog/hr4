@@ -1,6 +1,6 @@
 <!-- View Benefit Details Modal -->
 <dialog id="viewBenefitModal" class="modal">
-    <div class="p-0 max-w-4xl overflow-visible modal-box">
+    <div class="bg-white/90 p-0 max-w-4xl overflow-visible text-black modal-box">
         <!-- Modal Header -->
         <div class="bg-[#011f55] p-6 rounded-t-lg text-primary-content">
             <div class="flex justify-between items-center">

@@ -23,13 +23,11 @@ foreach ($targetDatabases as $dbName) {
     }
 }
 
-// Optional: Show connection errors (for debugging only)
+// Log connection errors instead of printing them (prevents headers/output issues)
 if (!empty($errors)) {
-    echo "<h2 style='color:red;'>❌ Connection Errors:</h2><ul>";
     foreach ($errors as $error) {
-        echo "<li>$error</li>";
+        error_log("DB Connection Error: " . strip_tags($error));
     }
-    echo "</ul>";
 }
 
 function dd($data)

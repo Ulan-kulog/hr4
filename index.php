@@ -1,676 +1,513 @@
+<?php
+
+use PHPMailer\PHPMailer\PHPMailer;
+
+session_start();
+include("connection.php");
+
+$baseUrl = isset($_SERVER['HTTPS']) ? "https://" : "http://";
+$baseUrl .= $_SERVER['HTTP_HOST'] . 'localhost';
+// Alternatively, if you have a specific base path:
+// $baseUrl = "http://yourdomain.com/yourproject/";
+
+// Check if image exists (optional but recommended)
+$imagePath = 'images/hotel3.jpg';
+$imageExists = file_exists($imagePath);
+
+// Database connections
+// $usm_connection = $connections["rest_soliera_usm"];
+// $cr2_usm = $connections["rest_core_2_usm"];
+
+// Initialize variables
+$employee_ID = trim($_POST["employee_id"] ?? '');
+$password = trim($_POST["password"] ?? '');
+
+// DB connection to main app database
+$conn = $connections['hr4_hr_4'] ?? null;
+
+$loginAttemptsKey = "login_attempts_$employee_ID";
+
+// === Function: Log user login attempts ===
+// function logAttempt($conn, $Employee_ID, $Employee_name, $Role, $Log_Status, $Attempt_Type, $Attempt_Count, $Failure_reason, $Cooldown)
+// {
+//     $date = date('Y-m-d H:i:s');
+//     $sql = "INSERT INTO department_logs (employee_id, employee_name, role, log_status, attempt_count, log_type, failure_reason, Cooldown, `date`) 
+//             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+//     $stmt = mysqli_prepare($conn, $sql);
+//     mysqli_stmt_bind_param($stmt, "sssssssss", $Employee_ID, $Employee_name, $Role, $Log_Status, $Attempt_Type, $Attempt_Count, $Failure_reason, $Cooldown, $date);
+//     mysqli_stmt_execute($stmt);
+// }
+
+function logDepartmentAttempt($conn, $Department_ID, $employee_ID, $Name, $Role, $Log_Status, $Attempt_type, $Attempt_Count, $Failure_reason, $Cooldown_Until)
+{
+    $Log_Date_Time = date('Y-m-d H:i:s');
+    $sql = "INSERT INTO department_logs (dept_id, employee_id, employee_name, role, log_status, log_type, attempt_count, failure_reason, cooldown, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    $stmt = mysqli_prepare($conn, $sql);
+    mysqli_stmt_bind_param($stmt, "ssssssisss", $Department_ID, $employee_ID, $Name, $Role, $Log_Status, $Attempt_type, $Attempt_Count, $Failure_reason, $Cooldown_Until, $Log_Date_Time);
+    mysqli_stmt_execute($stmt);
+}
+
+// Simple department_logs inserter matching current schema
+function log_department_log($conn, $department_account_id, $status, $attempt_count = 0, $details = '')
+{
+    $created_at = date('Y-m-d H:i:s');
+    $sql = "INSERT INTO department_logs (department_account_id, status, attempt_count, details, created_at) VALUES (?, ?, ?, ?, ?)";
+    $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) return false;
+    mysqli_stmt_bind_param($stmt, 'isiss', $department_account_id, $status, $attempt_count, $details, $created_at);
+    return mysqli_stmt_execute($stmt);
+}
+
+// === Function: Increment login attempts ===
+function incrementLoginAttempts($employee_ID)
+{
+    $key = "login_attempts_$employee_ID";
+    if (!isset($_SESSION[$key])) {
+        $_SESSION[$key] = ['count' => 1, 'last' => time()];
+    } else {
+        $_SESSION[$key]['count']++;
+        $_SESSION[$key]['last'] = time();
+    }
+}
+
+// === Function: Send OTP via email ===
+function sendOTP($email, $otp)
+{
+    require_once '../PHPMailer/PHPMailerAutoload.php';
+    $mail = new PHPMailer;
+    $mail->isSMTP();
+    $mail->Host = 'smtp.gmail.com';
+    $mail->SMTPAuth = true;
+    $mail->Username = 'soliera.restaurant@gmail.com';
+    $mail->Password = 'rpyo ncni ulhv lhpx';
+    $mail->SMTPSecure = 'tls';
+    $mail->Port = 587;
+
+    $mail->setFrom('Soliera_Hotel&Restaurant@gmail.com', 'Soliera 2FA Authenticator');
+    $mail->addAddress($email);
+    $mail->Subject = 'Soliera 2FA Verification Code';
+
+    // Email content
+    $header = "<h2 style='color:#4CAF50; font-family: Arial, sans-serif;'>Soliera Hotel & Restaurant</h2>
+               <hr style='border:1px solid #ddd;'>";
+    $message = "<p style='font-family: Arial, sans-serif; font-size:14px;'>
+                    <br>
+                    We received a request to verify your login to <strong>Soliera Hotel & Restaurant</strong>.
+                    Please use the one-time verification code below to complete your login:
+                </p>
+                <p style='font-size:22px; font-weight:bold; color:#333; letter-spacing:2px;'>
+                    $otp
+                </p>
+                <p style='font-family: Arial, sans-serif; font-size:14px; color:#555;'>
+                    This code will expire in <strong>5 minutes</strong> for your security.
+                    If you did not request this code, please ignore this email or contact our support team immediately.
+                </p>";
+    $footer = "<hr style='border:1px solid #ddd;'>
+               <p style='font-size:12px; color:#777; font-family: Arial, sans-serif;'>
+                    Thank you for choosing Soliera.<br>
+                    📞 Hotline: +63-900-123-4567 | 📧 support@soliera.com<br>
+                    <em>This is an automated message. Please do not reply directly to this email.</em>
+               </p>";
+
+    $mail->isHTML(true);
+    $mail->Body = $header . $message . $footer;
+
+    return $mail->send();
+}
+
+// === Cooldown enforcement ===
+if ($employee_ID !== '' && isset($_SESSION[$loginAttemptsKey]) && $_SESSION[$loginAttemptsKey]['count'] >= 5) {
+    $lastAttempt = $_SESSION[$loginAttemptsKey]['last'];
+    $remaining = 3600 - (time() - $lastAttempt);
+    if ($remaining > 0) {
+        $minutes = ceil($remaining / 60);
+        $cooldownUntil = date('Y-m-d H:i:s', $lastAttempt + 3600);
+        $_SESSION["loginError"] = "Your account is temporarily banned. Try again in $minutes minute(s).";
+        header("Location: index.php");
+        exit();
+    } else {
+        unset($_SESSION[$loginAttemptsKey]);
+    }
+}
+
+// === Main Login Logic ===
+if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
+    if (!$conn) {
+        $_SESSION["loginError"] = "Database connection not available.";
+        header("Location: index.php");
+        exit();
+    }
+
+    // cooldown check
+    if (isset($_SESSION[$loginAttemptsKey]) && $_SESSION[$loginAttemptsKey]['count'] >= 5) {
+        $lastAttempt = $_SESSION[$loginAttemptsKey]['last'];
+        $remaining = 3600 - (time() - $lastAttempt);
+        if ($remaining > 0) {
+            $minutes = ceil($remaining / 60);
+            $_SESSION["loginError"] = "Your account is temporarily banned. Try again in $minutes minute(s).";
+            header("Location: index.php");
+            exit();
+        } else {
+            unset($_SESSION[$loginAttemptsKey]);
+        }
+    }
+    // dd($_POST);
+
+    // Lookup user in department_accounts
+    $sql = "SELECT employee_id, Dept_id, employee_name, role, email, status, password FROM department_accounts WHERE employee_id = ? LIMIT 1";
+    $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        // Prepare failed — log DB error and surface it for local debugging
+        $dberr = mysqli_error($conn);
+        error_log("DB prepare failed: $dberr | SQL: $sql");
+        // For local debugging show DB error; remove or simplify in production
+        $_SESSION['loginError'] = 'Database error: ' . htmlspecialchars($dberr);
+        header('Location: index.php');
+        exit();
+    }
+    mysqli_stmt_bind_param($stmt, 's', $employee_ID);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+
+    if ($result && mysqli_num_rows($result) > 0) {
+        $row = mysqli_fetch_assoc($result);
+        $department_account_id = (int)$row['id'];
+        $Department_ID = $row['Dept_id'];
+        $Role = $row['role'];
+        $Name = $row['employee_name'];
+
+        if ($password === $row['password']) {
+            // Successful login
+            $_SESSION['employee_id'] = $employee_ID;
+            $_SESSION['role'] = $Role;
+            $_SESSION['Dept_id'] = $row['Dept_id'];
+            $_SESSION['email'] = $row['email'] ?? '';
+            $_SESSION['department_account_id'] = $department_account_id;
+
+            // reset attempt counter
+            unset($_SESSION[$loginAttemptsKey]);
+
+            // log success
+            log_department_log($conn, $department_account_id, 'success', 1, 'Login successful');
+
+            header('Location: dashboard.php');
+            exit();
+        } else {
+            // failed password
+            incrementLoginAttempts($employee_ID);
+            log_department_log($conn, $department_account_id, 'failed', $_SESSION[$loginAttemptsKey]['count'] ?? 1, 'Incorrect password');
+            $_SESSION['loginError'] = 'Incorrect employee ID or password.';
+            header('Location: index.php');
+            exit();
+        }
+    } else {
+        // user not found
+        incrementLoginAttempts($employee_ID);
+        log_department_log($conn, 0, 'failed', $_SESSION[$loginAttemptsKey]['count'] ?? 1, 'Employee not found');
+        $_SESSION['loginError'] = 'Invalid employee ID or password.';
+        header('Location: index.php');
+        exit();
+    }
+}
+
+
+?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HR Analytics Dashboard - Hospitality</title>
-    <?php include 'INCLUDES/header.php'; ?>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Soliera Hotel - Department Login</title>
 
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <link href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" rel="stylesheet">
+
     <style>
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .stat-card {
-            transition: all 0.3s ease;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        /* Custom styles */
+        .bg-fallback {
+            background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
         }
     </style>
 </head>
 
-<body class="bg-base-100 bg-white min-h-screen">
-    <div class="flex h-screen">
-        <!-- Sidebar -->
-        <?php include 'INCLUDES/sidebar.php'; ?>
-
-        <!-- Content Area -->
-        <div class="flex flex-col flex-1 overflow-auto">
-            <!-- Navbar -->
-            <?php include 'INCLUDES/navbar.php'; ?>
+<body>
 
 
-            <!-- Main Content -->
-            <main class="flex-1 p-6">
-                <!-- HR Analytics Dashboard -->
-                <div class="bg-white/70 shadow-sm backdrop-blur-sm p-6 border border-gray-100/50 rounded-2xl glass-effect">
-                    <div class="flex sm:flex-row flex-col justify-between items-start sm:items-center gap-4 mb-6">
-                        <h2 class="flex items-center font-bold text-gray-800 text-2xl">
-                            <span class="bg-indigo-100/50 mr-3 p-2 rounded-lg text-indigo-600">
-                                <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
-                            </span>
-                            HR Analytics Dashboard
-                        </h2>
-                        <div class="flex gap-2">
-                            <button class="flex items-center bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white transition-colors">
-                                <i data-lucide="download" class="mr-2 w-4 h-4"></i>
-                                Export Report
-                            </button>
-                            <select class="bg-white px-4 py-2 border border-gray-300 rounded-lg text-gray-700">
-                                <option>Last 30 Days</option>
-                                <option>Last Quarter</option>
-                                <option>Year to Date</option>
-                                <option>Last Year</option>
-                            </select>
-                        </div>
+    <section class="relative w-full h-screen">
+        <!-- Background image with overlay -->
+        <div class="z-0 absolute inset-0 bg-cover bg-center" style="background-image: url('<?php echo $imageExists ? $imagePath : ''; ?>');">
+            <!-- Fallback in case image doesn't load -->
+            <?php if (!$imageExists): ?>
+                <div class="bg-fallback w-full h-full">
+                    <div>Soliera Hotel & Restaurant</div>
+                </div>
+            <?php endif; ?>
+        </div>
+        <div class="z-10 absolute inset-0 bg-black/40"></div>
+        <div class="z-10 absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/70"></div>
+
+        <!-- Content container -->
+        <div class="z-10 relative flex justify-center items-center p-4 w-full h-full">
+            <div class="max-md:hidden flex justify-center items-center w-1/2">
+                <div class="p-8 max-w-lg">
+                    <!-- Hotel & Restaurant Illustration -->
+                    <div class="mb-8 text-center">
+                        <a href="/images/soliera_S.png">
+                            <img data-aos="zoom-in" data-aos-delay="100"
+                                class="w-screen max-h-60 hover:scale-105 transition-all"
+                                src="/images/tagline_no_bg.png"
+                                alt="Soliera Hotel Logo">
+                        </a>
+                        <h1 data-aos="zoom-in-up" data-aos-delay="200"
+                            class="mb-2 font-bold text-white text-3xl">
+                            Welcome to <span class="text-[#F7B32B]">Soliera</span> Hotel & Restaurant
+                        </h1>
+                        <p data-aos="zoom-in-up" data-aos-delay="300" class="text-white/80">
+                            Savor The Stay, Dine With Elegance
+                        </p>
                     </div>
 
-                    <!-- Key HR Metrics -->
-                    <div class="gap-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-                        <!-- Total Employees -->
-                        <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Total Employees</p>
-                                    <h3 class="mt-1 font-bold text-3xl">428</h3>
-                                    <p class="mt-1 text-gray-500 text-xs">+12 this month</p>
-                                </div>
-                                <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
-                                    <i data-lucide="users" class="w-6 h-6 text-[#F7B32B]"></i>
-                                </div>
+
+                    <!-- Features List -->
+                    <div data-aos="zoom-in-up" data-aos-delay="400" class="space-y-4">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400 lucide lucide-star">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="font-medium text-white">5-Star Restaurant Quality</p>
+                                <p class="text-white/70 text-sm">Award-winning cuisine prepared by internationally trained chefs</p>
                             </div>
                         </div>
 
-                        <!-- Turnover Rate -->
-                        <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Turnover Rate</p>
-                                    <h3 class="mt-1 font-bold text-3xl">18.2%</h3>
-                                    <p class="mt-1 text-gray-500 text-xs">-2.4% from last quarter</p>
-                                </div>
-                                <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
-                                    <i data-lucide="repeat" class="w-6 h-6 text-[#F7B32B]"></i>
-                                </div>
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400 lucide lucide-utensils">
+                                    <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
+                                    <path d="M7 2v20" />
+                                    <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="font-medium text-white">Authentic Filipino Cuisine</p>
+                                <p class="text-white/70 text-sm">Traditional recipes with a modern gourmet twist</p>
                             </div>
                         </div>
 
-                        <!-- Avg Time to Hire -->
-                        <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Avg Time to Hire</p>
-                                    <h3 class="mt-1 font-bold text-3xl">24 days</h3>
-                                    <p class="mt-1 text-gray-500 text-xs">Industry: 28 days</p>
-                                </div>
-                                <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
-                                    <i data-lucide="clock" class="w-6 h-6 text-[#F7B32B]"></i>
-                                </div>
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400 lucide lucide-calendar-check">
+                                    <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                                    <line x1="16" x2="16" y1="2" y2="6" />
+                                    <line x1="8" x2="8" y1="2" y2="6" />
+                                    <line x1="3" x2="21" y1="10" y2="10" />
+                                    <path d="m9 16 2 2 4-4" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="font-medium text-white">Seamless Reservations</p>
+                                <p class="text-white/70 text-sm">Book tables, events, and services with just a few clicks</p>
                             </div>
                         </div>
 
-                        <!-- Training Completion -->
-                        <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Training Completion</p>
-                                    <h3 class="mt-1 font-bold text-3xl">87%</h3>
-                                    <p class="mt-1 text-gray-500 text-xs">+5% this quarter</p>
-                                </div>
-                                <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
-                                    <i data-lucide="award" class="w-6 h-6 text-[#F7B32B]"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Module 1: Core Human Capital Analytics -->
-                    <div class="mb-8">
-                        <h3 class="flex items-center mb-4 font-bold text-gray-800 text-xl">
-                            <span class="bg-blue-100 mr-2 p-2 rounded-lg text-blue-600">
-                                <i data-lucide="database" class="w-5 h-5"></i>
-                            </span>
-                            Core Human Capital Analytics
-                        </h3>
-                        <div class="gap-6 grid grid-cols-1 lg:grid-cols-2">
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                                <h4 class="mb-4 font-semibold text-gray-800">Employee Distribution by Department</h4>
-                                <canvas id="departmentDistributionChart"></canvas>
-                            </div>
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                                <h4 class="mb-4 font-semibold text-gray-800">Certification Status</h4>
-                                <canvas id="certificationChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Module 2: Payroll Management Analytics -->
-                    <div class="mb-8">
-                        <h3 class="flex items-center mb-4 font-bold text-gray-800 text-xl">
-                            <span class="bg-green-100 mr-2 p-2 rounded-lg text-green-600">
-                                <i data-lucide="credit-card" class="w-5 h-5"></i>
-                            </span>
-                            Payroll Management Analytics
-                        </h3>
-                        <div class="gap-6 grid grid-cols-1 lg:grid-cols-2">
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                                <h4 class="mb-4 font-semibold text-gray-800">Labor Cost by Department</h4>
-                                <canvas id="laborCostChart"></canvas>
-                            </div>
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                                <h4 class="mb-4 font-semibold text-gray-800">Overtime Trends</h4>
-                                <canvas id="overtimeTrendsChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Module 3: Compensation Planning Analytics -->
-                    <div class="mb-8">
-                        <h3 class="flex items-center mb-4 font-bold text-gray-800 text-xl">
-                            <span class="bg-purple-100 mr-2 p-2 rounded-lg text-purple-600">
-                                <i data-lucide="trending-up" class="w-5 h-5"></i>
-                            </span>
-                            Compensation Planning Analytics
-                        </h3>
-                        <div class="gap-6 grid grid-cols-1 lg:grid-cols-2">
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                                <h4 class="mb-4 font-semibold text-gray-800">Salary vs Market Benchmark</h4>
-                                <canvas id="salaryBenchmarkChart"></canvas>
-                            </div>
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                                <h4 class="mb-4 font-semibold text-gray-800">Bonus Distribution</h4>
-                                <canvas id="bonusDistributionChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Module 4: Hospitality-Specific Analytics -->
-                    <div class="mb-8">
-                        <h3 class="flex items-center mb-4 font-bold text-gray-800 text-xl">
-                            <span class="bg-red-100 mr-2 p-2 rounded-lg text-red-600">
-                                <i data-lucide="utensils" class="w-5 h-5"></i>
-                            </span>
-                            Hospitality-Specific Analytics
-                        </h3>
-                        <div class="gap-6 grid grid-cols-1 lg:grid-cols-2">
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                                <h4 class="mb-4 font-semibold text-gray-800">Tip Distribution Analysis</h4>
-                                <canvas id="tipDistributionChart"></canvas>
-                            </div>
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                                <h4 class="mb-4 font-semibold text-gray-800">Guest Satisfaction vs Staff Performance</h4>
-                                <canvas id="satisfactionPerformanceChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Module 5: HR Analytics Dashboard -->
-                    <div class="mb-8">
-                        <h3 class="flex items-center mb-4 font-bold text-gray-800 text-xl">
-                            <span class="bg-indigo-100 mr-2 p-2 rounded-lg text-indigo-600">
-                                <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
-                            </span>
-                            HR Analytics Dashboard
-                        </h3>
-                        <div class="gap-6 grid grid-cols-1 lg:grid-cols-2">
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                                <h4 class="mb-4 font-semibold text-gray-800">Turnover Analysis</h4>
-                                <canvas id="turnoverAnalysisChart"></canvas>
-                            </div>
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                                <h4 class="mb-4 font-semibold text-gray-800">Recruitment Funnel</h4>
-                                <canvas id="recruitmentFunnelChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Additional HR Departments -->
-                    <div class="gap-6 grid grid-cols-1 lg:grid-cols-3 mb-6">
-                        <!-- HR Department 1 -->
-                        <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                            <h3 class="flex items-center mb-4 font-semibold text-gray-800">
-                                <span class="bg-yellow-100 mr-2 p-2 rounded-lg text-yellow-600">
-                                    <i data-lucide="users" class="w-5 h-5"></i>
-                                </span>
-                                HR Department 1
-                            </h3>
-                            <div class="flex justify-center items-center bg-gray-50 rounded-lg h-64">
-                                <p class="text-gray-500">Department-specific analytics and charts will appear here</p>
-                            </div>
-                        </div>
-
-                        <!-- HR Department 2 -->
-                        <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                            <h3 class="flex items-center mb-4 font-semibold text-gray-800">
-                                <span class="bg-pink-100 mr-2 p-2 rounded-lg text-pink-600">
-                                    <i data-lucide="settings" class="w-5 h-5"></i>
-                                </span>
-                                HR Department 2
-                            </h3>
-                            <div class="flex justify-center items-center bg-gray-50 rounded-lg h-64">
-                                <p class="text-gray-500">Department-specific analytics and charts will appear here</p>
-                            </div>
-                        </div>
-
-                        <!-- HR Department 3 -->
-                        <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                            <h3 class="flex items-center mb-4 font-semibold text-gray-800">
-                                <span class="bg-teal-100 mr-2 p-2 rounded-lg text-teal-600">
-                                    <i data-lucide="clipboard-list" class="w-5 h-5"></i>
-                                </span>
-                                HR Department 3
-                            </h3>
-                            <div class="flex justify-center items-center bg-gray-50 rounded-lg h-64">
-                                <p class="text-gray-500">Department-specific analytics and charts will appear here</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Performance & Retention Analytics -->
-                    <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                        <h3 class="mb-4 font-semibold text-gray-800">Performance & Retention Correlation</h3>
-                        <div class="gap-6 grid grid-cols-1 lg:grid-cols-2">
-                            <div>
-                                <canvas id="performanceRetentionChart"></canvas>
-                            </div>
-                            <div>
-                                <canvas id="tenureDistributionChart"></canvas>
-                            </div>
-                        </div>
                     </div>
                 </div>
-            </main>
+            </div>
+
+            <div class="flex justify-center items-center w-1/2 max-md:w-full">
+                <div class="bg-white/10 shadow-2xl backdrop-blur-lg p-6 border border-white/20 rounded-xl w-full max-w-md">
+                    <!-- Card Header -->
+                    <div class="flex flex-col justify-center items-center mb-6 text-center">
+                        <h2 class="font-bold text-white text-2xl">Sign in to your account</h2>
+                        <p class="mt-1 text-white/80">Enter your credentials to continue</p>
+                    </div>
+
+                    <!-- Card Body -->
+                    <div>
+                        <form method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
+                            <!-- Employee ID Input -->
+                            <div class="mb-4">
+                                <label class="block mb-2 font-medium text-white/90 text-sm" for="employee_id">
+                                    Employee ID
+                                </label>
+                                <div class="relative">
+                                    <div class="left-0 absolute inset-y-0 flex items-center pl-3 pointer-events-none">
+                                        <i class='text-white/50 bx bx-user'></i>
+                                    </div>
+                                    <input
+                                        id="employee_id"
+                                        type="text"
+                                        class="bg-white/5 py-3 pr-3 pl-10 border border-white/20 focus:border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full text-white placeholder-white/50"
+                                        placeholder="Your ID"
+                                        required
+                                        name="employee_id"
+                                        value="<?php echo htmlspecialchars($employee_ID); ?>">
+                                </div>
+                            </div>
+
+                            <!-- Password Input with Toggle -->
+                            <div class="mb-6">
+                                <label class="block mb-2 font-medium text-white/90 text-sm" for="password">
+                                    Password
+                                </label>
+                                <div class="relative">
+                                    <div class="left-0 absolute inset-y-0 flex items-center pl-3 pointer-events-none">
+                                        <i class='text-white/50 bx bx-key'></i>
+                                    </div>
+                                    <input
+                                        id="password"
+                                        type="password"
+                                        class="bg-white/5 py-3 pr-10 pl-10 border border-white/20 focus:border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full text-white placeholder-white/50"
+                                        placeholder="Password"
+                                        required
+                                        name="password">
+                                    <button
+                                        type="button"
+                                        class="right-0 absolute inset-y-0 flex items-center pr-3 focus:outline-none text-white/50 hover:text-white"
+                                        onclick="togglePasswordVisibility()">
+                                        <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                            <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
+                                        </svg>
+                                        <svg id="eye-slash-icon" xmlns="http://www.w3.org/2000/svg" class="hidden w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clip-rule="evenodd" />
+                                            <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Remember Me & Forgot Password -->
+                            <div class="flex justify-between items-center mb-6">
+
+                                <div class="text-sm">
+                                    <a href="javascript:void(0)" onclick="toggleForgotModal(true)" class="font-medium text-blue-400 hover:text-blue-300">
+                                        Forgot password?
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- Google reCAPTCHA widget -->
+                            <!-- <div class="mb-4">
+                                <div class="g-recaptcha" data-sitekey="6Ld4W8ArAAAAAK3qsDWjdvj6MNiXFJDPMgHGfhrw"></div>
+                            </div> -->
+
+                            <!-- Sign In Button -->
+                            <button
+                                type="submit"
+                                value="Login"
+                                class="bg-[#EDB886] hover:bg-[#F7B32B] px-4 py-3 rounded-lg w-full font-bold text-white transition duration-300">
+                                Login
+                            </button>
+                        </form>
+
+
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
 
+        <!-- Forgot Password Modal -->
+        <div id="forgot-modal" class="hidden z-50 fixed inset-0 justify-center items-center bg-black/20 backdrop-blur-sm">
+            <div class="bg-white/90 shadow-xl backdrop-blur-md p-6 border border-white/20 rounded-xl w-full max-w-md">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-bold text-gray-800 text-xl">Reset your password</h2>
+                    <button onclick="toggleForgotModal(false)" class="text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <form action="forgot_password.php" method="POST">
+                    <div class="mb-4">
+                        <label class="block mb-2 font-medium text-gray-700 text-sm">Email address</label>
+                        <input type="email" name="email" required
+                            class="px-3 py-2 border border-gray-300 focus:border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                    </div>
+
+                    <div class="flex justify-end gap-3">
+                        <button type="button" onclick="toggleForgotModal(false)"
+                            class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg text-gray-800 transition">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                            class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white transition">
+                            Send Reset Link
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="bottom-5 left-5 z-30 absolute text-white text-sm">Build By: BSIT - 4102 | Cluster 2</div>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+    <script src="https://unpkg.com/boxicons@2.1.4/dist/boxicons.js"></script>
     <script>
-        lucide.createIcons();
-
-        // Initialize all charts when DOM is loaded
-        document.addEventListener('DOMContentLoaded', function() {
-            // Department Distribution Chart
-            const departmentCtx = document.getElementById('departmentDistributionChart').getContext('2d');
-            new Chart(departmentCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Front Desk', 'Housekeeping', 'F&B Service', 'Kitchen', 'Management', 'Support'],
-                    datasets: [{
-                        data: [22, 28, 25, 15, 5, 5],
-                        backgroundColor: [
-                            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280'
-                        ],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
-
-            // Certification Status Chart
-            const certificationCtx = document.getElementById('certificationChart').getContext('2d');
-            new Chart(certificationCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Food Handler', 'CPR/First Aid', 'Alcohol Service', 'Safety Training', 'Brand Standards'],
-                    datasets: [{
-                        label: 'Completion Rate',
-                        data: [92, 85, 78, 95, 88],
-                        backgroundColor: '#3b82f6',
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            title: {
-                                display: true,
-                                text: 'Completion %'
-                            }
-                        }
-                    }
-                }
-            });
-
-            // Labor Cost Chart
-            const laborCostCtx = document.getElementById('laborCostChart').getContext('2d');
-            new Chart(laborCostCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Rooms', 'F&B', 'Kitchen', 'Events', 'Support'],
-                    datasets: [{
-                        label: 'Labor Cost (₱K)',
-                        data: [120, 180, 150, 90, 60],
-                        backgroundColor: '#10b981',
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Cost (₱ Thousands)'
-                            }
-                        }
-                    }
-                }
-            });
-
-            // Overtime Trends Chart
-            const overtimeCtx = document.getElementById('overtimeTrendsChart').getContext('2d');
-            new Chart(overtimeCtx, {
-                type: 'line',
-                data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-                    datasets: [{
-                        label: 'Overtime Hours',
-                        data: [1200, 1100, 1300, 1250, 1400, 1500, 1600, 1450, 1350, 1250, 1300, 1200],
-                        borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            title: {
-                                display: true,
-                                text: 'Overtime Hours'
-                            }
-                        }
-                    }
-                }
-            });
-
-            // Salary Benchmark Chart
-            const salaryBenchmarkCtx = document.getElementById('salaryBenchmarkChart').getContext('2d');
-            new Chart(salaryBenchmarkCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Server', 'Bartender', 'Cook', 'Housekeeper', 'Front Desk'],
-                    datasets: [{
-                            label: 'Our Pay',
-                            data: [25, 28, 30, 22, 26],
-                            backgroundColor: '#8b5cf6'
-                        },
-                        {
-                            label: 'Market Avg',
-                            data: [28, 30, 32, 24, 28],
-                            backgroundColor: '#6b7280'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Hourly Rate (₱)'
-                            }
-                        }
-                    }
-                }
-            });
-
-            // Bonus Distribution Chart
-            const bonusCtx = document.getElementById('bonusDistributionChart').getContext('2d');
-            new Chart(bonusCtx, {
-                type: 'pie',
-                data: {
-                    labels: ['Performance', 'Seasonal', 'Retention', 'Referral', 'Other'],
-                    datasets: [{
-                        data: [45, 25, 15, 10, 5],
-                        backgroundColor: [
-                            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'
-                        ],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
-
-            // Tip Distribution Chart
-            const tipCtx = document.getElementById('tipDistributionChart').getContext('2d');
-            new Chart(tipCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Servers', 'Bartenders', 'Hosts', 'Bussers', 'Kitchen'],
-                    datasets: [{
-                        label: 'Avg Monthly Tips (₱K)',
-                        data: [8.5, 7.2, 3.5, 4.2, 2.8],
-                        backgroundColor: '#f59e0b',
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Tips (₱ Thousands)'
-                            }
-                        }
-                    }
-                }
-            });
-
-            // Satisfaction vs Performance Chart
-            const satisfactionCtx = document.getElementById('satisfactionPerformanceChart').getContext('2d');
-            new Chart(satisfactionCtx, {
-                type: 'scatter',
-                data: {
-                    datasets: [{
-                        label: 'Front Desk',
-                        data: [{
-                                x: 4.2,
-                                y: 85
-                            }, {
-                                x: 4.5,
-                                y: 90
-                            }, {
-                                x: 4.0,
-                                y: 80
-                            },
-                            {
-                                x: 4.8,
-                                y: 95
-                            }, {
-                                x: 4.3,
-                                y: 87
-                            }, {
-                                x: 4.6,
-                                y: 92
-                            }
-                        ],
-                        backgroundColor: '#3b82f6'
-                    }, {
-                        label: 'F&B Service',
-                        data: [{
-                                x: 4.1,
-                                y: 82
-                            }, {
-                                x: 4.4,
-                                y: 88
-                            }, {
-                                x: 4.7,
-                                y: 93
-                            },
-                            {
-                                x: 4.0,
-                                y: 78
-                            }, {
-                                x: 4.3,
-                                y: 85
-                            }, {
-                                x: 4.5,
-                                y: 90
-                            }
-                        ],
-                        backgroundColor: '#10b981'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Guest Satisfaction (1-5)'
-                            },
-                            min: 3.5,
-                            max: 5
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Performance Rating (%)'
-                            },
-                            min: 75,
-                            max: 100
-                        }
-                    }
-                }
-            });
-
-            // Turnover Analysis Chart
-            const turnoverCtx = document.getElementById('turnoverAnalysisChart').getContext('2d');
-            new Chart(turnoverCtx, {
-                type: 'line',
-                data: {
-                    labels: ['Q1', 'Q2', 'Q3', 'Q4', 'Q1', 'Q2', 'Q3', 'Q4'],
-                    datasets: [{
-                            label: 'Voluntary Turnover',
-                            data: [22, 20, 18, 16, 15, 14, 13, 12],
-                            borderColor: '#ef4444',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                            tension: 0.4,
-                            fill: true
-                        },
-                        {
-                            label: 'Involuntary Turnover',
-                            data: [8, 7, 6, 5, 5, 4, 4, 3],
-                            borderColor: '#f59e0b',
-                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                            tension: 0.4,
-                            fill: true
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Turnover Rate (%)'
-                            }
-                        }
-                    }
-                }
-            });
-
-            // Recruitment Funnel Chart
-            const recruitmentCtx = document.getElementById('recruitmentFunnelChart').getContext('2d');
-            new Chart(recruitmentCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Applicants', 'Screened', 'Interviewed', 'Offers', 'Hires'],
-                    datasets: [{
-                        label: 'Count',
-                        data: [450, 180, 75, 35, 28],
-                        backgroundColor: '#8b5cf6',
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    scales: {
-                        x: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-
-            // Performance & Retention Chart
-            const performanceCtx = document.getElementById('performanceRetentionChart').getContext('2d');
-            new Chart(performanceCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Low Performers', 'Average', 'High Performers', 'Top Performers'],
-                    datasets: [{
-                        label: 'Retention Rate (%)',
-                        data: [45, 72, 88, 94],
-                        backgroundColor: '#3b82f6',
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            title: {
-                                display: true,
-                                text: 'Retention Rate (%)'
-                            }
-                        }
-                    }
-                }
-            });
-
-            // Tenure Distribution Chart
-            const tenureCtx = document.getElementById('tenureDistributionChart').getContext('2d');
-            new Chart(tenureCtx, {
-                type: 'pie',
-                data: {
-                    labels: ['< 6 months', '6-12 months', '1-3 years', '3-5 years', '5+ years'],
-                    datasets: [{
-                        data: [18, 22, 35, 15, 10],
-                        backgroundColor: [
-                            '#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'
-                        ],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
+        // Initialize AOS
+        AOS.init({
+            duration: 1000,
+            once: true
         });
+
+        // Toggle password visibility
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('password');
+            const eyeIcon = document.getElementById('eye-icon');
+            const eyeSlashIcon = document.getElementById('eye-slash-icon');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                eyeIcon.classList.add('hidden');
+                eyeSlashIcon.classList.remove('hidden');
+            } else {
+                passwordInput.type = 'password';
+                eyeIcon.classList.remove('hidden');
+                eyeSlashIcon.classList.add('hidden');
+            }
+        }
+
+        // Toggle forgot password modal
+        function toggleForgotModal(show) {
+            const modal = document.getElementById("forgot-modal");
+            if (show) {
+                modal.classList.remove("hidden");
+                modal.classList.add("flex");
+            } else {
+                modal.classList.add("hidden");
+                modal.classList.remove("flex");
+            }
+        }
     </script>
+
+    <?php if (isset($_SESSION["loginError"])): ?>
+        <script>
+            alert('<?= htmlspecialchars($_SESSION["loginError"], ENT_QUOTES); ?>');
+        </script>
+    <?php
+        unset($_SESSION["loginError"]);
+    endif; ?>
 </body>
 
 </html>

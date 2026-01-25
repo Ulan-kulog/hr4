@@ -1,6 +1,6 @@
 <!-- Edit Policy Modal -->
 <dialog id="editPolicyModal" class="modal">
-    <div class="bg-white shadow-xl max-w-4xl modal-box">
+    <div class="bg-white/90 shadow-xl max-w-4xl text-black modal-box">
         <form method="dialog">
             <button class="top-2 right-2 absolute btn btn-sm btn-circle btn-ghost">✕</button>
         </form>

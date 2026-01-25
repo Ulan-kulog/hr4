@@ -523,11 +523,10 @@ $today = date('Y-m-d');
                                     <tr>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Grade</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Position</th>
-                                        <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Min Salary</th>
+                                        <!-- <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Min Salary</th> -->
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Max Salary</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Employees</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">work_status</th>
-                                        <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100">
@@ -541,9 +540,8 @@ $today = date('Y-m-d');
                                             $id = htmlspecialchars($row['grade_name'] ?? $row['id'] ?? '');
                                             $grade = htmlspecialchars($row['grade'] ?? $row['grade_name'] ?? $row['grade_level'] ?? $row['level'] ?? $id);
                                             $position = htmlspecialchars($row['position'] ?? $row['position_title'] ?? $row['title'] ?? '');
-                                            $minRaw = $row['min_salary'] ?? $row['min'] ?? '';
                                             $maxRaw = $row['max_salary'] ?? $row['max'] ?? '';
-                                            $minSalary = format_currency($minRaw);
+                                            // $minSalary = format_currency($minRaw);
                                             $maxSalary = format_currency($maxRaw);
                                             $work_status = htmlspecialchars($row['work_status'] ?? 'Active');
                                             $employees = isset($row['employees']) ? (int)$row['employees'] : (isset($row['employees_count']) ? (int)$row['employees_count'] : '-');
@@ -553,17 +551,14 @@ $today = date('Y-m-d');
                                             <tr>
                                                 <td class="px-4 py-3 font-medium text-gray-900 text-sm"><?= $grade ?></td>
                                                 <td class="px-4 py-3 text-gray-900 text-sm"><?= $position ?></td>
-                                                <td class="px-4 py-3 text-gray-900 text-sm"><?= $minSalary ?></td>
+                                                <!-- <td class="px-4 py-3 text-gray-900 text-sm"><?= $minSalary ?></td> -->
                                                 <td class="px-4 py-3 text-gray-900 text-sm"><?= $maxSalary ?></td>
                                                 <td class="px-4 py-3 text-gray-900 text-sm"><?= $employees ?></td>
                                                 <td class="px-4 py-3"><span class="inline-flex items-center <?= $work_statusClass ?> px-2.5 py-0.5 rounded-full font-medium text-xs"><?= $work_status ?></span></td>
                                                 <td class="px-4 py-3">
                                                     <div class="flex gap-2">
-                                                        <a href="#" class="font-medium text-blue-600 hover:text-blue-800 text-sm edit-salary-btn" data-id="<?= $id ?>" data-grade="<?= $grade ?>" data-position="<?= $position ?>" data-min="<?= htmlspecialchars($minRaw) ?>" data-max="<?= htmlspecialchars($maxRaw) ?>" data-work_status="<?= $work_status ?>">Edit</a>
-                                                        <form method="POST" action="API/delete_salary_grade.php" class="inline delete-form">
-                                                            <input type="hidden" name="id" value="<?= htmlspecialchars($id) ?>">
-                                                            <button type="submit" class="font-medium text-red-600 hover:text-red-800 text-sm">Delete</button>
-                                                        </form>
+                                                        <!-- <a href="#" class="font-medium text-blue-600 hover:text-blue-800 text-sm edit-salary-btn" data-id="<?= $id ?>" data-grade="<?= $grade ?>" data-position="<?= $position ?>" data-min="<?= htmlspecialchars($minRaw) ?>" data-max="<?= htmlspecialchars($maxRaw) ?>" data-work_status="<?= $work_status ?>">Edit</a> -->
+
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1074,13 +1069,12 @@ $today = date('Y-m-d');
         // Set up number input restrictions
         function setupNumberInputValidations() {
             // Salary inputs - min and max validation
-            const salaryInputs = document.querySelectorAll('input[name="min_salary"], input[name="max_salary"]');
+            const salaryInputs = document.querySelectorAll(' input[name="max_salary"]');
             salaryInputs.forEach(input => {
                 input.setAttribute('min', '0');
                 input.setAttribute('step', '0.01');
 
                 input.addEventListener('change', function() {
-                    const minInput = document.querySelector('input[name="min_salary"]');
                     const maxInput = document.querySelector('input[name="max_salary"]');
 
                     if (minInput && maxInput && minInput.value && maxInput.value) {
@@ -1182,9 +1176,8 @@ $today = date('Y-m-d');
             });
         }
 
-        // Create Salary Form Validation
+        // Create Salary Form Validation (min_salary validation removed)
         document.getElementById('createSalaryForm')?.addEventListener('submit', function(e) {
-            const minSalary = this.querySelector('[name="min_salary"]').value;
             const maxSalary = this.querySelector('[name="max_salary"]').value;
             const gradeName = this.querySelector('[name="grade_name"]').value.trim();
             const position = this.querySelector('[name="position"]').value.trim();
@@ -1198,22 +1191,13 @@ $today = date('Y-m-d');
                 errorMessage = 'Grade Level and Position Title are required.';
             }
 
-            // Validate salary amounts
-            if (!isValidPositiveNumber(minSalary)) {
-                hasError = true;
-                errorMessage = 'Please enter a valid minimum salary (positive number).';
-            }
+            // Validate maximum salary only (do not block on min_salary)
+            // if (!isValidPositiveNumber(maxSalary)) {
+            //     hasError = true;
+            //     errorMessage = 'Please enter a valid maximum salary (positive number).';
+            // }
 
-            if (!isValidPositiveNumber(maxSalary)) {
-                hasError = true;
-                errorMessage = 'Please enter a valid maximum salary (positive number).';
-            }
-
-            // Validate salary range
-            if (minSalary && maxSalary && !isValidSalaryRange(minSalary, maxSalary)) {
-                hasError = true;
-                errorMessage = 'Minimum salary must be less than maximum salary.';
-            }
+            // No client-side salary range validation for min_salary
 
             if (hasError) {
                 e.preventDefault();
@@ -1226,9 +1210,8 @@ $today = date('Y-m-d');
             }
         });
 
-        // Edit Salary Form Validation
+        // Edit Salary Form Validation (min_salary validation removed)
         document.getElementById('editSalaryForm')?.addEventListener('submit', function(e) {
-            const minSalary = this.querySelector('[name="min_salary"]').value;
             const maxSalary = this.querySelector('[name="max_salary"]').value;
             const grade = this.querySelector('[name="grade"]').value.trim();
             const position = this.querySelector('[name="position"]').value.trim();
@@ -1242,22 +1225,13 @@ $today = date('Y-m-d');
                 errorMessage = 'Grade Level and Position Title are required.';
             }
 
-            // Validate salary amounts
-            if (!isValidPositiveNumber(minSalary)) {
-                hasError = true;
-                errorMessage = 'Please enter a valid minimum salary (positive number).';
-            }
+            // Validate maximum salary only (do not block on min_salary)
+            // if (!isValidPositiveNumber(maxSalary)) {
+            //     hasError = true;
+            //     errorMessage = 'Please enter a valid maximum salary (positive number).';
+            // }
 
-            if (!isValidPositiveNumber(maxSalary)) {
-                hasError = true;
-                errorMessage = 'Please enter a valid maximum salary (positive number).';
-            }
-
-            // Validate salary range
-            if (minSalary && maxSalary && !isValidSalaryRange(minSalary, maxSalary)) {
-                hasError = true;
-                errorMessage = 'Minimum salary must be less than maximum salary.';
-            }
+            // No client-side salary range validation for min_salary
 
             if (hasError) {
                 e.preventDefault();

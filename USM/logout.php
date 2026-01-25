@@ -1,6 +1,6 @@
 <?php
 session_start();
-require '../main_connection.php'; // 🔹 adjust path to your DB connection
+require '../connection.php'; // 🔹 adjust path to your DB connection
 
 // Capture session details before destroying
 $employee_id   = $_SESSION['employee_id'] ?? null;
@@ -47,12 +47,17 @@ session_destroy();
 // Optional: clear session cookie if set
 if (ini_get("session.use_cookies")) {
     $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000,
-        $params["path"], $params["domain"],
-        $params["secure"], $params["httponly"]
+    setcookie(
+        session_name(),
+        '',
+        time() - 42000,
+        $params["path"],
+        $params["domain"],
+        $params["secure"],
+        $params["httponly"]
     );
 }
 
 // Redirect to login page
-header("Location: index.php");
+header("Location: ../index.php");
 exit;

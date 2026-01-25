@@ -205,3 +205,14 @@ $department_enrollment = Database::fetchAll('
     ORDER BY enrolled_count DESC
     LIMIT 5
 ');
+
+// Simple dd() helper for debugging: dumps variable and exits
+if (!function_exists('dd')) {
+    function dd($var)
+    {
+        echo '<pre style="text-align:left;">';
+        var_dump($var);
+        echo '</pre>';
+        exit;
+    }
+}

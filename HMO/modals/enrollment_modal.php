@@ -1,7 +1,7 @@
 <!-- New Enrollment Modal -->
 <dialog id="newEnrollmentModal" class="modal-bottom modal sm:modal-middle">
     <div class="max-w-4xl modal-box">
-        <form method="dialog">
+        <form method="dialog" class="bg-white/90 text-black">
             <button class="top-2 right-2 absolute btn btn-sm btn-circle btn-ghost">✕</button>
         </form>
         <h3 class="mb-6 font-bold text-blue-700 text-lg">New Employee Enrollment</h3>

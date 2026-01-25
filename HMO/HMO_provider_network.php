@@ -388,7 +388,7 @@ function handleFormSubmission()
 
         <!-- DaisyUI Modal for Add/Edit Provider -->
         <dialog id="providerModal" class="modal">
-            <div class="w-11/12 max-w-3xl modal-box">
+            <div class="bg-white/90 w-11/12 max-w-3xl text-black modal-box">
                 <form method="dialog">
                     <button class="top-2 right-2 absolute btn btn-sm btn-circle btn-ghost">✕</button>
                 </form>

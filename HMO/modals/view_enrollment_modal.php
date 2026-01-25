@@ -1,6 +1,6 @@
 <!-- View Employee Enrollment Modal -->
 <dialog id="viewEmployeeModal" class="modal">
-    <div class="max-w-4xl text-white modal-box">
+    <div class="bg-white/90 max-w-4xl text-black modal-box">
         <h3 class="mb-6 font-bold text-xl">Employee Enrollment Details</h3>
 
         <!-- Employee Information Section -->
@@ -12,7 +12,7 @@
                     <label class="label">
                         <span class="font-semibold label-text">Employee ID</span>
                     </label>
-                    <input type="text" id="view_employee_code" class="bg-gray-800 w-full input input-bordered" readonly />
+                    <input type="text" id="view_employee_code" class="bg-gray-100 w-full text-black input input-bordered" readonly />
                 </div>
 
                 <!-- Full Name -->
@@ -20,7 +20,7 @@
                     <label class="label">
                         <span class="font-semibold label-text">Full Name</span>
                     </label>
-                    <input type="text" id="view_full_name" class="bg-gray-800 w-full input input-bordered" readonly />
+                    <input type="text" id="view_full_name" class="bg-gray-100 w-full text-black input input-bordered" readonly />
                 </div>
 
                 <!-- Department -->
@@ -28,7 +28,7 @@
                     <label class="label">
                         <span class="font-semibold label-text">Department</span>
                     </label>
-                    <input type="text" id="view_department" class="bg-gray-800 w-full input input-bordered" readonly />
+                    <input type="text" id="view_department" class="bg-gray-100 w-full text-black input input-bordered" readonly />
                 </div>
 
                 <!-- Email -->
@@ -36,7 +36,7 @@
                     <label class="label">
                         <span class="font-semibold label-text">Email</span>
                     </label>
-                    <input type="text" id="view_email" class="bg-gray-800 w-full input input-bordered" readonly />
+                    <input type="text" id="view_email" class="bg-gray-100 w-full text-black input input-bordered" readonly />
                 </div>
             </div>
         </div>
@@ -50,7 +50,7 @@
                     <label class="label">
                         <span class="font-semibold label-text">Enrollment ID</span>
                     </label>
-                    <input type="text" id="view_benefit_enrollment_id" class="bg-gray-800 w-full input input-bordered" readonly />
+                    <input type="text" id="view_benefit_enrollment_id" class="bg-gray-100 w-full text-black input input-bordered" readonly />
                 </div>
 
                 <!-- Status -->
@@ -66,7 +66,7 @@
                     <label class="label">
                         <span class="font-semibold label-text">Start Date</span>
                     </label>
-                    <input type="text" id="view_start_date" class="bg-gray-800 w-full input input-bordered" readonly />
+                    <input type="text" id="view_start_date" class="bg-gray-100 w-full text-black input input-bordered" readonly />
                 </div>
 
                 <!-- End Date -->
@@ -74,7 +74,7 @@
                     <label class="label">
                         <span class="font-semibold label-text">End Date</span>
                     </label>
-                    <input type="text" id="view_end_date" class="bg-gray-800 w-full input input-bordered" readonly />
+                    <input type="text" id="view_end_date" class="bg-gray-100 w-full text-black input input-bordered" readonly />
                 </div>
 
                 <!-- Payroll Frequency -->
@@ -82,7 +82,7 @@
                     <label class="label">
                         <span class="font-semibold label-text">Payroll Frequency</span>
                     </label>
-                    <input type="text" id="view_payroll_frequency" class="bg-gray-800 w-full input input-bordered" readonly />
+                    <input type="text" id="view_payroll_frequency" class="bg-gray-100 w-full text-black input input-bordered" readonly />
                 </div>
 
                 <!-- Payroll Deductible -->
@@ -90,7 +90,7 @@
                     <label class="label">
                         <span class="font-semibold label-text">Payroll Deductible</span>
                     </label>
-                    <input type="text" id="view_payroll_deductible" class="bg-gray-800 w-full input input-bordered" readonly />
+                    <input type="text" id="view_payroll_deductible" class="bg-gray-100 w-full text-black input input-bordered" readonly />
                 </div>
 
                 <!-- Last Updated -->
@@ -98,7 +98,7 @@
                     <label class="label">
                         <span class="font-semibold label-text">Last Updated</span>
                     </label>
-                    <input type="text" id="view_updated_at" class="bg-gray-800 w-full input input-bordered" readonly />
+                    <input type="text" id="view_updated_at" class="bg-gray-100 w-full text-black input input-bordered" readonly />
                 </div>
             </div>
         </div>

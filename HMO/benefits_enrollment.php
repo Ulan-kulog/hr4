@@ -1,4 +1,4 @@
-<?php require_once 'backend.php' ?>
+<?php require_once 'backend.php'; ?>
 
 <!DOCTYPE html>
 <html lang="en">

@@ -1,6 +1,6 @@
 <!-- Edit Enrollment Modal -->
 <dialog id="editEnrollmentModal" class="modal">
-    <div class="bg-[#000a19] max-w-4xl text-white modal-box">
+    <div class="bg-white/90 max-w-4xl text-black modal-box">
         <!-- Modal Header -->
         <div class="flex justify-between items-center mb-6">
             <div>
@@ -14,7 +14,7 @@
             </form>
         </div>
 
-        <form id="editEnrollmentForm" class="space-y-6">
+        <form id="editEnrollmentForm" class="space-y-6" method="POST" action="API/update_enrollment.php">
             <!-- Hidden Fields -->
             <input type="hidden" id="edit_employee_id" name="employee_id">
             <input type="hidden" id="edit_benefit_enrollment_id" name="benefit_enrollment_id">
@@ -32,7 +32,7 @@
                         <label class="label">
                             <span class="font-semibold label-text">Employee Code</span>
                         </label>
-                        <input type="text" id="edit_employee_code" class="bg-gray-800 input input-bordered" readonly>
+                        <input type="text" id="edit_employee_code" class="bg-gray-100 text-black input input-bordered" readonly>
                     </div>
 
                     <!-- Employee Name -->
@@ -40,7 +40,7 @@
                         <label class="label">
                             <span class="font-semibold label-text">Full Name</span>
                         </label>
-                        <input type="text" id="edit_full_name" class="bg-gray-800 input input-bordered" readonly>
+                        <input type="text" id="edit_full_name" class="bg-gray-100 text-black input input-bordered" readonly>
                     </div>
 
                     <!-- Department -->
@@ -48,7 +48,7 @@
                         <label class="label">
                             <span class="font-semibold label-text">Department</span>
                         </label>
-                        <input type="text" id="edit_department" class="bg-gray-800 input input-bordered" readonly>
+                        <input type="text" id="edit_department" class="bg-gray-100 text-black input input-bordered" readonly>
                     </div>
 
                     <!-- Email -->
@@ -56,7 +56,7 @@
                         <label class="label">
                             <span class="font-semibold label-text">Email</span>
                         </label>
-                        <input type="email" id="edit_email" class="bg-gray-800 input input-bordered" readonly>
+                        <input type="email" id="edit_email" class="bg-gray-100 text-black input input-bordered" readonly>
                     </div>
                 </div>
             </div>
@@ -74,7 +74,7 @@
                         <label class="label">
                             <span class="font-semibold label-text">Enrollment ID</span>
                         </label>
-                        <input type="text" id="edit_benefit_enrollment_id_display" class="bg-gray-800 input input-bordered" readonly>
+                        <input type="text" id="edit_benefit_enrollment_id_display" class="bg-gray-100 text-black input input-bordered" readonly>
                     </div>
 
                     <!-- Status -->
@@ -125,7 +125,8 @@
                             <span class="font-semibold label-text">Payroll Deductible</span>
                         </label>
                         <div class="flex items-center mt-2">
-                            <input type="checkbox" id="edit_payroll_deductible" name="payroll_deductible" class="checkbox checkbox-primary">
+                            <input type="hidden" name="payroll_deductible" value="0">
+                            <input type="checkbox" id="edit_payroll_deductible" name="payroll_deductible" value="1" class="checkbox checkbox-primary">
                             <span class="ml-3 font-medium">Yes, deduct from payroll</span>
                         </div>
                     </div>
@@ -135,7 +136,7 @@
                         <label class="label">
                             <span class="font-semibold label-text">Last Updated</span>
                         </label>
-                        <input type="text" id="edit_updated_at" class="bg-gray-800 input input-bordered" readonly>
+                        <input type="text" id="edit_updated_at" class="bg-gray-100 text-black input input-bordered" readonly>
                     </div>
                 </div>
             </div>

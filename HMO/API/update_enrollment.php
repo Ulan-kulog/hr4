@@ -4,74 +4,140 @@ session_start();
 
 header('Content-Type: application/json');
 
-$input = json_decode(file_get_contents('php://input'), true);
+// Accept JSON body or form-encoded POST
+$raw = file_get_contents('php://input');
+$data = null;
+if ($raw) {
+    $json = json_decode($raw, true);
+    if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
+        $data = $json;
+    }
+}
+if ($data === null) {
+    // fallback to regular POST
+    $data = $_POST;
+}
 
-// Validate required fields
-if (!isset($input['employee_id'], $input['benefit_enrollment_id'], $input['start_date'])) {
-    echo json_encode(['success' => false, 'message' => 'Missing required fields']);
+// Require enrollment id
+if (empty($data['benefit_enrollment_id'])) {
+    echo json_encode(['success' => false, 'message' => 'Missing benefit_enrollment_id']);
     exit;
 }
 
 try {
-    // Prepare SQL
-    $sql = "UPDATE benefit_enrollment 
-            SET start_date = ?,
-                end_date = ?,
-                status = ?,
-                payroll_frequency = ?,
-                payroll_deductible = ?,
-                updated_at = NOW()
-            WHERE id = ? AND employee_id = ?";
+    $benefit_enrollment_id = $data['benefit_enrollment_id'];
+    $employee_id = $data['employee_id'] ?? null;
 
-    $params = [
-        $input['start_date'],
-        $input['end_date'] ?: null,
-        $input['status'],
-        $input['payroll_frequency'],
-        $input['payroll_deductible'] ? 1 : 0,
-        $input['benefit_enrollment_id'],
-        $input['employee_id']
-    ];
+    // Normalize values
+    $start_date = array_key_exists('start_date', $data) ? ($data['start_date'] === '' ? null : $data['start_date']) : null;
+    $end_date = array_key_exists('end_date', $data) ? ($data['end_date'] === '' ? null : $data['end_date']) : null;
+    $status = array_key_exists('status', $data) ? $data['status'] : null; // allow empty string
+    $payroll_frequency = array_key_exists('payroll_frequency', $data) ? $data['payroll_frequency'] : null;
+    if (array_key_exists('payroll_deductible', $data)) {
+        $payroll_deductible = (int) $data['payroll_deductible'];
+    } else {
+        $payroll_deductible = null;
+    }
 
-    $updated = Database::execute($sql, $params);
+    // Build dynamic update SQL based on provided fields
+    $updates = [];
+    $params = [];
+    if ($start_date !== null) {
+        $updates[] = 'start_date = ?';
+        $params[] = $start_date;
+    }
+    if ($end_date !== null) {
+        $updates[] = 'end_date = ?';
+        $params[] = $end_date;
+    }
+    if ($status !== null) {
+        $updates[] = 'status = ?';
+        $params[] = $status;
+    }
+    if ($payroll_frequency !== null) {
+        $updates[] = 'payroll_frequency = ?';
+        $params[] = $payroll_frequency;
+    }
+    if ($payroll_deductible !== null) {
+        $updates[] = 'payroll_deductible = ?';
+        $params[] = $payroll_deductible;
+    }
 
-    // If no rows were affected, try updating by enrollment id only (some schemas may not store employee_id on the enrollment row)
-    if ($updated === 0) {
-        $sql2 = "UPDATE benefit_enrollment 
-            SET start_date = ?,
-                end_date = ?,
-                status = ?,
-                payroll_frequency = ?,
-                payroll_deductible = ?,
-                updated_at = NOW()
-            WHERE id = ?";
+    if (count($updates) === 0) {
+        echo json_encode(['success' => false, 'message' => 'No updatable fields provided']);
+        exit;
+    }
 
-        $params2 = [
-            $input['start_date'],
-            $input['end_date'] ?: null,
-            $input['status'],
-            $input['payroll_frequency'],
-            $input['payroll_deductible'] ? 1 : 0,
-            $input['benefit_enrollment_id']
-        ];
+    $updates[] = 'updated_at = NOW()';
 
-        $updated = Database::execute($sql2, $params2);
+    $sql = 'UPDATE benefit_enrollment SET ' . implode(', ', $updates) . ' WHERE id = ?';
+    $params_with_id = array_merge($params, [$benefit_enrollment_id]);
+
+    // If employee_id provided, include it in WHERE to be restrictive
+    if ($employee_id) {
+        $sql .= ' AND employee_id = ?';
+        $params_with_id[] = $employee_id;
+    }
+
+    try {
+        $updated = Database::execute($sql, $params_with_id);
+    } catch (Exception $e) {
+        error_log('[update_enrollment] Primary update failed: ' . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Primary update error', 'error' => $e->getMessage(), 'sql' => $sql, 'params' => $params_with_id]);
+        exit;
+    }
+
+    // If no rows affected and we used employee_id in WHERE, try id-only update
+    if ($updated === 0 && $employee_id) {
+        $sql2 = 'UPDATE benefit_enrollment SET ' . implode(', ', $updates) . ' WHERE id = ?';
+        $params2 = array_merge($params, [$benefit_enrollment_id]);
+        try {
+            $updated = Database::execute($sql2, $params2);
+        } catch (Exception $e) {
+            error_log('[update_enrollment] Secondary update failed: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Secondary update error', 'error' => $e->getMessage(), 'sql' => $sql2, 'params' => $params2]);
+            exit;
+        }
     }
 
     if ($updated > 0) {
-        echo json_encode([
-            'success' => true,
-            'message' => 'Enrollment updated successfully'
-        ]);
-    } else {
-        echo json_encode([
-            'success' => false,
-            'message' => 'No changes were made or record not found'
-        ]);
+        echo json_encode(['success' => true, 'message' => 'Enrollment updated successfully', 'updated_rows' => $updated]);
+        exit;
     }
+
+    // No rows updated — fetch current row
+    try {
+        $current = Database::fetch('SELECT * FROM benefit_enrollment WHERE id = ?', [$benefit_enrollment_id]);
+    } catch (Exception $e) {
+        error_log('[update_enrollment] Fetch current failed: ' . $e->getMessage());
+        $current = null;
+    }
+
+    // If status provided and differs, try forcing status-only update
+    $current_status = $current->status ?? null;
+    if ($status !== null && $current_status !== $status) {
+        try {
+            $forceUpdated = Database::execute('UPDATE benefit_enrollment SET status = ? WHERE id = ?', [$status, $benefit_enrollment_id]);
+            $current = Database::fetch('SELECT * FROM benefit_enrollment WHERE id = ?', [$benefit_enrollment_id]);
+            echo json_encode([
+                'success' => $forceUpdated > 0,
+                'message' => $forceUpdated > 0 ? 'Status forced update applied' : 'Status force update failed',
+                'updated_rows' => $updated,
+                'force_updated_rows' => $forceUpdated,
+                'current_record' => $current
+            ]);
+            exit;
+        } catch (Exception $e) {
+            error_log('[update_enrollment] Force status update failed: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Force status update error', 'error' => $e->getMessage(), 'current_record' => $current]);
+            exit;
+        }
+    }
+
+    echo json_encode(['success' => false, 'message' => 'No changes were made or record not found', 'current_record' => $current]);
+    exit;
 } catch (Exception $e) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Database error: ' . $e->getMessage()
-    ]);
+    error_log('[update_enrollment] Unexpected error: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Unexpected error', 'error' => $e->getMessage()]);
+    exit;
 }
