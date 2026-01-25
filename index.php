@@ -155,7 +155,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
     // dd($_POST);
 
     // Lookup user in department_accounts
-    $sql = "SELECT employee_id, Dept_id, employee_name, role, email, status, password FROM department_accounts WHERE employee_id = ? LIMIT 1";
+    $sql = "SELECT id, employee_id, Dept_id, employee_name, role, email, status, password FROM department_accounts WHERE employee_id = ? LIMIT 1";
     $stmt = mysqli_prepare($conn, $sql);
     if (!$stmt) {
         // Prepare failed — log DB error and surface it for local debugging
