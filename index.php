@@ -185,7 +185,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
             $_SESSION['email'] = $row['email'] ?? '';
             $_SESSION['department_account_id'] = $department_account_id;
 
-            // reset attempt counter
             unset($_SESSION[$loginAttemptsKey]);
 
             // log success
@@ -210,7 +209,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
         exit();
     }
 }
-
 
 ?>
 <!DOCTYPE html>
