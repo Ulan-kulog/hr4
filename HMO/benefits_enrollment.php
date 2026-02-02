@@ -46,6 +46,11 @@
                                 <i data-lucide="file-text" class="mr-2 w-4 h-4"></i>
                                 Create Policy
                             </button>
+                            <!-- Export Reports Button -->
+                            <button onclick="exportAnalyticsCSV()" class="flex items-center bg-gray-800 hover:bg-gray-900 px-4 py-2 rounded-lg text-white transition-colors">
+                                <i data-lucide="download" class="mr-2 w-4 h-4"></i>
+                                Export Reports
+                            </button>
                         </div>
                     </div>
                 </header>
@@ -158,25 +163,7 @@
                     </div>
 
                     <!-- Reduced Size Charts -->
-                    <div class="gap-6 grid grid-cols-1 lg:grid-cols-2 mb-6">
-                        <div class="bg-white shadow-sm p-4 border border-gray-100 rounded-xl">
-                            <div class="flex justify-between items-center mb-3">
-                                <h3 class="font-semibold text-gray-800 text-sm">Plan Distribution by Type</h3>
-                                <select id="planTimeFilter" class="px-3 py-1 border border-gray-300 rounded-lg text-xs">
-                                    <option value="all">All Time</option>
-                                    <option value="month">This Month</option>
-                                    <option value="quarter">This Quarter</option>
-                                    <option value="year">This Year</option>
-                                </select>
-                            </div>
-                            <div class="small-chart">
-                                <canvas id="planDistributionChart"></canvas>
-                            </div>
-                            <div class="mt-2 text-gray-500 text-xs text-center">
-                                Total Active Plans: <?= $active_benefits ?>
-                            </div>
-                        </div>
-
+                    <div class="gap-6 grid grid-cols-1 lg:grid-cols-1 mb-6">
                         <div class="bg-white shadow-sm p-4 border border-gray-100 rounded-xl">
                             <div class="flex justify-between items-center mb-3">
                                 <h3 class="font-semibold text-gray-800 text-sm">Top Benefits Enrollment Rate</h3>
@@ -197,21 +184,7 @@
                     </div>
 
                     <!-- Additional Charts Section -->
-                    <div class="gap-6 grid grid-cols-1 lg:grid-cols-2 mb-6">
-                        <div class="bg-white shadow-sm p-4 border border-gray-100 rounded-xl">
-                            <div class="flex justify-between items-center mb-3">
-                                <h3 class="font-semibold text-gray-800 text-sm">Monthly Enrollment Trend</h3>
-                                <select id="trendTimeFilter" class="px-3 py-1 border border-gray-300 rounded-lg text-xs">
-                                    <option value="6">Last 6 Months</option>
-                                    <option value="12">Last 12 Months</option>
-                                    <option value="3">Last 3 Months</option>
-                                </select>
-                            </div>
-                            <div class="small-chart">
-                                <canvas id="monthlyTrendChart"></canvas>
-                            </div>
-                        </div>
-
+                    <div class="gap-6 grid grid-cols-1 lg:grid-cols-1 mb-6">
                         <div class="bg-white shadow-sm p-4 border border-gray-100 rounded-xl">
                             <div class="flex justify-between items-center mb-3">
                                 <h3 class="font-semibold text-gray-800 text-sm">Department Enrollment</h3>
@@ -1107,50 +1080,15 @@
             }
 
             function initializeCharts() {
-                // Plan Distribution Chart
-                const planCtx = document.getElementById('planDistributionChart');
-                if (planCtx) {
-                    const planLabels = <?= json_encode($plan_labels) ?>;
-                    const planData = <?= json_encode($plan_data) ?>;
-
-                    // If no data, show placeholder
-                    const finalPlanLabels = (planData.length === 0 || planData.every(val => val === 0)) ? ['Health Insurance', 'Retirement', 'Wellness', 'Other'] :
-                        planLabels;
-
-                    const finalPlanData = (planData.length === 0 || planData.every(val => val === 0)) ? [45, 30, 15, 10] :
-                        planData;
-
-                    new Chart(planCtx.getContext('2d'), {
-                        type: 'doughnut',
-                        data: {
-                            labels: finalPlanLabels,
-                            datasets: [{
-                                data: finalPlanData,
-                                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'],
-                                borderWidth: 0
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            plugins: {
-                                legend: {
-                                    position: 'bottom',
-                                    labels: {
-                                        boxWidth: 10,
-                                        font: {
-                                            size: 9
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
+                // Ensure charts render crisply on high-DPI displays
+                if (typeof Chart !== 'undefined') {
+                    Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
                 }
-
                 // Enrollment Status Chart
                 const statusCtx = document.getElementById('enrollmentStatusChart');
                 if (statusCtx) {
+                    // give the chart container an explicit height so Chart.js can size the canvas correctly
+                    if (statusCtx.parentElement) statusCtx.parentElement.style.height = '240px';
                     const enrollLabels = <?= json_encode($enrollment_labels) ?>;
                     const enrollData = <?= json_encode($enrollment_data) ?>;
 
@@ -1161,12 +1099,19 @@
                     const finalEnrollData = (enrollData.length === 0 || enrollData.every(val => val === 0)) ? [78, 65, 45, 85, 60] :
                         enrollData;
 
+                    // Expose enrollment chart data for export
+                    window.enrollmentChartData = {
+                        labels: finalEnrollLabels,
+                        data: finalEnrollData,
+                        total_employees: <?= $total_employees ?>
+                    };
+
                     new Chart(statusCtx.getContext('2d'), {
                         type: 'bar',
                         data: {
                             labels: finalEnrollLabels,
                             datasets: [{
-                                label: 'Enrollment Rate',
+                                label: 'Enrolled Employees',
                                 data: finalEnrollData,
                                 backgroundColor: '#3b82f6',
                                 borderRadius: 3
@@ -1174,7 +1119,7 @@
                         },
                         options: {
                             responsive: true,
-                            maintainAspectRatio: true,
+                            maintainAspectRatio: false,
                             plugins: {
                                 legend: {
                                     display: false
@@ -1183,73 +1128,12 @@
                             scales: {
                                 y: {
                                     beginAtZero: true,
-                                    max: 100,
                                     ticks: {
                                         font: {
                                             size: 9
                                         },
                                         callback: function(value) {
-                                            return value + '%';
-                                        }
-                                    }
-                                },
-                                x: {
-                                    ticks: {
-                                        font: {
-                                            size: 9
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-                }
-
-                // Monthly Trend Chart
-                const trendCtx = document.getElementById('monthlyTrendChart');
-                if (trendCtx) {
-                    const monthlyData = <?= json_encode($monthly_enrollments) ?>;
-                    const trendLabels = monthlyData.map(item => {
-                        const date = new Date(item.month + '-01');
-                        return date.toLocaleDateString('en-US', {
-                            month: 'short',
-                            year: '2-digit'
-                        });
-                    });
-                    const trendCounts = monthlyData.map(item => item.enrollment_count);
-
-                    // If no data, show placeholder
-                    const finalTrendLabels = trendLabels.length > 0 ? trendLabels : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-                    const finalTrendCounts = trendCounts.length > 0 ? trendCounts : [10, 15, 8, 12, 20, 18];
-
-                    new Chart(trendCtx.getContext('2d'), {
-                        type: 'line',
-                        data: {
-                            labels: finalTrendLabels,
-                            datasets: [{
-                                label: 'Enrollments',
-                                data: finalTrendCounts,
-                                borderColor: '#8b5cf6',
-                                backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                                borderWidth: 2,
-                                fill: true,
-                                tension: 0.4
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            plugins: {
-                                legend: {
-                                    display: false
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: {
-                                        font: {
-                                            size: 9
+                                            return value;
                                         }
                                     }
                                 },
@@ -1268,32 +1152,34 @@
                 // Department Chart
                 const deptCtx = document.getElementById('departmentChart');
                 if (deptCtx) {
+                    // give the chart container an explicit height so Chart.js can size the canvas correctly
+                    if (deptCtx.parentElement) deptCtx.parentElement.style.height = '300px';
                     const deptData = <?= json_encode($department_enrollment) ?>;
                     const deptLabels = deptData.map(item => item.department_name || 'Unknown');
-                    const deptRates = deptData.map(item => {
-                        return item.total_employees > 0 ?
-                            Math.round((item.enrolled_count / item.total_employees) * 100) : 0;
-                    });
+                    const deptCounts = deptData.map(item => (item.enrolled_count !== undefined) ? parseInt(item.enrolled_count) : 0);
 
                     // If no data, show placeholder
                     const finalDeptLabels = deptLabels.length > 0 ? deptLabels : ['HR', 'IT', 'Sales', 'Marketing', 'Finance'];
-                    const finalDeptRates = deptRates.length > 0 ? deptRates : [85, 70, 90, 65, 80];
+                    const finalDeptCounts = deptCounts.length > 0 ? deptCounts : [0, 0, 0, 0, 0];
+
+                    // Expose department chart data for export
+                    window.departmentChartData = deptData;
 
                     new Chart(deptCtx.getContext('2d'), {
                         type: 'bar',
                         data: {
                             labels: finalDeptLabels,
                             datasets: [{
-                                label: 'Enrollment Rate',
-                                data: finalDeptRates,
+                                label: 'Enrolled Employees',
+                                data: finalDeptCounts,
                                 backgroundColor: '#10b981',
                                 borderRadius: 3
                             }]
                         },
                         options: {
                             responsive: true,
-                            maintainAspectRatio: true,
-                            indexAxis: 'y', // This makes it horizontal in Chart.js v3+
+                            maintainAspectRatio: false,
+                            indexAxis: 'y', // horizontal
                             plugins: {
                                 legend: {
                                     display: false
@@ -1302,13 +1188,12 @@
                             scales: {
                                 x: {
                                     beginAtZero: true,
-                                    max: 100,
                                     ticks: {
                                         font: {
                                             size: 9
                                         },
                                         callback: function(value) {
-                                            return value + '%';
+                                            return value;
                                         }
                                     }
                                 },
@@ -1323,6 +1208,46 @@
                         }
                     });
                 }
+            }
+
+            // Export analytics CSV by posting current chart data to the server and triggering download
+            function exportAnalyticsCSV() {
+                const payload = {
+                    enrollment: window.enrollmentChartData || {
+                        labels: [],
+                        data: [],
+                        total_employees: 0
+                    },
+                    department: window.departmentChartData || []
+                };
+
+                fetch('API/export_analytics.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(response => {
+                        if (!response.ok) throw new Error('Export failed');
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        const now = new Date();
+                        const ts = now.toISOString().slice(0, 19).replace(/[:T]/g, '-');
+                        a.download = `analytics_export_${ts}.csv`;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        window.URL.revokeObjectURL(url);
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        alert('Failed to export analytics.');
+                    });
             }
 
             // Initialize charts on page load
