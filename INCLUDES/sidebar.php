@@ -290,7 +290,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </a>
 
             <!-- Logout -->
-            <form action="<?php echo $base_url; ?>/USM/logout.php" method="POST" class="px-4 py-3">
+            <form action="<?php echo $base_url; ?>/USM/logout.php" method="POST" class="px-4 py-3 create-form">
                 <button type="submit" class="group flex items-center hover:bg-blue-600/50 rounded-lg w-full font-medium text-white text-sm transition-all">
                     <div class="bg-blue-800/30 group-hover:bg-blue-700/50 p-1.5 rounded-lg transition-colors">
                         <i data-lucide="log-out" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
