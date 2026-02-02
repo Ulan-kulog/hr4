@@ -191,12 +191,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $_SESSION["role"] = $_SESSION["pending_role"] ?? $Role;
     $_SESSION["Dept_id"] = $Actual_Dept_ID; // Use actual dept_id from database
     $_SESSION["email"] = $_SESSION["pending_email"] ?? '';
+    $otpAttemps = $_SESSION["otp_attempts"] ?? 1;
 
     // Cleanup pending/otp stuff
     unset($_SESSION["pending_employee_id"], $_SESSION["pending_role"], $_SESSION["pending_Dept_id"], $_SESSION["pending_email"], $_SESSION["otp"], $_SESSION["otp_expiry"], $_SESSION["otp_attempts"]);
 
     // Log success with actual employee_id
-    logDepartmentAttempt($conn, $Actual_Dept_ID, 'Success', $log_type, '2FA Successful', '');
+    logDepartmentAttempt($conn, $Actual_Dept_ID, 'Success', $log_type, $otpAttemps, '2FA Successful', $cooldownUntil ?? 0);
 
     $redirectUrl = '../dashboard.php';
     header("Location: $redirectUrl");
@@ -205,6 +206,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     incrementOTPAttempts();
     $_SESSION["otp_attempts"] = $_SESSION["otp_attempts"] ?? 1;
     $otpAttempt = $_SESSION["otp_attempts"];
+    dd($otpAttempt);
 
     // Log failed attempt with actual employee_id
     logDepartmentAttempt($conn, $Actual_Dept_ID, 'Failed', $otpAttempt, 'Incorrect OTP', '');
