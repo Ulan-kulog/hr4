@@ -24,40 +24,41 @@ $password = trim($_POST["password"] ?? '');
 
 // DB connection to main app database
 $conn = $connections['hr4_hr_4'] ?? null;
+// dd($conn);
 
 $loginAttemptsKey = "login_attempts_$employee_ID";
 
 // === Function: Log user login attempts ===
-// function logAttempt($conn, $Employee_ID, $Employee_name, $Role, $Log_Status, $Attempt_Type, $Attempt_Count, $Failure_reason, $Cooldown)
+// function logAttempt($conn, $Employee_ID, $Role, $Log_Status, $Attempt_Count, $Cooldown)
 // {
 //     $date = date('Y-m-d H:i:s');
-//     $sql = "INSERT INTO department_logs (employee_id, employee_name, role, log_status, attempt_count, log_type, failure_reason, Cooldown, `date`) 
-//             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+//     $sql = "INSERT INTO department_logs (department_account_id, status, attempt_count, Cooldown) 
+//             VALUES (?, ?, ?, ?)";
 //     $stmt = mysqli_prepare($conn, $sql);
-//     mysqli_stmt_bind_param($stmt, "sssssssss", $Employee_ID, $Employee_name, $Role, $Log_Status, $Attempt_Type, $Attempt_Count, $Failure_reason, $Cooldown, $date);
+//     mysqli_stmt_bind_param($stmt, "ssss", $Employee_ID,  $Log_Status, $Attempt_Count, $Cooldown);
 //     mysqli_stmt_execute($stmt);
 // }
 
-function logDepartmentAttempt($conn, $Department_ID, $employee_ID, $Name, $Role, $Log_Status, $Attempt_type, $Attempt_Count, $Failure_reason, $Cooldown_Until)
-{
-    $Log_Date_Time = date('Y-m-d H:i:s');
-    $sql = "INSERT INTO department_logs (dept_id, employee_id, employee_name, role, log_status, log_type, attempt_count, failure_reason, cooldown, date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, "ssssssisss", $Department_ID, $employee_ID, $Name, $Role, $Log_Status, $Attempt_type, $Attempt_Count, $Failure_reason, $Cooldown_Until, $Log_Date_Time);
-    mysqli_stmt_execute($stmt);
-}
+// function logDepartmentAttempt($conn, $Department_ID, $employee_ID, $Name,  $Log_Status, $Attempt_type, $Attempt_Count, $Failure_reason, $Cooldown_Until)
+// {
+//     $Log_Date_Time = date('Y-m-d H:i:s');
+//     $sql = "INSERT INTO department_logs (dept_id, employee_id, employee_name, role, log_status, log_type, attempt_count, failure_reason, cooldown, date)
+//             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+//     $stmt = mysqli_prepare($conn, $sql);
+//     mysqli_stmt_bind_param($stmt, "ssssssisss", $Department_ID, $employee_ID, $Name, $Role, $Log_Status, $Attempt_type, $Attempt_Count, $Failure_reason, $Cooldown_Until, $Log_Date_Time);
+//     mysqli_stmt_execute($stmt);
+// }
 
-// Simple department_logs inserter matching current schema
-function log_department_log($conn, $department_account_id, $status, $attempt_count = 0, $details = '')
-{
-    $created_at = date('Y-m-d H:i:s');
-    $sql = "INSERT INTO department_logs (department_account_id, status, attempt_count, details, created_at) VALUES (?, ?, ?, ?, ?)";
-    $stmt = mysqli_prepare($conn, $sql);
-    if (!$stmt) return false;
-    mysqli_stmt_bind_param($stmt, 'isiss', $department_account_id, $status, $attempt_count, $details, $created_at);
-    return mysqli_stmt_execute($stmt);
-}
+// // Simple department_logs inserter matching current schema
+// function log_department_log($conn, $department_account_id, $status, $attempt_count = 0, $details = '')
+// {
+//     $created_at = date('Y-m-d H:i:s');
+//     $sql = "INSERT INTO department_logs (department_account_id, status, attempt_count, details, created_at) VALUES (?, ?, ?, ?, ?)";
+//     $stmt = mysqli_prepare($conn, $sql);
+//     if (!$stmt) return false;
+//     mysqli_stmt_bind_param($stmt, 'isiss', $department_account_id, $status, $attempt_count, $details, $created_at);
+//     return mysqli_stmt_execute($stmt);
+// }
 
 // === Function: Increment login attempts ===
 function incrementLoginAttempts($employee_ID)
@@ -71,10 +72,11 @@ function incrementLoginAttempts($employee_ID)
     }
 }
 
-// === Function: Send OTP via email ===
+// // === Function: Send OTP via email ===
 function sendOTP($email, $otp)
 {
-    require_once '../PHPMailer/PHPMailerAutoload.php';
+    // Use Composer autoloader which includes PHPMailer
+    require_once __DIR__ . '/vendor/autoload.php';
     $mail = new PHPMailer;
     $mail->isSMTP();
     $mail->Host = 'smtp.gmail.com';
@@ -133,6 +135,7 @@ if ($employee_ID !== '' && isset($_SESSION[$loginAttemptsKey]) && $_SESSION[$log
 
 // === Main Login Logic ===
 if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
+    // dd("Login attempt for Employee ID: $employee_ID");
     if (!$conn) {
         $_SESSION["loginError"] = "Database connection not available.";
         header("Location: index.php");
@@ -155,7 +158,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
     // dd($_POST);
 
     // Lookup user in department_accounts
-    $sql = "SELECT id, employee_id, Dept_id, employee_name, role, email, status, password FROM department_accounts WHERE employee_id = ? LIMIT 1";
+    $sql = "SELECT employee_id, dept_id, employee_name, role, email, status, password FROM department_accounts WHERE employee_id = ? LIMIT 1";
+    // dd($sql);
     $stmt = mysqli_prepare($conn, $sql);
     if (!$stmt) {
         // Prepare failed — log DB error and surface it for local debugging
@@ -166,36 +170,56 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
         header('Location: index.php');
         exit();
     }
+    // dd($stmt);
+
     mysqli_stmt_bind_param($stmt, 's', $employee_ID);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
-
+    // dd($result);
     if ($result && mysqli_num_rows($result) > 0) {
+        // dd("User found");
         $row = mysqli_fetch_assoc($result);
-        $department_account_id = (int)$row['id'];
-        $Department_ID = $row['Dept_id'];
+        // $department_account_id = (int)$row['id'];
+        $Department_ID = $row['dept_id'];
         $Role = $row['role'];
         $Name = $row['employee_name'];
-
+        // dd($row);
         if ($password === $row['password']) {
             // Successful login
             $_SESSION['employee_id'] = $employee_ID;
             $_SESSION['role'] = $Role;
-            $_SESSION['Dept_id'] = $row['Dept_id'];
+            $_SESSION['Dept_id'] = $row['dept_id'];
             $_SESSION['email'] = $row['email'] ?? '';
-            $_SESSION['department_account_id'] = $department_account_id;
-
+            // $_SESSION['department_account_id'] = $department_account_id;
+            // dd($Role);
             unset($_SESSION[$loginAttemptsKey]);
+            $otp = rand(100000, 999999);
+            $_SESSION["otp"] = (string)$otp;
+            $_SESSION["otp_expiry"] = time() + 300; // 5 minutes expiry
 
-            // log success
-            log_department_log($conn, $department_account_id, 'success', 1, 'Login successful');
+            // Store pending login info
+            $_SESSION["pending_employee_id"] = $employee_ID;
+            $_SESSION["pending_role"] = $Role;
+            $_SESSION["pending_Dept_id"] = $row["dept_id"];
+            $_SESSION["pending_email"] = $row["email"];
+            $_SESSION["otp_attempts"] = 0;
+            $_SESSION["auth_method"] = "2FA";
 
-            header('Location: dashboard.php');
-            exit();
+            if (sendOTP($row["email"], $otp)) {
+                // logAttempt($conn, $employee_ID, $Name, $Role, 'Authenticating', 'Login', 0, 'Authenticating', '');
+                // logDepartmentAttempt($conn, $Department_ID, $employee_ID, $Name, $Role, 'Success', 'Login', 0, 'Login Successful', '');
+                header("Location: USM/2fa_verify.php");
+                exit();
+            } else {
+                // logAttempt($conn, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Failed to send OTP email', '');
+                $_SESSION["loginError"] = "Failed to send OTP email.";
+                header("Location: index.php");
+                exit();
+            }
         } else {
             // failed password
             incrementLoginAttempts($employee_ID);
-            log_department_log($conn, $department_account_id, 'failed', $_SESSION[$loginAttemptsKey]['count'] ?? 1, 'Incorrect password');
+            // log_department_log($conn, $department_account_id, 'failed', $_SESSION[$loginAttemptsKey]['count'] ?? 1, 'Incorrect password');
             $_SESSION['loginError'] = 'Incorrect employee ID or password.';
             header('Location: index.php');
             exit();
@@ -203,7 +227,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
     } else {
         // user not found
         incrementLoginAttempts($employee_ID);
-        log_department_log($conn, 0, 'failed', $_SESSION[$loginAttemptsKey]['count'] ?? 1, 'Employee not found');
+        // log_department_log($conn, 0, 'failed', $_SESSION[$loginAttemptsKey]['count'] ?? 1, 'Employee not found');
         $_SESSION['loginError'] = 'Invalid employee ID or password.';
         header('Location: index.php');
         exit();

@@ -727,6 +727,11 @@ foreach ($employees_data as $employee) {
     <script>
         lucide.createIcons();
 
+        // Dialog element references (use getElementById for reliable globals)
+        const viewModal = document.getElementById('viewModal');
+        const payrollModal = document.getElementById('payrollModal');
+        const payrollHistoryModal = document.getElementById('payrollHistoryModal');
+
         let currentAction = null;
         let currentEmployeeId = null;
         let currentEmployeeName = null;
@@ -1597,33 +1602,75 @@ foreach ($employees_data as $employee) {
         document.getElementById('payrollForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
-            const employeeId = document.getElementById('payrollEmployeeId').value;
-            const payrollId = document.getElementById('payrollId').value;
-            const basicSalary = document.getElementById('basicSalary').value;
-            const overtimeHours = document.getElementById('overtimeHours').value;
-            const overtimeRate = document.getElementById('overtimeRate').value;
-            const allowances = document.getElementById('allowances').value;
-            const deductions = document.getElementById('deductions').value;
-            const period = document.getElementById('period').value;
-            const status = document.getElementById('payrollStatus').value;
-            const notes = document.getElementById('payrollNotes').value;
-
-            const overtimePay = overtimeHours * overtimeRate;
-            const netPay = parseFloat(basicSalary) + parseFloat(overtimePay) + parseFloat(allowances) - parseFloat(deductions);
-
-            const action = payrollId ? 'update_payroll' : 'create_payroll';
-            const bodyData = payrollId ?
-                `action=${action}&payroll_id=${payrollId}&basic_salary=${basicSalary}&overtime_hours=${overtimeHours}&overtime_rate=${overtimeRate}&overtime_pay=${overtimePay}&allowances=${allowances}&deductions=${deductions}&net_pay=${netPay}&period=${period}&status=${status}&notes=${encodeURIComponent(notes)}` :
-                `action=${action}&employee_id=${employeeId}&basic_salary=${basicSalary}&overtime_hours=${overtimeHours}&overtime_rate=${overtimeRate}&overtime_pay=${overtimePay}&allowances=${allowances}&deductions=${deductions}&net_pay=${netPay}&period=${period}&status=${status}&notes=${encodeURIComponent(notes)}`;
+            const submitBtn = document.getElementById('payrollSubmitBtn');
+            submitBtn.disabled = true;
+            const previousLabel = submitBtn.textContent;
+            submitBtn.textContent = 'Processing...';
 
             try {
+                const employeeId = document.getElementById('payrollEmployeeId').value;
+                const payrollId = document.getElementById('payrollId').value;
+                const basicSalary = parseFloat(document.getElementById('basicSalary').value) || 0;
+                const overtimeHours = parseFloat(document.getElementById('overtimeHours').value) || 0;
+                const overtimeRate = parseFloat(document.getElementById('overtimeRate').value) || 0;
+                const allowances = parseFloat(document.getElementById('allowances').value) || 0;
+                const deductions = parseFloat(document.getElementById('deductions').value) || 0;
+                const period = document.getElementById('period').value;
+                const status = document.getElementById('payrollStatus').value;
+                const notes = document.getElementById('payrollNotes').value || '';
+
+                // Basic validation
+                if (basicSalary < 0) {
+                    throw new Error('Basic salary must be 0 or greater');
+                }
+
+                const overtimePay = overtimeHours * overtimeRate;
+                const netPay = basicSalary + overtimePay + allowances - deductions;
+
+                // Confirm when marking as Paid
+                if (status === 'Paid') {
+                    const confirmPaid = await Swal.fire({
+                        title: 'Mark as Paid?',
+                        text: `This will mark net pay ₱${netPay.toLocaleString('en-US', {minimumFractionDigits:2})} as paid. Continue?`,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, mark Paid',
+                        cancelButtonText: 'Cancel'
+                    });
+                    if (!confirmPaid.isConfirmed) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = previousLabel;
+                        return;
+                    }
+                }
+
+                const action = payrollId ? 'update_payroll' : 'create_payroll';
+
+                // Build form-encoded body safely
+                const params = new URLSearchParams();
+                params.append('action', action);
+                if (payrollId) params.append('payroll_id', payrollId);
+                else params.append('employee_id', employeeId);
+                params.append('basic_salary', basicSalary);
+                params.append('overtime_hours', overtimeHours);
+                params.append('overtime_rate', overtimeRate);
+                params.append('overtime_pay', overtimePay);
+                params.append('allowances', allowances);
+                params.append('deductions', deductions);
+                params.append('net_pay', netPay);
+                params.append('period', period);
+                params.append('status', status);
+                params.append('notes', notes);
+
                 const response = await fetch('API/payroll_api.php', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: bodyData
+                    body: params.toString()
                 });
+
+                if (!response.ok) throw new Error('Server error');
 
                 const data = await response.json();
 
@@ -1632,7 +1679,7 @@ foreach ($employees_data as $employee) {
                         icon: 'success',
                         title: 'Success!',
                         text: data.message,
-                        timer: 2000,
+                        timer: 1500,
                         showConfirmButton: false
                     }).then(() => {
                         closePayrollModal();
@@ -1642,15 +1689,19 @@ foreach ($employees_data as $employee) {
                     Swal.fire({
                         icon: 'error',
                         title: 'Error!',
-                        text: data.message
+                        text: data.message || 'Failed to save payroll'
                     });
                 }
             } catch (error) {
                 Swal.fire({
                     icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to save payroll'
+                    title: 'Error',
+                    text: error.message || 'Failed to save payroll'
                 });
+            } finally {
+                const submitBtnFinal = document.getElementById('payrollSubmitBtn');
+                submitBtnFinal.disabled = false;
+                submitBtnFinal.textContent = previousLabel;
             }
         });
 
