@@ -1,6 +1,34 @@
 <?php
 require_once 'DB.php';
 
+// Helper: mask currency amounts for display (show only last 3 integer digits)
+function mask_amount($amount, $visible_digits = 3)
+{
+    if (!is_numeric($amount)) return $amount;
+    $dec = number_format((float)$amount, 2, '.', ',');
+    $parts = explode('.', $dec);
+    $int = $parts[0];
+    $frac = $parts[1] ?? '00';
+    // remove non-digits
+    $digits = preg_replace('/\D/', '', $int);
+    $len = strlen($digits);
+    // Always mask values — even small amounts. If the integer length is
+    // less than or equal to visible_digits, show a fixed number of stars
+    // instead of the real digits to avoid revealing small amounts.
+    if ($len <= $visible_digits) {
+        $masked_prefix = str_repeat('*', $visible_digits);
+    } else {
+        $visible = substr($digits, -$visible_digits);
+        $masked_prefix = str_repeat('*', $len - $visible_digits) . $visible;
+    }
+    // add commas to masked prefix from right
+    $rev = strrev($masked_prefix);
+    $chunks = str_split($rev, 3);
+    $with_commas = implode(',', $chunks);
+    $int_masked = strrev($with_commas);
+    return '₱' . $int_masked . '.' . $frac;
+}
+
 // 1. Fetch employees for the dropdown
 $employeeList = Database::fetchAll("SELECT id, first_name, last_name FROM employees ORDER BY last_name ASC");
 
@@ -149,10 +177,17 @@ $avgValue = $totalRequests > 0 ? $totalValue / $totalRequests : 0;
                                         </span>
                                     </td>
                                     <td class="p-5 font-black text-blue-600">
-                                        ₱<?= number_format($row->requested_amount, 2) ?>
+                                        <?php $rawFormatted = '₱' . number_format($row->requested_amount, 2); ?>
+                                        <span id="amount-<?= $row->id ?>" data-raw-formatted="<?= htmlspecialchars($rawFormatted) ?>" data-masked="<?= htmlspecialchars(mask_amount($row->requested_amount)) ?>" data-shown="0"><?= htmlspecialchars(mask_amount($row->requested_amount)) ?></span>
+                                        <button id="amount-btn-<?= $row->id ?>" onclick="toggleAmount(<?= $row->id ?>)" class="bg-gray-100 ml-3 px-2 py-1 rounded text-xs">Show</button>
                                     </td>
                                     <td class="flex justify-center gap-4 p-5">
-                                        <button onclick='viewRequest(<?= json_encode($row) ?>)' class="text-gray-400 hover:text-gray-600 transition">View</button>
+                                        <?php
+                                        $row_for_view = (array) $row;
+                                        $row_for_view['masked_requested_amount'] = mask_amount($row->requested_amount);
+                                        $row_for_view['masked_current_amount'] = mask_amount($row->current_amount);
+                                        ?>
+                                        <button onclick='viewRequest(<?= json_encode($row_for_view) ?>)' class="text-gray-400 hover:text-gray-600 transition">View</button>
                                         <button onclick='editRequest(<?= json_encode($row) ?>)' class="font-bold text-blue-600 hover:text-blue-800">Edit</button>
                                         <button onclick="confirmDelete(<?= $row->id ?>)" class="text-red-400 hover:text-red-600 transition">Delete</button>
                                     </td>
@@ -258,11 +293,49 @@ $avgValue = $totalRequests > 0 ? $totalValue / $totalRequests : 0;
                 html: `<div class="space-y-3 text-sm text-left">
                     <p><strong>Employee:</strong> ${data.first_name} ${data.last_name}</p>
                     <p><strong>Type:</strong> ${data.request_type.replace('_', ' ')}</p>
-                    <p><strong>Amount:</strong> ${pesoFormat.format(data.requested_amount)}</p>
+                    <p><strong>Amount:</strong> <span id="swal-amount" data-masked="${data.masked_requested_amount ? data.masked_requested_amount : ''}">${data.masked_requested_amount ? data.masked_requested_amount : ''}</span>
+                        <button id="swal-show-btn" onclick="showRealInSwal(${data.requested_amount})" class="bg-gray-100 ml-2 px-2 py-1 rounded text-xs">Show</button>
+                    </p>
                     <hr><p class="text-gray-500 italic">"${data.justification}"</p>
                 </div>`,
                 confirmButtonColor: '#2563eb'
             });
+        }
+
+        // Toggle real/masked amount inside SweetAlert modal
+        function showRealInSwal(amount) {
+            const el = document.getElementById('swal-amount');
+            const btn = document.getElementById('swal-show-btn');
+            if (!el || !btn) return;
+            if (el.dataset.realShown === '1') {
+                el.textContent = el.dataset.masked || el.textContent;
+                el.dataset.realShown = '0';
+                btn.textContent = 'Show';
+            } else {
+                const formatted = new Intl.NumberFormat('en-PH', {
+                    style: 'currency',
+                    currency: 'PHP'
+                }).format(amount);
+                el.textContent = formatted;
+                el.dataset.realShown = '1';
+                btn.textContent = 'Hide';
+            }
+        }
+
+        // Toggle amount in table row between masked and real
+        function toggleAmount(id) {
+            const el = document.getElementById('amount-' + id);
+            const btn = document.getElementById('amount-btn-' + id);
+            if (!el || !btn) return;
+            if (el.dataset.shown === '1') {
+                el.textContent = el.dataset.masked;
+                el.dataset.shown = '0';
+                btn.textContent = 'Show';
+            } else {
+                el.textContent = el.dataset.rawFormatted;
+                el.dataset.shown = '1';
+                btn.textContent = 'Hide';
+            }
         }
 
         function editRequest(data) {
