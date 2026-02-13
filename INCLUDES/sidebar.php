@@ -1,7 +1,7 @@
 <?php
 $role = $_SESSION['role'] ?? 'guest';
 // Base path for consistent URL structure
-$base_url = '/HR_4/';
+$base_url = '';
 
 // Get current page for active state highlighting
 $current_page = basename($_SERVER['PHP_SELF']);
@@ -13,11 +13,11 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
     <!-- Sidebar Header -->
     <div class="flex flex-shrink-0 justify-between items-center mb-6 px-4 text-center">
         <h1 class="flex items-center gap-2 font-bold text-white text-xl">
-            <img src="<?php echo $base_url; ?>/images/tagline_no_bg.png"
+            <img src="<?php echo $base_url; ?>../images/tagline_no_bg.png"
                 alt="Full Logo"
                 class="w-auto h-25"
                 id="sidebar-logo">
-            <img src="<?php echo $base_url; ?>/images/soliera_S.png"
+            <img src="<?php echo $base_url; ?>../images/soliera_S.png"
                 alt="Icon Logo"
                 class="w-auto h-25"
                 id="sonly">
