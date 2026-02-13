@@ -171,8 +171,8 @@ $enrollment_data = [];
 
 foreach ($enrollment_status as $status) {
     $enrollment_labels[] = $status->benefit_name;
-    $rate = ($status->total_employees > 0) ? round(($status->enrolled_count / $status->total_employees) * 100) : 0;
-    $enrollment_data[] = $rate;
+    // Use raw enrolled counts for the chart (actual number of employees enrolled)
+    $enrollment_data[] = (int) $status->enrolled_count;
 }
 
 // If no data, use defaults
@@ -198,10 +198,10 @@ $department_enrollment = Database::fetchAll('
         COALESCE(d.name, "No Department") AS department_name,
         COUNT(DISTINCT eb.employee_id) as enrolled_count,
         COUNT(DISTINCT e.id) as total_employees
-    FROM employees e
+    FROM departments d
+    LEFT JOIN employees e ON e.department_id = d.id
     LEFT JOIN employee_benefits eb ON e.id = eb.employee_id
-    LEFT JOIN departments d ON e.department_id = d.id
-    GROUP BY d.name
+    GROUP BY d.id, d.name
     ORDER BY enrolled_count DESC
     LIMIT 5
 ');

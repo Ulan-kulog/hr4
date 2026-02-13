@@ -5,8 +5,8 @@ $role = $_SESSION['role'] ?? 'guest';
 // $is_supervisor = ($role === 'supervisor' || $role === 'admin');
 
 // Define base path for consistent URL structure
-// $base_url = 'https://hr4.soliera-hotel-restaurant.com'; // Correct full URL
-$base_url = '/HR_4/'; // Correct full URL
+$base_url = 'https://hr4.soliera-hotel-restaurant.com'; // Correct full URL
+// $base_url = '/HR_4/'; // Correct full URL
 
 // Get current page for active state highlighting
 $current_page = basename($_SERVER['PHP_SELF']);
@@ -38,7 +38,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </div>
 
             <!-- Main Dashboard -->
-            <a href="<?php echo $base_url; ?>/index.php" class="block">
+            <a href="<?php echo $base_url; ?>/dashboard.php" class="block">
                 <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group <?php echo ($current_page == 'main_analytics.php') ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
                     <div class="bg-blue-700/50 p-1.5 rounded-lg transition-colors">
                         <i data-lucide="layout-dashboard" class="w-5 h-5 text-white"></i>
@@ -290,7 +290,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </a>
 
             <!-- Logout -->
-            <form action="<?php echo $base_url; ?>/USM/logout.php" method="POST" class="px-4 py-3">
+            <form action="<?php echo $base_url; ?>/USM/logout.php" method="POST" class="px-4 py-3 create-form">
                 <button type="submit" class="group flex items-center hover:bg-blue-600/50 rounded-lg w-full font-medium text-white text-sm transition-all">
                     <div class="bg-blue-800/30 group-hover:bg-blue-700/50 p-1.5 rounded-lg transition-colors">
                         <i data-lucide="log-out" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>

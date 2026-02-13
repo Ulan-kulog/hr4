@@ -147,12 +147,13 @@ if ($result) {
 // 5. Department-wise salary distribution
 $salary_by_dept = [];
 $sql_dept_salary = "SELECT 
-    COALESCE(e.department_id, 'Not Assigned') as department,
+    COALESCE(e.department, 'Not Assigned') as department,
     COUNT(e.id) as employee_count,
     AVG(e.basic_salary) as avg_salary
     FROM employees e
+    LEFT JOIN departments d ON e.department_id = d.id
     WHERE e.work_status = 'Active'
-    GROUP BY e.department_id
+    GROUP BY e.department
     HAVING COUNT(e.id) > 0
     ORDER BY avg_salary DESC";
 $result = mysqli_query($conn, $sql_dept_salary);
@@ -412,10 +413,10 @@ $today = date('Y-m-d');
                                 <div>
                                     <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Total Salary Budget</p>
                                     <h3 class="mt-1 font-bold text-3xl">
-                                        <?= format_large_number($statistics['total_budget']) ?>
+                                        <span id="totalBudget"><?= format_large_number($statistics['total_budget']) ?></span>
                                     </h3>
                                     <p class="mt-1 text-gray-500 text-xs">
-                                        <?= $statistics['total_employees'] ?? 0 ?> active employees
+                                        <span id="totalEmployees"><?= $statistics['total_employees'] ?? 0 ?></span> active employees
                                     </p>
                                 </div>
                                 <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
@@ -430,7 +431,7 @@ $today = date('Y-m-d');
                                 <div>
                                     <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Average Salary</p>
                                     <h3 class="mt-1 font-bold text-3xl">
-                                        ₱<?= number_format($statistics['avg_monthly'] ?? 0, 0) ?>
+                                        <span id="avgMonthly">₱<?= number_format($statistics['avg_monthly'] ?? 0, 0) ?></span>
                                     </h3>
                                     <p class="mt-1 text-gray-500 text-xs">Monthly average</p>
                                 </div>
@@ -446,7 +447,7 @@ $today = date('Y-m-d');
                                 <div>
                                     <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Bonus Pool</p>
                                     <h3 class="mt-1 font-bold text-3xl">
-                                        <?= format_large_number($statistics['bonus_pool']) ?>
+                                        <span id="bonusPool"><?= format_large_number($statistics['bonus_pool']) ?></span>
                                     </h3>
                                     <p class="mt-1 text-gray-500 text-xs">
                                         <?php
@@ -469,7 +470,7 @@ $today = date('Y-m-d');
                                 <div>
                                     <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Allowance Budget</p>
                                     <h3 class="mt-1 font-bold text-3xl">
-                                        <?= format_large_number($statistics['allowance_budget']) ?>
+                                        <span id="allowanceBudget"><?= format_large_number($statistics['allowance_budget']) ?></span>
                                     </h3>
                                     <p class="mt-1 text-gray-500 text-xs">
                                         <?php
@@ -488,6 +489,13 @@ $today = date('Y-m-d');
                     </div>
 
                     <!-- Charts Section -->
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-semibold text-gray-800 text-lg">Analytics</h3>
+                        <div>
+                            <button id="exportAnalyticsBtn" class="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg text-sm">Export Reports</button>
+                        </div>
+                    </div>
+
                     <div class="gap-6 grid grid-cols-1 lg:grid-cols-2 mb-8">
                         <!-- Salary Distribution Chart -->
                         <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
@@ -759,121 +767,159 @@ $today = date('Y-m-d');
     <script>
         lucide.createIcons();
 
-        // Initialize Charts with Dynamic Data
-        const salaryCtx = document.getElementById('salaryChart')?.getContext('2d');
-        if (salaryCtx) {
-            // Prepare data from PHP
-            const deptLabels = <?= json_encode(array_column($salary_by_dept, 'department')) ?>;
-            const avgSalaries = <?= json_encode(array_column($salary_by_dept, 'avg_salary')) ?>;
-            const employeeCounts = <?= json_encode(array_column($salary_by_dept, 'employee_count')) ?>;
+        // Initialize Charts by fetching data from backend API
+        (function initializeChartsFromApi() {
+            const apiUrl = 'API/compensation_charts.php';
 
-            // Generate colors dynamically based on number of departments
-            const colors = generateChartColors(deptLabels.length);
+            fetch(apiUrl)
+                .then(res => {
+                    if (!res.ok) throw new Error('Failed to fetch chart data');
+                    return res.json();
+                })
+                .then(payload => {
+                    // Salary distribution
+                    const salaryCtx = document.getElementById('salaryChart')?.getContext('2d');
+                    const salaryData = payload.salary_by_dept || [];
+                    const deptLabels = salaryData.map(r => r.department || 'Unknown');
+                    const avgSalaries = salaryData.map(r => parseFloat(r.avg_salary) || 0);
+                    const employeeCounts = salaryData.map(r => parseInt(r.employee_count) || 0);
 
-            const salaryChart = new Chart(salaryCtx, {
-                type: 'bar',
-                data: {
-                    labels: deptLabels.length > 0 ? deptLabels : ['No Department Data'],
-                    datasets: [{
-                        label: 'Average Monthly Salary (₱)',
-                        data: avgSalaries.length > 0 ? avgSalaries : [0],
-                        backgroundColor: colors,
-                        borderWidth: 0,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                drawBorder: false
+                    if (salaryCtx) {
+                        const colors = generateChartColors(deptLabels.length);
+                        new Chart(salaryCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: deptLabels.length > 0 ? deptLabels : ['No Department Data'],
+                                datasets: [{
+                                    label: 'Avg Monthly Salary',
+                                    data: avgSalaries,
+                                    backgroundColor: colors,
+                                    borderRadius: 4
+                                }]
                             },
-                            ticks: {
-                                callback: function(value) {
-                                    return '₱' + value.toLocaleString();
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {},
+                                plugins: {
+                                    legend: {
+                                        display: false
+                                    }
                                 }
                             }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            }
-                        }
-                    },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.dataset.label || '';
-                                    const value = context.parsed.y || 0;
-                                    const index = context.dataIndex;
-                                    const count = employeeCounts[index] || 0;
-                                    return [
-                                        `${label}: ₱${value.toLocaleString()}`,
-                                        `Employees: ${count}`
-                                    ];
-                                }
-                            }
-                        }
+                        });
                     }
-                }
-            });
-        }
 
-        const mixCtx = document.getElementById('compensationMixChart')?.getContext('2d');
-        if (mixCtx) {
-            // Prepare data from PHP
-            const mixLabels = <?= json_encode(array_column($compensation_mix, 'type')) ?>;
-            const mixValues = <?= json_encode(array_column($compensation_mix, 'value')) ?>;
+                    // Compensation mix
+                    const mixCtx = document.getElementById('compensationMixChart')?.getContext('2d');
+                    const mix = payload.compensation_mix || [];
+                    const mixLabels = mix.map(m => m.type || '');
+                    const mixValues = mix.map(m => parseFloat(m.value) || 0);
 
-            // Calculate percentages
-            const total = mixValues.reduce((sum, val) => sum + parseFloat(val || 0), 0);
-            const percentages = mixValues.map(val => total > 0 ? ((parseFloat(val || 0) / total) * 100).toFixed(1) : 0);
-
-            const compensationMixChart = new Chart(mixCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: mixLabels.length > 0 ? mixLabels : ['No Data'],
-                    datasets: [{
-                        data: percentages.length > 0 ? percentages : [100],
-                        backgroundColor: ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#06B6D4'],
-                        borderWidth: 0,
-                        hoverOffset: 10
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '70%',
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                padding: 20,
-                                usePointStyle: true
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.label || '';
-                                    const value = context.parsed || 0;
-                                    const index = context.dataIndex;
-                                    const actualValue = mixValues[index] || 0;
-                                    return [
-                                        `${label}: ${value}%`,
-                                        `Amount: ₱${parseFloat(actualValue).toLocaleString()}`
-                                    ];
+                    if (mixCtx) {
+                        const mixColors = generateChartColors(mixLabels.length);
+                        const total = mixValues.reduce((s, v) => s + v, 0);
+                        new Chart(mixCtx, {
+                            type: 'doughnut',
+                            data: {
+                                labels: mixLabels.length > 0 ? mixLabels : ['No Data'],
+                                datasets: [{
+                                    data: mixValues,
+                                    backgroundColor: mixColors,
+                                    hoverOffset: 10
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                cutout: '70%',
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                const val = parseFloat(context.raw || 0);
+                                                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+                                                return `${context.label}: ₱${Number(val).toLocaleString()} (${pct}%)`;
+                                            }
+                                        }
+                                    }
                                 }
                             }
-                        }
+                        });
                     }
-                }
-            });
-        }
+                })
+                .catch(err => {
+                    console.error('Chart API error', err);
+                });
+        })();
+
+        // Fetch and render stats dynamically from backend API
+        (function fetchCompensationStats() {
+            const url = 'API/compensation_stats.php';
+
+            function setText(id, text) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            }
+
+            fetch(url)
+                .then(r => {
+                    if (!r.ok) throw new Error('Failed to fetch stats');
+                    return r.json();
+                })
+                .then(data => {
+                    // Format numbers for display
+                    const fmt = (v) => {
+                        if (v === null || v === undefined) return '-';
+                        const n = Number(v);
+                        if (isNaN(n)) return '-';
+                        if (Math.abs(n) >= 1000000) return '₱' + (n / 1000000).toFixed(1) + 'M';
+                        if (Math.abs(n) >= 1000) return '₱' + (n / 1000).toFixed(1) + 'K';
+                        return '₱' + n.toLocaleString();
+                    };
+
+                    setText('totalBudget', fmt(data.total_budget));
+                    setText('avgMonthly', '₱' + Math.round((data.avg_monthly || 0)).toLocaleString());
+                    setText('bonusPool', fmt(data.bonus_pool));
+                    setText('allowanceBudget', fmt(data.allowance_budget));
+                    setText('totalEmployees', (data.total_employees || 0).toString());
+                })
+                .catch(err => {
+                    console.error('Comp stats fetch error', err);
+                });
+
+            // Optional: refresh every 5 minutes
+            // setInterval(() => fetchCompensationStats(), 5 * 60 * 1000);
+        })();
+
+        // Export analytics CSV
+        document.getElementById('exportAnalyticsBtn')?.addEventListener('click', function() {
+            const url = 'API/export_compensation_analytics.php';
+            fetch(url, {
+                    method: 'GET'
+                })
+                .then(resp => {
+                    if (!resp.ok) throw new Error('Export failed');
+                    return resp.blob();
+                })
+                .then(blob => {
+                    const link = document.createElement('a');
+                    const filename = 'compensation_analytics_' + new Date().toISOString().slice(0, 10) + '.csv';
+                    link.href = URL.createObjectURL(blob);
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                })
+                .catch(err => {
+                    console.error('Export error', err);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Export failed',
+                        text: 'Unable to generate report.'
+                    });
+                });
+        });
 
         // Helper function to generate chart colors
         function generateChartColors(count) {

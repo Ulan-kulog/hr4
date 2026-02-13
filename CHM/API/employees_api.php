@@ -52,9 +52,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
-    // List: optional search on first_name/last_name/email/employee_code, optional limit/offset
-    $limit = max(1, min(100, (int)($_GET['limit'] ?? 100)));
-    $offset = max(0, (int)($_GET['offset'] ?? 0));
+    // List: optional search on first_name/last_name/email/employee_code, supports page+limit
+    $limit = max(1, min(100, (int)($_GET['limit'] ?? 25)));
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $offset = ($page - 1) * $limit;
 
     $where = [];
     $params = [];
@@ -102,9 +103,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
     }
 
+    // Count total matching rows for pagination
+    $total = 0;
+    $countSql = 'SELECT COUNT(*) as total FROM employees ' . $whereSql;
+    $cstmt = safe_prepare($conn, $countSql);
+    if ($cstmt) {
+        if (!empty($params)) {
+            $bindTypes = $types;
+            $bindValues = $params;
+            $refs = [];
+            foreach ($bindValues as $k => $v) $refs[$k] = &$bindValues[$k];
+            array_unshift($refs, $bindTypes);
+            call_user_func_array([$cstmt, 'bind_param'], $refs);
+        }
+        $cstmt->execute();
+        $cres = $cstmt->get_result();
+        if ($cres) {
+            $row = $cres->fetch_assoc();
+            $total = isset($row['total']) ? (int)$row['total'] : 0;
+            if (method_exists($cres, 'free')) $cres->free();
+        }
+        $cstmt->close();
+    } else {
+        // fallback count
+        $q = $conn->query($countSql);
+        if ($q) {
+            $r = $q->fetch_assoc();
+            $total = isset($r['total']) ? (int)$r['total'] : 0;
+            if (method_exists($q, 'free')) $q->free();
+        }
+    }
+
+    $pagination = [
+        'total_records' => $total,
+        'total_pages' => ($limit > 0) ? (int)ceil($total / $limit) : 0,
+        'current_page' => $page,
+        'limit' => $limit,
+        'offset' => $offset
+    ];
+
     if ($conn) $conn->close();
-    if (empty($rows)) echo json_encode((object)[]);
-    else echo json_encode($rows, JSON_PRETTY_PRINT);
+
+    echo json_encode(['success' => true, 'data' => $rows, 'pagination' => $pagination], JSON_PRETTY_PRINT);
     exit;
 }
 
