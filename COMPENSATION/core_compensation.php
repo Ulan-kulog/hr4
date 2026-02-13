@@ -147,12 +147,12 @@ if ($result) {
 // 5. Department-wise salary distribution
 $salary_by_dept = [];
 $sql_dept_salary = "SELECT 
-    COALESCE(e.department, 'Not Assigned') as department,
+    COALESCE(e.department_id, 'Not Assigned') as department,
     COUNT(e.id) as employee_count,
     AVG(e.basic_salary) as avg_salary
     FROM employees e
     WHERE e.work_status = 'Active'
-    GROUP BY e.department
+    GROUP BY e.department_id
     HAVING COUNT(e.id) > 0
     ORDER BY avg_salary DESC";
 $result = mysqli_query($conn, $sql_dept_salary);

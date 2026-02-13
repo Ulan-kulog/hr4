@@ -10,26 +10,25 @@ if (!isset($connections[$db_name])) {
 $conn = $connections[$db_name];
 
 // Fetch ONLY employees under review (status = 'Under Review')
-$review_query = "SELECT * FROM employees WHERE status = 'Under Review' ORDER BY full_name";
+$review_query = "SELECT * FROM employees WHERE work_status = 'Under Review' ORDER BY last_name";
 $review_result = $conn->query($review_query);
 
 // Calculate statistics for under review employees only
 $stats_query = "SELECT 
                 COUNT(*) as total_review,
-                SUM(CASE WHEN department IS NULL THEN 1 ELSE 0 END) as no_department,
+                SUM(CASE WHEN department_id IS NULL THEN 1 ELSE 0 END) as no_department,
                 SUM(basic_salary) as total_salary,
                 AVG(basic_salary) as avg_salary
-                FROM employees WHERE status = 'Under Review'";
+                FROM employees WHERE work_status = 'Under Review'";
 $stats_result = $conn->query($stats_query);
 $stats = $stats_result->fetch_assoc();
 
 // Fetch payroll data for employees under review ONLY
-$payroll_query = "SELECT p.*, e.full_name, e.employee_id, e.department, e.position, e.status as emp_status
-                  FROM payroll p 
-                  JOIN employees e ON p.employee_id = e.id 
-                  WHERE e.status = 'Under Review' 
-                  AND p.period = DATE_FORMAT(NOW(), '%Y-%m')
-                  ORDER BY p.status ASC";
+$payroll_query = "SELECT p.*, e.last_name, e.employee_code, e.department_id, e.job, e.work_status as emp_status
+                  FROM employees p 
+                  JOIN employees e ON p.id = e.id 
+                  WHERE e.work_status = 'Under Review' 
+                  ORDER BY p.work_status ASC";
 $payroll_result = $conn->query($payroll_query);
 ?>
 
