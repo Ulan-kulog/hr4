@@ -144,16 +144,16 @@ if ($result) {
     $statistics['allowance_budget'] = 0;
 }
 
-// 5. Department-wise salary distribution
+// 5. Department-wise salary distribution - FIXED QUERY
 $salary_by_dept = [];
 $sql_dept_salary = "SELECT 
-    COALESCE(e.department, 'Not Assigned') as department,
+    COALESCE(d.name, 'Not Assigned') as department,
     COUNT(e.id) as employee_count,
     AVG(e.basic_salary) as avg_salary
     FROM employees e
     LEFT JOIN departments d ON e.department_id = d.id
     WHERE e.work_status = 'Active'
-    GROUP BY e.department
+    GROUP BY d.id
     HAVING COUNT(e.id) > 0
     ORDER BY avg_salary DESC";
 $result = mysqli_query($conn, $sql_dept_salary);

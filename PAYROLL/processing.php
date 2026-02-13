@@ -34,10 +34,9 @@ function buildFullName($first_name, $middle_name, $last_name)
     return trim($name);
 }
 
-// REMOVED: fetchAndSaveEmployees function since we're not using API anymore
-// REMOVED: saveEmployeeToDB function since we're not using API anymore
-
-// Fetch ALL employees directly from database
+// ---------------------------------------------
+// FETCH ALL EMPLOYEES (NO WHERE FILTER)
+// ---------------------------------------------
 $current_month = date('Y-m');
 $local_query = "SELECT 
                 e.id,
@@ -70,8 +69,8 @@ $local_query = "SELECT
                 p.notes as payroll_notes
                 FROM employees e 
                 LEFT JOIN payroll p ON e.id = p.employee_id AND p.period = '$current_month'
-                WHERE e.work_status IN ('Active', 'Under Review')
-                ORDER BY e.first_name, e.last_name";
+                ORDER BY e.first_name, e.last_name";   // ← NO WHERE, all employees
+
 $local_result = $conn->query($local_query);
 
 // Store employee data
@@ -84,7 +83,9 @@ while ($row = $local_result->fetch_assoc()) {
     }
 }
 
-// Calculate statistics
+// ---------------------------------------------
+// CALCULATE STATISTICS (NOW BASED ON ALL EMPLOYEES)
+// ---------------------------------------------
 $stats = [
     'total_employees' => count($employees_data),
     'under_review' => 0,
@@ -123,6 +124,39 @@ foreach ($employees_data as $employee) {
         $stats['total_payroll'] += $employee['net_pay'];
     }
 }
+
+// ---------- Pass all employee data to JavaScript (direct from DB) ----------
+$js_employees = [];
+foreach ($employees_data as $id => $emp) {
+    $js_employees[$id] = [
+        'id'               => $emp['id'],
+        'employee_code'    => $emp['employee_code'],
+        'first_name'       => $emp['first_name'],
+        'middle_name'      => $emp['middle_name'],
+        'last_name'        => $emp['last_name'],
+        'email'            => $emp['email'],
+        'phone_number'     => $emp['phone_number'],
+        'job'              => $emp['job'],
+        'salary'           => $emp['salary'],
+        'basic_salary'     => $emp['basic_salary'] ?? $emp['salary'],
+        'work_status'      => $emp['work_status'],
+        'employment_status'=> $emp['employment_status'],
+        'salary_status'    => $emp['salary_status'] ?? 'Under review',
+        'salary_reason'    => $emp['salary_reason'],
+        'department_id'    => $emp['department_id'],
+        'date_of_birth'    => $emp['date_of_birth'],
+        'hire_date'        => $emp['hire_date'],
+        'payroll'          => isset($payroll_data[$id]) ? [
+            'id'            => $payroll_data[$id]['payroll_id'],
+            'status'        => $payroll_data[$id]['payroll_status'],
+            'period'        => $payroll_data[$id]['period'],
+            'net_pay'       => $payroll_data[$id]['net_pay'],
+            'overtime_pay'  => $payroll_data[$id]['overtime_pay'],
+            'notes'         => $payroll_data[$id]['payroll_notes']
+        ] : null
+    ];
+}
+// --------------------------------------------------------------------------
 ?>
 
 <!DOCTYPE html>
@@ -138,54 +172,30 @@ foreach ($employees_data as $employee) {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.20/dist/full.min.css" rel="stylesheet" type="text/css" />
     <style>
-        .swal2-container {
-            z-index: 999999 !important;
-        }
+        .swal2-container { z-index: 999999 !important; }
+        .modal { z-index: 99999; }
+        .modal-box { max-height: 90vh; overflow-y: auto; }
+        .table th { background-color: #f9fafb; font-weight: 600; color: #374151; padding: 1rem 0.75rem; }
+        .table td { padding: 1rem 0.75rem; vertical-align: middle; }
+        .avatar.placeholder>div { display: flex; align-items: center; justify-content: center; }
+        .glass-effect { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+        .stat-card { transition: all 0.3s ease; }
+        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
 
-        .modal {
-            z-index: 99999;
-        }
-
-        .modal-box {
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .table th {
-            background-color: #f9fafb;
-            font-weight: 600;
-            color: #374151;
-            padding: 1rem 0.75rem;
-        }
-
-        .table td {
-            padding: 1rem 0.75rem;
-            vertical-align: middle;
-        }
-
-        .avatar.placeholder>div {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .glass-effect {
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-        }
-
-        .stat-card {
-            transition: all 0.3s ease;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-        }
+        /* Hide financials by default */
+        .salary-value, .netpay-value { display: none; }
+        .salary-hidden, .netpay-hidden { display: inline; }
+        body.show-financials .salary-value,
+        body.show-financials .netpay-value { display: inline; }
+        body.show-financials .salary-hidden,
+        body.show-financials .netpay-hidden { display: none; }
     </style>
 </head>
 
 <body class="bg-base-100 bg-white min-h-screen">
+    <?php // Inject the employee data object ?>
+    <script>window.employeesData = <?php echo json_encode($js_employees); ?>;</script>
+
     <div class="flex h-screen">
         <!-- Sidebar -->
         <?php include '../INCLUDES/sidebar.php'; ?>
@@ -214,8 +224,7 @@ foreach ($employees_data as $employee) {
                         </h2>
                         <div class="flex gap-2">
                             <button onclick="exportToExcel()" class="flex items-center bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white transition-colors">
-                                <i data-lucide="download" class="mr-2 w-4 h-4"></i>
-                                Export Report
+                                <i data-lucide="download" class="mr-2 w-4 h-4"></i> Export Report
                             </button>
                             <select class="bg-white px-4 py-2 border border-gray-300 rounded-lg text-gray-700">
                                 <option>Last 30 Days</option>
@@ -226,7 +235,7 @@ foreach ($employees_data as $employee) {
                         </div>
                     </div>
 
-                    <!-- Key Payroll Metrics -->
+                    <!-- Key Payroll Metrics - NOW WORKING WITH ALL EMPLOYEES -->
                     <div class="gap-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-8">
                         <!-- Total Employees -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
@@ -234,14 +243,13 @@ foreach ($employees_data as $employee) {
                                 <div>
                                     <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Total Employees</p>
                                     <h3 class="mt-1 font-bold text-3xl"><?php echo $stats['total_employees']; ?></h3>
-                                    <p class="mt-1 text-gray-500 text-xs">All active employees</p>
+                                    <p class="mt-1 text-gray-500 text-xs">All employees</p>
                                 </div>
                                 <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
                                     <i data-lucide="users" class="w-6 h-6 text-[#F7B32B]"></i>
                                 </div>
                             </div>
                         </div>
-
                         <!-- Under Review -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
                             <div class="flex justify-between items-start">
@@ -255,7 +263,6 @@ foreach ($employees_data as $employee) {
                                 </div>
                             </div>
                         </div>
-
                         <!-- Approved -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
                             <div class="flex justify-between items-start">
@@ -269,7 +276,6 @@ foreach ($employees_data as $employee) {
                                 </div>
                             </div>
                         </div>
-
                         <!-- For Compliance -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
                             <div class="flex justify-between items-start">
@@ -300,7 +306,6 @@ foreach ($employees_data as $employee) {
                                 </div>
                             </div>
                         </div>
-
                         <!-- Denied -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
                             <div class="flex justify-between items-start">
@@ -314,7 +319,6 @@ foreach ($employees_data as $employee) {
                                 </div>
                             </div>
                         </div>
-
                         <!-- Total Payroll -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
                             <div class="flex justify-between items-start">
@@ -328,7 +332,6 @@ foreach ($employees_data as $employee) {
                                 </div>
                             </div>
                         </div>
-
                         <!-- Average Salary -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
                             <div class="flex justify-between items-start">
@@ -357,15 +360,17 @@ foreach ($employees_data as $employee) {
                                 <p class="text-gray-500">Manage salary status and payroll</p>
                             </div>
                             <div class="flex flex-wrap gap-3">
-                                <!-- REMOVED: Sync from API button since we're not using API -->
+                                <!-- Toggle Salary/Net Pay visibility -->
+                                <button id="toggleFinancialsBtn" onclick="toggleFinancials()" class="btn-outline btn">
+                                    <i data-lucide="eye-off" id="toggleIcon" class="mr-2 w-4 h-4"></i>
+                                    <span id="toggleText">Show Salary/Net Pay</span>
+                                </button>
                                 <button onclick="exportToExcel()" class="btn-outline btn">
-                                    <i data-lucide="download" class="mr-2 w-4 h-4"></i>
-                                    Export Excel
+                                    <i data-lucide="download" class="mr-2 w-4 h-4"></i> Export Excel
                                 </button>
                                 <div class="dropdown dropdown-end">
                                     <div tabindex="0" role="button" class="btn-outline btn">
-                                        <i data-lucide="filter" class="mr-2 w-4 h-4"></i>
-                                        Filter
+                                        <i data-lucide="filter" class="mr-2 w-4 h-4"></i> Filter
                                     </div>
                                     <ul tabindex="0" class="z-[1] bg-base-100 shadow p-2 rounded-box w-52 dropdown-content menu">
                                         <li><a onclick="filterByStatus('all')">All Employees</a></li>
@@ -381,7 +386,7 @@ foreach ($employees_data as $employee) {
                     </div>
                 </div>
 
-                <!-- Employee Table -->
+                <!-- Employee Table - NOW SHOWING ALL EMPLOYEES -->
                 <div class="bg-white shadow-lg card">
                     <div class="p-0 card-body">
                         <div class="overflow-x-auto">
@@ -437,7 +442,10 @@ foreach ($employees_data as $employee) {
                                                 </span>
                                             </td>
                                             <td class="px-4 py-3 text-gray-900 text-sm whitespace-nowrap"><?php echo htmlspecialchars($employee['job']); ?></td>
-                                            <td class="px-4 py-3 font-semibold text-gray-900 text-sm whitespace-nowrap">₱<?php echo number_format($employee['salary'], 2); ?></td>
+                                            <td class="px-4 py-3 font-semibold text-gray-900 text-sm whitespace-nowrap">
+                                                <span class="salary-hidden">********</span>
+                                                <span class="salary-value">₱<?php echo number_format($employee['salary'], 2); ?></span>
+                                            </td>
                                             <td class="px-4 py-3 whitespace-nowrap">
                                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $work_status_class[$employee['work_status']] ?? 'bg-gray-100 text-gray-800'; ?>">
                                                     <?php echo $employee['work_status']; ?>
@@ -461,18 +469,18 @@ foreach ($employees_data as $employee) {
                                                         <?php echo $employee['payroll_status']; ?>
                                                     </span>
                                                 <?php else: ?>
-                                                    <span class="inline-flex items-center bg-gray-100 px-2.5 py-0.5 rounded-full font-medium text-gray-800 text-xs">
-                                                        No Payroll
-                                                    </span>
+                                                    <span class="inline-flex items-center bg-gray-100 px-2.5 py-0.5 rounded-full font-medium text-gray-800 text-xs">No Payroll</span>
                                                 <?php endif; ?>
                                             </td>
-                                            <td class="px-4 py-3 font-bold text-gray-900 text-sm whitespace-nowrap">₱<?php echo number_format($employee['net_pay'] ?? 0, 2); ?></td>
+                                            <td class="px-4 py-3 font-bold text-gray-900 text-sm whitespace-nowrap">
+                                                <span class="netpay-hidden">********</span>
+                                                <span class="netpay-value">₱<?php echo number_format($employee['net_pay'] ?? 0, 2); ?></span>
+                                            </td>
                                             <td class="px-4 py-3 text-sm whitespace-nowrap">
                                                 <div class="flex items-center space-x-2">
                                                     <button onclick="viewEmployee(<?php echo $employee['id']; ?>)"
                                                         class="inline-flex items-center bg-blue-600 hover:bg-blue-700 px-3 py-1.5 border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium text-white text-xs">
-                                                        <i data-lucide="eye" class="mr-1 w-3 h-3"></i>
-                                                        View
+                                                        <i data-lucide="eye" class="mr-1 w-3 h-3"></i> View
                                                     </button>
                                                     <div class="relative">
                                                         <button type="button" class="inline-flex items-center bg-white hover:bg-gray-50 px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium text-gray-700 text-xs dropdown-toggle">
@@ -480,21 +488,21 @@ foreach ($employees_data as $employee) {
                                                         </button>
                                                         <div class="hidden right-0 absolute bg-white ring-opacity-5 shadow-lg mt-2 rounded-md ring-1 ring-black w-48 dropdown-menu">
                                                             <div class="py-1" role="menu">
-                                                                <a href="#" onclick="approveSalary(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm" role="menuitem">Approve Salary</a>
-                                                                <a href="#" onclick="denySalary(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm" role="menuitem">Deny Salary</a>
-                                                                <a href="#" onclick="forCompliance(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm" role="menuitem">For Compliance</a>
+                                                                <a href="#" onclick="approveSalary(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Approve Salary</a>
+                                                                <a href="#" onclick="denySalary(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Deny Salary</a>
+                                                                <a href="#" onclick="forCompliance(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">For Compliance</a>
                                                                 <div class="border-gray-100 border-t"></div>
                                                                 <?php if (!isset($payroll_data[$employee['id']])): ?>
-                                                                    <a href="#" onclick="createPayroll(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>', <?php echo $employee['salary']; ?>)" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm" role="menuitem">Create Payroll</a>
+                                                                    <a href="#" onclick="createPayroll(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>', <?php echo $employee['salary']; ?>)" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Create Payroll</a>
                                                                 <?php else: ?>
-                                                                    <a href="#" onclick="editPayroll(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm" role="menuitem">Edit Payroll</a>
+                                                                    <a href="#" onclick="editPayroll(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Edit Payroll</a>
                                                                 <?php endif; ?>
-                                                                <a href="#" onclick="viewPayrollHistory(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm" role="menuitem">Payroll History</a>
+                                                                <a href="#" onclick="viewPayrollHistory(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Payroll History</a>
                                                                 <div class="border-gray-100 border-t"></div>
                                                                 <?php if ($employee['work_status'] == 'Active'): ?>
-                                                                    <a href="#" onclick="markInactive(<?php echo $employee['id']; ?>)" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm" role="menuitem">Mark Inactive</a>
+                                                                    <a href="#" onclick="markInactive(<?php echo $employee['id']; ?>)" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Mark Inactive</a>
                                                                 <?php else: ?>
-                                                                    <a href="#" onclick="markActive(<?php echo $employee['id']; ?>)" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm" role="menuitem">Mark Active</a>
+                                                                    <a href="#" onclick="markActive(<?php echo $employee['id']; ?>)" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Mark Active</a>
                                                                 <?php endif; ?>
                                                             </div>
                                                         </div>
@@ -509,9 +517,9 @@ foreach ($employees_data as $employee) {
                     </div>
                 </div>
 
-                <!-- View Employee Modal with CRUD actions in footer -->
+                <!-- View Employee Modal - PURE WHITE BACKGROUND + WHITE CARDS -->
                 <dialog id="viewModal" class="modal">
-                    <div class="bg-white/90 max-w-4xl text-black modal-box">
+                    <div class="bg-white max-w-4xl text-black modal-box">
                         <h3 class="mb-6 font-bold text-lg">Employee Details</h3>
                         <div id="employeeDetails" class="space-y-6">
                             <!-- Content loaded via JavaScript -->
@@ -523,20 +531,16 @@ foreach ($employees_data as $employee) {
                                 <div class="flex flex-wrap justify-between gap-2" id="salaryActionButtons">
                                     <div class="flex flex-wrap gap-2">
                                         <button id="approveSalaryBtn" class="btn btn-success btn-sm" onclick="showSalaryActionForm('approve')">
-                                            <i data-lucide="check-circle" class="mr-2 w-4 h-4"></i>
-                                            Approve Salary
+                                            <i data-lucide="check-circle" class="mr-2 w-4 h-4"></i> Approve Salary
                                         </button>
                                         <button id="denySalaryBtn" class="btn btn-error btn-sm" onclick="showSalaryActionForm('deny')">
-                                            <i data-lucide="x-circle" class="mr-2 w-4 h-4"></i>
-                                            Deny Salary Request
+                                            <i data-lucide="x-circle" class="mr-2 w-4 h-4"></i> Deny Salary Request
                                         </button>
                                         <button id="forComplianceBtn" class="btn btn-warning btn-sm" onclick="showSalaryActionForm('compliance')">
-                                            <i data-lucide="shield" class="mr-2 w-4 h-4"></i>
-                                            For Compliance
+                                            <i data-lucide="shield" class="mr-2 w-4 h-4"></i> For Compliance
                                         </button>
                                         <button onclick="viewPayrollHistory(currentEmployeeId, currentEmployeeData?.first_name + ' ' + currentEmployeeData?.last_name)" class="btn btn-info btn-sm">
-                                            <i data-lucide="history" class="mr-2 w-4 h-4"></i>
-                                            Payroll History
+                                            <i data-lucide="history" class="mr-2 w-4 h-4"></i> Payroll History
                                         </button>
                                     </div>
                                     <button class="btn btn-ghost btn-sm" onclick="viewModal.close()">Close</button>
@@ -544,7 +548,7 @@ foreach ($employees_data as $employee) {
 
                                 <!-- Action Form (hidden by default) -->
                                 <div id="salaryActionForm" class="hidden w-full">
-                                    <div class="bg-base-100 shadow card">
+                                    <div class="bg-white shadow card">
                                         <div class="p-4 card-body">
                                             <h4 class="card-title" id="salaryActionTitle">Action</h4>
                                             <input type="hidden" id="currentEmployeeId">
@@ -565,12 +569,8 @@ foreach ($employees_data as $employee) {
                                             </div>
 
                                             <div class="flex justify-end gap-2 mt-4">
-                                                <button type="button" class="btn btn-ghost" onclick="hideSalaryActionForm()">
-                                                    Cancel
-                                                </button>
-                                                <button type="button" class="btn btn-primary" onclick="submitSalaryAction()">
-                                                    Submit Action
-                                                </button>
+                                                <button type="button" class="btn btn-ghost" onclick="hideSalaryActionForm()">Cancel</button>
+                                                <button type="button" class="btn btn-primary" onclick="submitSalaryAction()">Submit Action</button>
                                             </div>
                                         </div>
                                     </div>
@@ -580,9 +580,9 @@ foreach ($employees_data as $employee) {
                     </div>
                 </dialog>
 
-                <!-- Payroll History Modal -->
+                <!-- Payroll History Modal - PURE WHITE BACKGROUND -->
                 <dialog id="payrollHistoryModal" class="modal">
-                    <div class="bg-white/90 max-w-6xl text-black modal-box">
+                    <div class="bg-white max-w-6xl text-black modal-box">
                         <h3 class="mb-4 font-bold text-lg" id="payrollHistoryTitle">Payroll History</h3>
                         <div class="overflow-x-auto">
                             <table class="table w-full table-auto">
@@ -599,9 +599,7 @@ foreach ($employees_data as $employee) {
                                         <th class="px-4 py-2 text-left">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody id="payrollHistoryBody">
-                                    <!-- Payroll history will be loaded here -->
-                                </tbody>
+                                <tbody id="payrollHistoryBody"></tbody>
                             </table>
                         </div>
                         <div class="modal-action">
@@ -610,9 +608,9 @@ foreach ($employees_data as $employee) {
                     </div>
                 </dialog>
 
-                <!-- Create/Edit Payroll Modal -->
+                <!-- Create/Edit Payroll Modal - PURE WHITE BACKGROUND -->
                 <dialog id="payrollModal" class="modal">
-                    <div class="bg-white/90 max-w-2xl text-black modal-box">
+                    <div class="bg-white max-w-2xl text-black modal-box">
                         <h3 class="mb-4 font-bold text-lg" id="payrollModalTitle">Create Payroll</h3>
                         <form id="payrollForm">
                             <input type="hidden" id="payrollEmployeeId">
@@ -620,51 +618,31 @@ foreach ($employees_data as $employee) {
 
                             <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
                                 <div class="form-control">
-                                    <label class="label">
-                                        <span class="label-text">Basic Salary</span>
-                                    </label>
+                                    <label class="label"><span class="label-text">Basic Salary</span></label>
                                     <input type="number" id="basicSalary" class="input input-bordered" required step="0.01">
                                 </div>
-
                                 <div class="form-control">
-                                    <label class="label">
-                                        <span class="label-text">Overtime Hours</span>
-                                    </label>
+                                    <label class="label"><span class="label-text">Overtime Hours</span></label>
                                     <input type="number" id="overtimeHours" class="input input-bordered" step="0.5" value="0">
                                 </div>
-
                                 <div class="form-control">
-                                    <label class="label">
-                                        <span class="label-text">Overtime Rate/Hour</span>
-                                    </label>
+                                    <label class="label"><span class="label-text">Overtime Rate/Hour</span></label>
                                     <input type="number" id="overtimeRate" class="input input-bordered" step="0.01" value="100">
                                 </div>
-
                                 <div class="form-control">
-                                    <label class="label">
-                                        <span class="label-text">Allowances</span>
-                                    </label>
+                                    <label class="label"><span class="label-text">Allowances</span></label>
                                     <input type="number" id="allowances" class="input input-bordered" step="0.01" value="0">
                                 </div>
-
                                 <div class="form-control">
-                                    <label class="label">
-                                        <span class="label-text">Deductions</span>
-                                    </label>
+                                    <label class="label"><span class="label-text">Deductions</span></label>
                                     <input type="number" id="deductions" class="input input-bordered" step="0.01" value="0">
                                 </div>
-
                                 <div class="form-control">
-                                    <label class="label">
-                                        <span class="label-text">Period</span>
-                                    </label>
+                                    <label class="label"><span class="label-text">Period</span></label>
                                     <input type="month" id="period" class="input input-bordered" value="<?php echo date('Y-m'); ?>">
                                 </div>
-
                                 <div class="form-control">
-                                    <label class="label">
-                                        <span class="label-text">Status</span>
-                                    </label>
+                                    <label class="label"><span class="label-text">Status</span></label>
                                     <select id="payrollStatus" class="select-bordered select">
                                         <option value="Draft">Draft</option>
                                         <option value="Pending">Pending</option>
@@ -672,41 +650,23 @@ foreach ($employees_data as $employee) {
                                         <option value="Paid">Paid</option>
                                     </select>
                                 </div>
-
                                 <div class="md:col-span-2 form-control">
-                                    <label class="label">
-                                        <span class="label-text">Notes (Optional)</span>
-                                    </label>
+                                    <label class="label"><span class="label-text">Notes (Optional)</span></label>
                                     <textarea id="payrollNotes" class="textarea textarea-bordered" placeholder="Any notes about this payroll..."></textarea>
                                 </div>
                             </div>
 
                             <!-- Summary -->
-                            <div class="bg-base-100 mt-6 card">
+                            <div class="bg-white mt-6 card">
                                 <div class="card-body">
                                     <h4 class="card-title">Payroll Summary</h4>
                                     <div class="space-y-2">
-                                        <div class="flex justify-between">
-                                            <span>Basic Salary:</span>
-                                            <span id="summaryBasic" class="font-semibold">₱0.00</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span>Overtime Pay:</span>
-                                            <span id="summaryOvertime" class="font-semibold">₱0.00</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span>Allowances:</span>
-                                            <span id="summaryAllowances" class="font-semibold">₱0.00</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span>Deductions:</span>
-                                            <span id="summaryDeductions" class="font-semibold">₱0.00</span>
-                                        </div>
+                                        <div class="flex justify-between"><span>Basic Salary:</span><span id="summaryBasic" class="font-semibold">₱0.00</span></div>
+                                        <div class="flex justify-between"><span>Overtime Pay:</span><span id="summaryOvertime" class="font-semibold">₱0.00</span></div>
+                                        <div class="flex justify-between"><span>Allowances:</span><span id="summaryAllowances" class="font-semibold">₱0.00</span></div>
+                                        <div class="flex justify-between"><span>Deductions:</span><span id="summaryDeductions" class="font-semibold">₱0.00</span></div>
                                         <div class="divider"></div>
-                                        <div class="flex justify-between text-lg">
-                                            <span>Net Pay:</span>
-                                            <span id="summaryNetPay" class="font-bold text-primary">₱0.00</span>
-                                        </div>
+                                        <div class="flex justify-between text-lg"><span>Net Pay:</span><span id="summaryNetPay" class="font-bold text-primary">₱0.00</span></div>
                                     </div>
                                 </div>
                             </div>
@@ -723,11 +683,10 @@ foreach ($employees_data as $employee) {
         </div>
     </div>
 
-
     <script>
         lucide.createIcons();
 
-        // Dialog element references (use getElementById for reliable globals)
+        // Dialog element references
         const viewModal = document.getElementById('viewModal');
         const payrollModal = document.getElementById('payrollModal');
         const payrollHistoryModal = document.getElementById('payrollHistoryModal');
@@ -737,9 +696,31 @@ foreach ($employees_data as $employee) {
         let currentEmployeeName = null;
         let currentEmployeeData = null;
 
-        // Initialize dropdowns
+        // ========== SALARY/NET PAY TOGGLE ==========
+        let showFinancials = false;
+
+        function toggleFinancials() {
+            showFinancials = !showFinancials;
+            const body = document.body;
+            const icon = document.getElementById('toggleIcon');
+            const text = document.getElementById('toggleText');
+
+            if (showFinancials) {
+                body.classList.add('show-financials');
+                icon.setAttribute('data-lucide', 'eye');
+                text.innerText = 'Hide Salary/Net Pay';
+            } else {
+                body.classList.remove('show-financials');
+                icon.setAttribute('data-lucide', 'eye-off');
+                text.innerText = 'Show Salary/Net Pay';
+            }
+            lucide.createIcons();
+        }
+
+        // Initialize toggle state (hidden by default)
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize dropdown menus
+            document.body.classList.remove('show-financials');
+            // Initialize dropdowns
             document.querySelectorAll('.dropdown-toggle').forEach(button => {
                 button.addEventListener('click', function(e) {
                     e.stopPropagation();
@@ -747,53 +728,25 @@ foreach ($employees_data as $employee) {
                     menu.classList.toggle('hidden');
                 });
             });
-
-            // Close dropdowns when clicking outside
             document.addEventListener('click', function() {
-                document.querySelectorAll('.dropdown-menu').forEach(menu => {
-                    menu.classList.add('hidden');
-                });
+                document.querySelectorAll('.dropdown-menu').forEach(menu => menu.classList.add('hidden'));
             });
+            lucide.createIcons();
         });
+        // ========== END TOGGLE ==========
 
-        // REMOVED: syncEmployees function since we're not using API anymore
-
-        // View Employee Details
-        async function viewEmployee(employeeId) {
-            try {
-                const response = await fetch('API/payroll_api.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `action=get_employee_details&id=${employeeId}`
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    currentEmployeeData = data.data;
-                    currentEmployeeId = employeeId;
-                    displayEmployeeDetails(data.data);
-
-                    // Show action buttons based on current status
-                    updateActionButtons(data.data.salary_status);
-
-                    viewModal.showModal();
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: 'Failed to load employee details'
-                    });
-                }
-            } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to load employee details'
-                });
+        // ----- View Employee Details - USING DIRECT DATA -----
+        function viewEmployee(employeeId) {
+            const employee = window.employeesData[employeeId];
+            if (!employee) {
+                Swal.fire('Error', 'Employee not found', 'error');
+                return;
             }
+            currentEmployeeData = employee;
+            currentEmployeeId = employeeId;
+            displayEmployeeDetails(employee);
+            updateActionButtons(employee.salary_status);
+            viewModal.showModal();
         }
 
         function updateActionButtons(currentStatus) {
@@ -801,7 +754,6 @@ foreach ($employees_data as $employee) {
             const denyBtn = document.getElementById('denySalaryBtn');
             const complianceBtn = document.getElementById('forComplianceBtn');
 
-            // Disable buttons based on current status
             if (currentStatus === 'Approved') {
                 approveBtn.disabled = true;
                 approveBtn.classList.add('btn-disabled');
@@ -831,15 +783,17 @@ foreach ($employees_data as $employee) {
                 complianceBtn.classList.remove('btn-disabled');
                 complianceBtn.innerHTML = '<i data-lucide="shield" class="mr-2 w-4 h-4"></i>For Compliance';
             }
+            lucide.createIcons();
         }
 
+        // ----- Employee Details Display (ALL CARDS NOW WHITE) -----
         function displayEmployeeDetails(data) {
             const full_name = data.first_name + (data.middle_name ? ' ' + data.middle_name : '') + (data.last_name ? ' ' + data.last_name : '');
 
             const details = `
             <div class="gap-6 grid grid-cols-1 md:grid-cols-2">
-                <!-- Personal Information -->
-                <div class="bg-base-100 shadow card">
+                <!-- Personal Information - PURE WHITE -->
+                <div class="bg-white shadow card">
                     <div class="card-body">
                         <h4 class="card-title">Personal Information</h4>
                         <div class="space-y-3">
@@ -867,8 +821,8 @@ foreach ($employees_data as $employee) {
                     </div>
                 </div>
                 
-                <!-- Job Information -->
-                <div class="bg-base-100 shadow card">
+                <!-- Job Information - PURE WHITE -->
+                <div class="bg-white shadow card">
                     <div class="card-body">
                         <h4 class="card-title">Job Information</h4>
                         <div class="space-y-3">
@@ -898,18 +852,24 @@ foreach ($employees_data as $employee) {
                     </div>
                 </div>
                 
-                <!-- Salary Information -->
-                <div class="bg-base-100 shadow card">
+                <!-- Salary Information - WITH TOGGLE, WHITE BACKGROUND -->
+                <div class="bg-white shadow card">
                     <div class="card-body">
                         <h4 class="card-title">Salary Information</h4>
                         <div class="space-y-3">
                             <div class="flex justify-between">
                                 <span class="font-medium">Salary:</span>
-                                <span class="font-bold">₱${parseFloat(data.salary).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                                <span class="font-bold">
+                                    <span class="salary-hidden">********</span>
+                                    <span class="salary-value">₱${parseFloat(data.salary).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                                </span>
                             </div>
                             <div class="flex justify-between">
                                 <span class="font-medium">Basic Salary:</span>
-                                <span>₱${parseFloat(data.basic_salary || data.salary).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                                <span>
+                                    <span class="salary-hidden">********</span>
+                                    <span class="salary-value">₱${parseFloat(data.basic_salary || data.salary).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                                </span>
                             </div>
                             <div class="flex justify-between">
                                 <span class="font-medium">Salary Status:</span>
@@ -920,15 +880,15 @@ foreach ($employees_data as $employee) {
                             ${data.salary_reason ? `
                             <div>
                                 <span class="font-medium">Reason:</span>
-                                <p class="bg-base-200 mt-1 p-2 rounded">${data.salary_reason}</p>
+                                <p class="bg-gray-100 mt-1 p-2 rounded">${data.salary_reason}</p>
                             </div>
                             ` : ''}
                         </div>
                     </div>
                 </div>
                 
-                <!-- Payroll Information -->
-                <div class="bg-base-100 shadow card">
+                <!-- Payroll Information - WITH TOGGLE for Net Pay, WHITE BACKGROUND -->
+                <div class="bg-white shadow card">
                     <div class="card-body">
                         <h4 class="card-title">Payroll Information</h4>
                         ${data.payroll ? `
@@ -945,7 +905,10 @@ foreach ($employees_data as $employee) {
                                 </div>
                                 <div class="flex justify-between">
                                     <span>Net Pay:</span>
-                                    <span class="font-bold">₱${parseFloat(data.payroll.net_pay).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                                    <span class="font-bold">
+                                        <span class="netpay-hidden">********</span>
+                                        <span class="netpay-value">₱${parseFloat(data.payroll.net_pay).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                                    </span>
                                 </div>
                                 <div class="flex justify-between">
                                     <span>Overtime Pay:</span>
@@ -954,7 +917,7 @@ foreach ($employees_data as $employee) {
                                 ${data.payroll.notes ? `
                                 <div>
                                     <span class="font-medium">Notes:</span>
-                                    <p class="bg-base-200 mt-1 p-2 rounded">${data.payroll.notes}</p>
+                                    <p class="bg-gray-100 mt-1 p-2 rounded">${data.payroll.notes}</p>
                                 </div>
                                 ` : ''}
                             </div>
@@ -965,6 +928,7 @@ foreach ($employees_data as $employee) {
         `;
 
             document.getElementById('employeeDetails').innerHTML = details;
+            lucide.createIcons();
         }
 
         function getSalaryStatusClass(status) {
@@ -977,15 +941,12 @@ foreach ($employees_data as $employee) {
             return classes[status] || 'badge-outline';
         }
 
-        // Show salary action form in modal footer
+        // ---------- Salary action forms ----------
         function showSalaryActionForm(actionType) {
             currentAction = actionType;
-
-            // Set current employee ID
             document.getElementById('currentEmployeeId').value = currentEmployeeId;
             document.getElementById('currentActionType').value = actionType;
 
-            // Update form title and labels based on action type
             const actionTitle = document.getElementById('salaryActionTitle');
             const actionLabel = document.getElementById('salaryActionLabel');
             const actionHint = document.getElementById('salaryActionHint');
@@ -1012,17 +973,11 @@ foreach ($employees_data as $employee) {
                     break;
             }
 
-            // Hide action buttons and show form
             document.getElementById('salaryActionButtons').classList.add('hidden');
             document.getElementById('salaryActionForm').classList.remove('hidden');
-
-            // Focus on textarea
-            setTimeout(() => {
-                actionComment.focus();
-            }, 100);
+            setTimeout(() => actionComment.focus(), 100);
         }
 
-        // Hide salary action form
         function hideSalaryActionForm() {
             document.getElementById('salaryActionForm').classList.add('hidden');
             document.getElementById('salaryActionButtons').classList.remove('hidden');
@@ -1030,123 +985,69 @@ foreach ($employees_data as $employee) {
             currentAction = null;
         }
 
-        // Submit salary action
         async function submitSalaryAction() {
             const employeeId = document.getElementById('currentEmployeeId').value;
             const actionType = document.getElementById('currentActionType').value;
             const comment = document.getElementById('salaryActionComment').value.trim();
 
-            // Validation for required comments
             if ((actionType === 'deny' || actionType === 'compliance') && !comment) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Comments Required',
-                    text: 'Please provide detailed comments for this action'
-                });
+                Swal.fire({ icon: 'warning', title: 'Comments Required', text: 'Please provide detailed comments for this action' });
                 return;
             }
 
-            // Map action type to status
             let status = '';
             switch (actionType) {
-                case 'approve':
-                    status = 'Approved';
-                    break;
-                case 'deny':
-                    status = 'Denied';
-                    break;
-                case 'compliance':
-                    status = 'For compliance';
-                    break;
+                case 'approve': status = 'Approved'; break;
+                case 'deny':    status = 'Denied'; break;
+                case 'compliance': status = 'For compliance'; break;
             }
 
             try {
                 const response = await fetch('API/payroll_api.php', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: `action=update_salary_status&id=${employeeId}&status=${status}&reason=${encodeURIComponent(comment)}`
                 });
-
                 const data = await response.json();
-
                 if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Success!',
-                        text: data.message,
-                        timer: 2000,
-                        showConfirmButton: false
-                    }).then(() => {
-                        hideSalaryActionForm();
-                        viewModal.close();
-                        location.reload();
-                    });
+                    Swal.fire({ icon: 'success', title: 'Success!', text: data.message, timer: 2000, showConfirmButton: false })
+                        .then(() => { hideSalaryActionForm(); viewModal.close(); location.reload(); });
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: data.message
-                    });
+                    Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to update salary status'
-                });
+                Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to update salary status' });
             }
         }
 
-        // View Payroll History
+        // ---------- Payroll History ----------
         async function viewPayrollHistory(employeeId, employeeName) {
             try {
                 const response = await fetch('API/payroll_api.php', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: `action=get_payroll_history&employee_id=${employeeId}`
                 });
-
                 const data = await response.json();
-
                 if (data.success) {
                     document.getElementById('payrollHistoryTitle').textContent = `Payroll History - ${employeeName}`;
                     displayPayrollHistory(data.history);
                     payrollHistoryModal.showModal();
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: data.message || 'Failed to load payroll history'
-                    });
+                    Swal.fire({ icon: 'error', title: 'Error!', text: data.message || 'Failed to load payroll history' });
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to load payroll history'
-                });
+                Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to load payroll history' });
             }
         }
 
         function displayPayrollHistory(history) {
             const tbody = document.getElementById('payrollHistoryBody');
             tbody.innerHTML = '';
-
             if (history.length === 0) {
-                tbody.innerHTML = `
-                <tr>
-                    <td colspan="9" class="px-4 py-8 text-gray-500 text-center">
-                        No payroll history found
-                    </td>
-                </tr>
-            `;
+                tbody.innerHTML = '<tr><td colspan="9" class="px-4 py-8 text-gray-500 text-center">No payroll history found</td></tr>';
                 return;
             }
-
             history.forEach(payroll => {
                 const statusClass = {
                     'Draft': 'bg-gray-100 text-gray-800',
@@ -1155,16 +1056,15 @@ foreach ($employees_data as $employee) {
                     'Paid': 'bg-blue-100 text-blue-800',
                     'Cancelled': 'bg-red-100 text-red-800'
                 };
-
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-gray-50';
                 row.innerHTML = `
                 <td class="px-4 py-3 whitespace-nowrap">${payroll.period}</td>
-                <td class="px-4 py-3 whitespace-nowrap">₱${parseFloat(payroll.basic_salary).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td class="px-4 py-3 whitespace-nowrap">₱${parseFloat(payroll.overtime_pay).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td class="px-4 py-3 whitespace-nowrap">₱${parseFloat(payroll.allowances).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td class="px-4 py-3 whitespace-nowrap">₱${parseFloat(payroll.deductions).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td class="px-4 py-3 font-bold whitespace-nowrap">₱${parseFloat(payroll.net_pay).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td class="px-4 py-3 whitespace-nowrap">₱${parseFloat(payroll.basic_salary).toLocaleString('en-US', {minimumFractionDigits:2})}</td>
+                <td class="px-4 py-3 whitespace-nowrap">₱${parseFloat(payroll.overtime_pay).toLocaleString('en-US', {minimumFractionDigits:2})}</td>
+                <td class="px-4 py-3 whitespace-nowrap">₱${parseFloat(payroll.allowances).toLocaleString('en-US', {minimumFractionDigits:2})}</td>
+                <td class="px-4 py-3 whitespace-nowrap">₱${parseFloat(payroll.deductions).toLocaleString('en-US', {minimumFractionDigits:2})}</td>
+                <td class="px-4 py-3 font-bold whitespace-nowrap">₱${parseFloat(payroll.net_pay).toLocaleString('en-US', {minimumFractionDigits:2})}</td>
                 <td class="px-4 py-3 whitespace-nowrap">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass[payroll.status] || 'bg-gray-100 text-gray-800'}">
                         ${payroll.status}
@@ -1179,7 +1079,6 @@ foreach ($employees_data as $employee) {
             `;
                 tbody.appendChild(row);
             });
-
             lucide.createIcons();
         }
 
@@ -1187,53 +1086,26 @@ foreach ($employees_data as $employee) {
             try {
                 const response = await fetch('API/payroll_api.php', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: `action=get_payroll_details&payroll_id=${payrollId}`
                 });
-
                 const data = await response.json();
-
                 if (data.success) {
                     Swal.fire({
                         title: 'Payroll Details',
-                        html: `
-                        <div class="text-left">
-                            <p><strong>Period:</strong> ${data.payroll.period}</p>
-                            <p><strong>Status:</strong> ${data.payroll.status}</p>
-                            <p><strong>Basic Salary:</strong> ₱${parseFloat(data.payroll.basic_salary).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
-                            <p><strong>Overtime Hours:</strong> ${data.payroll.overtime_hours}</p>
-                            <p><strong>Overtime Rate:</strong> ₱${parseFloat(data.payroll.overtime_rate).toLocaleString('en-US', {minimumFractionDigits: 2})}/hr</p>
-                            <p><strong>Overtime Pay:</strong> ₱${parseFloat(data.payroll.overtime_pay).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
-                            <p><strong>Allowances:</strong> ₱${parseFloat(data.payroll.allowances).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
-                            <p><strong>Deductions:</strong> ₱${parseFloat(data.payroll.deductions).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
-                            <p><strong>Net Pay:</strong> ₱${parseFloat(data.payroll.net_pay).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
-                            <p><strong>Processed By:</strong> ${data.payroll.processed_by}</p>
-                            <p><strong>Processed At:</strong> ${new Date(data.payroll.processed_at).toLocaleString()}</p>
-                            ${data.payroll.notes ? `<p><strong>Notes:</strong> ${data.payroll.notes}</p>` : ''}
-                        </div>
-                    `,
+                        html: `<div class="text-left">${Object.entries(data.payroll).map(([k,v])=>`<p><strong>${k}:</strong> ${v}</p>`).join('')}</div>`,
                         icon: 'info',
                         confirmButtonText: 'Close'
                     });
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: data.message
-                    });
+                    Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to load payroll details'
-                });
+                Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to load payroll details' });
             }
         }
 
-        // Filter functions
+        // ---------- Filter, CRUD, Payroll, Export ----------
         function filterByStatus(status) {
             const rows = document.querySelectorAll('.employee-row');
             rows.forEach(row => {
@@ -1247,7 +1119,6 @@ foreach ($employees_data as $employee) {
             });
         }
 
-        // CRUD Operations from table dropdown
         function approveSalary(employeeId, employeeName) {
             currentAction = 'approve';
             currentEmployeeId = employeeId;
@@ -1262,50 +1133,25 @@ foreach ($employees_data as $employee) {
                 showCancelButton: true,
                 confirmButtonText: 'Approve',
                 cancelButtonText: 'Cancel',
-                preConfirm: (comment) => {
-                    if (comment === '') {
-                        return null; // Allow empty comments
-                    }
-                    return comment;
-                }
+                preConfirm: (comment) => { return comment === '' ? null : comment; }
             }).then(async (result) => {
                 if (result.isConfirmed) {
                     const comment = result.value || '';
-
                     try {
                         const response = await fetch('API/payroll_api.php', {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                             body: `action=update_salary_status&id=${employeeId}&status=Approved&reason=${encodeURIComponent(comment)}`
                         });
-
                         const data = await response.json();
-
                         if (data.success) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Approved!',
-                                text: `Salary for ${employeeName} has been approved`,
-                                timer: 2000,
-                                showConfirmButton: false
-                            }).then(() => {
-                                location.reload();
-                            });
+                            Swal.fire({ icon: 'success', title: 'Approved!', text: `Salary for ${employeeName} has been approved`, timer: 2000, showConfirmButton: false })
+                                .then(() => location.reload());
                         } else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error!',
-                                text: data.message
-                            });
+                            Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                         }
                     } catch (error) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Network Error!',
-                            text: 'Failed to approve salary'
-                        });
+                        Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to approve salary' });
                     }
                 }
             });
@@ -1322,52 +1168,28 @@ foreach ($employees_data as $employee) {
                 input: 'textarea',
                 inputLabel: 'Reason (Required)',
                 inputPlaceholder: 'Enter detailed reason for denial...',
-                inputValidator: (value) => {
-                    if (!value) {
-                        return 'You need to provide a reason!';
-                    }
-                },
+                inputValidator: (value) => { if (!value) return 'You need to provide a reason!'; },
                 showCancelButton: true,
                 confirmButtonText: 'Deny',
                 cancelButtonText: 'Cancel'
             }).then(async (result) => {
                 if (result.isConfirmed) {
                     const comment = result.value;
-
                     try {
                         const response = await fetch('API/payroll_api.php', {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                             body: `action=update_salary_status&id=${employeeId}&status=Denied&reason=${encodeURIComponent(comment)}`
                         });
-
                         const data = await response.json();
-
                         if (data.success) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Denied!',
-                                text: `Salary for ${employeeName} has been denied`,
-                                timer: 2000,
-                                showConfirmButton: false
-                            }).then(() => {
-                                location.reload();
-                            });
+                            Swal.fire({ icon: 'success', title: 'Denied!', text: `Salary for ${employeeName} has been denied`, timer: 2000, showConfirmButton: false })
+                                .then(() => location.reload());
                         } else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error!',
-                                text: data.message
-                            });
+                            Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                         }
                     } catch (error) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Network Error!',
-                            text: 'Failed to deny salary'
-                        });
+                        Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to deny salary' });
                     }
                 }
             });
@@ -1384,52 +1206,28 @@ foreach ($employees_data as $employee) {
                 input: 'textarea',
                 inputLabel: 'Compliance Notes (Required)',
                 inputPlaceholder: 'Enter compliance review notes...',
-                inputValidator: (value) => {
-                    if (!value) {
-                        return 'You need to provide compliance notes!';
-                    }
-                },
+                inputValidator: (value) => { if (!value) return 'You need to provide compliance notes!'; },
                 showCancelButton: true,
                 confirmButtonText: 'Send for Compliance',
                 cancelButtonText: 'Cancel'
             }).then(async (result) => {
                 if (result.isConfirmed) {
                     const comment = result.value;
-
                     try {
                         const response = await fetch('API/payroll_api.php', {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                             body: `action=update_salary_status&id=${employeeId}&status=For compliance&reason=${encodeURIComponent(comment)}`
                         });
-
                         const data = await response.json();
-
                         if (data.success) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Sent for Compliance!',
-                                text: `Salary for ${employeeName} has been sent for compliance review`,
-                                timer: 2000,
-                                showConfirmButton: false
-                            }).then(() => {
-                                location.reload();
-                            });
+                            Swal.fire({ icon: 'success', title: 'Sent for Compliance!', text: `Salary for ${employeeName} has been sent for compliance review`, timer: 2000, showConfirmButton: false })
+                                .then(() => location.reload());
                         } else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error!',
-                                text: data.message
-                            });
+                            Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                         }
                     } catch (error) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Network Error!',
-                            text: 'Failed to send for compliance'
-                        });
+                        Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to send for compliance' });
                     }
                 }
             });
@@ -1458,41 +1256,21 @@ foreach ($employees_data as $employee) {
             try {
                 const response = await fetch('API/payroll_api.php', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: `action=update_work_status&id=${employeeId}&status=${status}`
                 });
-
                 const data = await response.json();
-
                 if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Success!',
-                        text: data.message,
-                        timer: 2000,
-                        showConfirmButton: false
-                    }).then(() => {
-                        location.reload();
-                    });
+                    Swal.fire({ icon: 'success', title: 'Success!', text: data.message, timer: 2000, showConfirmButton: false })
+                        .then(() => location.reload());
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: data.message
-                    });
+                    Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to update work status'
-                });
+                Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to update work status' });
             }
         }
 
-        // Create/Edit Payroll
         function createPayroll(employeeId, employeeName, currentSalary) {
             currentEmployeeId = employeeId;
             document.getElementById('payrollEmployeeId').value = employeeId;
@@ -1500,15 +1278,12 @@ foreach ($employees_data as $employee) {
             document.getElementById('payrollModalTitle').textContent = `Create Payroll for ${employeeName}`;
             document.getElementById('payrollSubmitBtn').textContent = 'Create Payroll';
 
-            // Reset form
             document.getElementById('payrollForm').reset();
             document.getElementById('period').value = new Date().toISOString().slice(0, 7);
             document.getElementById('basicSalary').value = currentSalary;
             document.getElementById('payrollStatus').value = 'Draft';
 
-            // Calculate initial summary
             calculatePayrollSummary();
-
             payrollModal.showModal();
         }
 
@@ -1516,14 +1291,10 @@ foreach ($employees_data as $employee) {
             try {
                 const response = await fetch('API/payroll_api.php', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: `action=get_current_payroll&employee_id=${employeeId}`
                 });
-
                 const data = await response.json();
-
                 if (data.success && data.payroll) {
                     currentEmployeeId = employeeId;
                     document.getElementById('payrollEmployeeId').value = employeeId;
@@ -1531,7 +1302,6 @@ foreach ($employees_data as $employee) {
                     document.getElementById('payrollModalTitle').textContent = `Edit Payroll for ${employeeName}`;
                     document.getElementById('payrollSubmitBtn').textContent = 'Update Payroll';
 
-                    // Fill form with existing data
                     document.getElementById('basicSalary').value = data.payroll.basic_salary;
                     document.getElementById('overtimeHours').value = data.payroll.overtime_hours;
                     document.getElementById('overtimeRate').value = data.payroll.overtime_rate;
@@ -1541,19 +1311,13 @@ foreach ($employees_data as $employee) {
                     document.getElementById('payrollStatus').value = data.payroll.status;
                     document.getElementById('payrollNotes').value = data.payroll.notes || '';
 
-                    // Calculate initial summary
                     calculatePayrollSummary();
-
                     payrollModal.showModal();
                 } else {
                     createPayroll(employeeId, employeeName, 0);
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to load payroll data'
-                });
+                Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to load payroll data' });
             }
         }
 
@@ -1563,7 +1327,6 @@ foreach ($employees_data as $employee) {
             currentEmployeeId = null;
         }
 
-        // Calculate payroll summary
         function calculatePayrollSummary() {
             const basicSalary = parseFloat(document.getElementById('basicSalary').value) || 0;
             const overtimeHours = parseFloat(document.getElementById('overtimeHours').value) || 0;
@@ -1574,34 +1337,21 @@ foreach ($employees_data as $employee) {
             const overtimePay = overtimeHours * overtimeRate;
             const netPay = basicSalary + overtimePay + allowances - deductions;
 
-            document.getElementById('summaryBasic').textContent = '₱' + basicSalary.toLocaleString('en-US', {
-                minimumFractionDigits: 2
-            });
-            document.getElementById('summaryOvertime').textContent = '₱' + overtimePay.toLocaleString('en-US', {
-                minimumFractionDigits: 2
-            });
-            document.getElementById('summaryAllowances').textContent = '₱' + allowances.toLocaleString('en-US', {
-                minimumFractionDigits: 2
-            });
-            document.getElementById('summaryDeductions').textContent = '₱' + deductions.toLocaleString('en-US', {
-                minimumFractionDigits: 2
-            });
-            document.getElementById('summaryNetPay').textContent = '₱' + netPay.toLocaleString('en-US', {
-                minimumFractionDigits: 2
-            });
+            document.getElementById('summaryBasic').textContent = '₱' + basicSalary.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            document.getElementById('summaryOvertime').textContent = '₱' + overtimePay.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            document.getElementById('summaryAllowances').textContent = '₱' + allowances.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            document.getElementById('summaryDeductions').textContent = '₱' + deductions.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            document.getElementById('summaryNetPay').textContent = '₱' + netPay.toLocaleString('en-US', { minimumFractionDigits: 2 });
         }
 
-        // Add event listeners for calculation
         document.getElementById('basicSalary').addEventListener('input', calculatePayrollSummary);
         document.getElementById('overtimeHours').addEventListener('input', calculatePayrollSummary);
         document.getElementById('overtimeRate').addEventListener('input', calculatePayrollSummary);
         document.getElementById('allowances').addEventListener('input', calculatePayrollSummary);
         document.getElementById('deductions').addEventListener('input', calculatePayrollSummary);
 
-        // Handle payroll form submission
         document.getElementById('payrollForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-
             const submitBtn = document.getElementById('payrollSubmitBtn');
             submitBtn.disabled = true;
             const previousLabel = submitBtn.textContent;
@@ -1619,19 +1369,15 @@ foreach ($employees_data as $employee) {
                 const status = document.getElementById('payrollStatus').value;
                 const notes = document.getElementById('payrollNotes').value || '';
 
-                // Basic validation
-                if (basicSalary < 0) {
-                    throw new Error('Basic salary must be 0 or greater');
-                }
+                if (basicSalary < 0) throw new Error('Basic salary must be 0 or greater');
 
                 const overtimePay = overtimeHours * overtimeRate;
                 const netPay = basicSalary + overtimePay + allowances - deductions;
 
-                // Confirm when marking as Paid
                 if (status === 'Paid') {
                     const confirmPaid = await Swal.fire({
                         title: 'Mark as Paid?',
-                        text: `This will mark net pay ₱${netPay.toLocaleString('en-US', {minimumFractionDigits:2})} as paid. Continue?`,
+                        text: `This will mark net pay ₱${netPay.toLocaleString('en-US', { minimumFractionDigits: 2 })} as paid. Continue?`,
                         icon: 'warning',
                         showCancelButton: true,
                         confirmButtonText: 'Yes, mark Paid',
@@ -1646,7 +1392,6 @@ foreach ($employees_data as $employee) {
 
                 const action = payrollId ? 'update_payroll' : 'create_payroll';
 
-                // Build form-encoded body safely
                 const params = new URLSearchParams();
                 params.append('action', action);
                 if (payrollId) params.append('payroll_id', payrollId);
@@ -1664,9 +1409,7 @@ foreach ($employees_data as $employee) {
 
                 const response = await fetch('API/payroll_api.php', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: params.toString()
                 });
 
@@ -1675,29 +1418,13 @@ foreach ($employees_data as $employee) {
                 const data = await response.json();
 
                 if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Success!',
-                        text: data.message,
-                        timer: 1500,
-                        showConfirmButton: false
-                    }).then(() => {
-                        closePayrollModal();
-                        location.reload();
-                    });
+                    Swal.fire({ icon: 'success', title: 'Success!', text: data.message, timer: 1500, showConfirmButton: false })
+                        .then(() => { closePayrollModal(); location.reload(); });
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: data.message || 'Failed to save payroll'
-                    });
+                    Swal.fire({ icon: 'error', title: 'Error!', text: data.message || 'Failed to save payroll' });
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.message || 'Failed to save payroll'
-                });
+                Swal.fire({ icon: 'error', title: 'Error', text: error.message || 'Failed to save payroll' });
             } finally {
                 const submitBtnFinal = document.getElementById('payrollSubmitBtn');
                 submitBtnFinal.disabled = false;
@@ -1705,7 +1432,6 @@ foreach ($employees_data as $employee) {
             }
         });
 
-        // Export to Excel
         function exportToExcel() {
             window.open('API/export_employees.php', '_blank');
         }

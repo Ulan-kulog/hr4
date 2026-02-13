@@ -1,15 +1,12 @@
 <?php
 $role = $_SESSION['role'] ?? 'guest';
-// $permissions = include 'USM/role_permissions.php';
-// $allowed_modules = $permissions[$role] ?? [];
-// $is_supervisor = ($role === 'supervisor' || $role === 'admin');
-
-// Define base path for consistent URL structure
-$base_url = 'https://hr4.soliera-hotel-restaurant.com'; // Correct full URL
-// $base_url = '/HR_4/'; // Correct full URL
+// Base path for consistent URL structure
+$base_url = '/HR_4/';
 
 // Get current page for active state highlighting
 $current_page = basename($_SERVER['PHP_SELF']);
+// Determine if we are inside a specific folder to differentiate duplicate filenames
+$current_dir = basename(dirname($_SERVER['PHP_SELF']));
 ?>
 
 <div class="fixed md:relative flex flex-col bg-[#001f54] shadow-xl pt-5 pb-4 h-full md:transform-none transition-all -translate-x-full md:translate-x-0 duration-300 ease-in-out transform sidebar-expandable" id="sidebar">
@@ -56,7 +53,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
             <!-- Employee Management Dropdown -->
             <div class="relative menu-dropdown" data-dropdown="employee-management">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['manage_employee.php', 'departments.php', 'aquasition.php', 'under_review.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
+                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['manage_employee.php', 'departments.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
                     <div class="flex items-center">
                         <div class="bg-blue-800/30 p-1.5 rounded-lg transition-colors">
                             <i data-lucide="users" class="w-5 h-5 text-[#F7B32B]"></i>
@@ -75,8 +72,8 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <span>All Employees</span>
                         </a>
 
-                        <!-- Under Review -->
-                        <a href="<?php echo $base_url; ?>/CHM/main.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'under_review.php') ? 'bg-blue-600/30 text-white' : ''; ?>">
+                        <!-- Under Review (CHM) -->
+                        <a href="<?php echo $base_url; ?>/CHM/main.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'under_review.php' && $current_dir == 'CHM') ? 'bg-blue-600/30 text-white' : ''; ?>">
                             <i data-lucide="clipboard-check" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
                             <span>Under Review</span>
                             <span class="bg-yellow-500 ml-auto px-2 py-0.5 rounded-full text-white text-xs"><?php echo getUnderReviewCount(); ?></span>
@@ -88,11 +85,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <span>Departments</span>
                         </a>
 
-                        <!-- Employee Acquisition -->
-                        <a href="<?php echo $base_url; ?>/CHM/aquasition.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'aquasition.php') ? 'bg-blue-600/30 text-white' : ''; ?>">
-                            <i data-lucide="user-plus" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>Hiring & Onboarding</span>
-                        </a>
+                        <!-- Hiring & Onboarding – REMOVED per request -->
                     </div>
                 </div>
             </div>
@@ -101,10 +94,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
             <!-- PAYROLL SECTION -->
             <!-- =========================== -->
 
-
             <!-- Payroll Processing Dropdown -->
             <div class="relative menu-dropdown" data-dropdown="payroll-processing">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['processing.php', 'history.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
+                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['processing.php']) || ($current_page == 'under_review.php' && $current_dir == 'PAYROLL')) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
                     <div class="flex items-center">
                         <div class="bg-blue-800/30 p-1.5 rounded-lg transition-colors">
                             <i data-lucide="dollar-sign" class="w-5 h-5 text-[#F7B32B]"></i>
@@ -124,26 +116,16 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <span class="bg-blue-500 ml-auto px-2 py-0.5 rounded-full text-white text-xs"><?php echo date('M Y'); ?></span>
                         </a>
 
-                        <!-- Under Review Payroll -->
-                        <a href="<?php echo $base_url; ?>/PAYROLL/sub-modules/under_review.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'under_review.php') ? 'bg-blue-600/30 text-white' : ''; ?>">
-                            <i data-lucide="clock" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>Under Review</span>
-                            <span class="bg-yellow-500 ml-auto px-2 py-0.5 rounded-full text-white text-xs"><?php echo getPendingPayrollCount(); ?></span>
-                        </a>
+                      
 
-                        <!-- Payroll History -->
-                        <a href="<?php echo $base_url; ?>/PAYROLL/history.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'history.php') ? 'bg-blue-600/30 text-white' : ''; ?>">
-                            <i data-lucide="history" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>Payroll History</span>
-                        </a>
+                        <!-- Payroll History – REMOVED per request -->
                     </div>
                 </div>
             </div>
 
-
             <!-- Compensation Management Dropdown -->
             <div class="relative menu-dropdown" data-dropdown="compensation-management">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['core_compensation.php', 'strat_planning.php', 'performance_linked.php', 'administration.php', 'Hospitality.php', 'analytics.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
+                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['core_compensation.php', 'compensation.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
                     <div class="flex items-center">
                         <div class="bg-blue-800/30 p-1.5 rounded-lg transition-colors">
                             <i data-lucide="award" class="w-5 h-5 text-[#F7B32B]"></i>
@@ -162,19 +144,18 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <span>Salary Structure</span>
                         </a>
 
-                        <!-- Claims Processing -->
+                        <!-- Claims Processing / Compensations -->
                         <a href="<?php echo $base_url; ?>/COMPENSATION/compensation.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'compensation.php') ? 'bg-blue-600/30 text-white' : ''; ?>">
                             <i data-lucide="file-text" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
                             <span>Compensations</span>
                         </a>
-
                     </div>
                 </div>
             </div>
 
             <!-- Benefits Administration Dropdown -->
             <div class="relative menu-dropdown" data-dropdown="benefits-management">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['benefits_enrollment.php', 'HMO_provider_network.php', 'claims_reimbursement.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
+                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['benefits_enrollment.php', 'HMO_provider_network.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
                     <div class="flex items-center">
                         <div class="bg-blue-800/30 p-1.5 rounded-lg transition-colors">
                             <i data-lucide="heart" class="w-5 h-5 text-[#F7B32B]"></i>
@@ -198,20 +179,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <i data-lucide="shield" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
                             <span>HMO Providers</span>
                         </a>
-
-                        <!-- Claims Processing -->
-                        <!-- <a href="<?php echo $base_url; ?>/HMO/claims_reimbursement.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'claims_reimbursement.php') ? 'bg-blue-600/30 text-white' : ''; ?>">
-                            <i data-lucide="file-text" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>Claims Processing</span>
-                        </a> -->
                     </div>
                 </div>
             </div>
-
-            <!-- =========================== -->
-            <!-- PERFORMANCE & ANALYTICS -->
-            <!-- =========================== -->
-
 
             <!-- =========================== -->
             <!-- ADMINISTRATION -->
@@ -222,7 +192,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
             <!-- User & System Management -->
             <div class="relative menu-dropdown" data-dropdown="system-management">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['department_accounts.php', 'audit_trail&transaction.php', 'role_management.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
+                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['department_accounts.php', 'audit_trail&transaction.php', 'role_management.php', 'general.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
                     <div class="flex items-center">
                         <div class="bg-blue-800/30 p-1.5 rounded-lg transition-colors">
                             <i data-lucide="settings" class="w-5 h-5 text-[#F7B32B]"></i>
@@ -323,14 +293,12 @@ $current_page = basename($_SERVER['PHP_SELF']);
 function getUnderReviewCount()
 {
     // You would typically fetch this from your database
-    // For now, return a placeholder
     return "5";
 }
 
 function getPendingPayrollCount()
 {
     // You would typically fetch this from your database
-    // For now, return a placeholder
     return "3";
 }
 ?>
@@ -377,14 +345,11 @@ function getPendingPayrollCount()
     /* Hide scrollbar but keep functionality */
     .scrollbar-hide {
         -ms-overflow-style: none;
-        /* Internet Explorer 10+ */
         scrollbar-width: none;
-        /* Firefox */
     }
 
     .scrollbar-hide::-webkit-scrollbar {
         display: none;
-        /* Safari and Chrome */
     }
 
     /* Ensure proper spacing when dropdown opens */
@@ -573,7 +538,6 @@ function getPendingPayrollCount()
         // Auto-expand dropdown if current page is in that section
         function autoExpandActiveDropdown() {
             const activeLinks = document.querySelectorAll('.dropdown-content a.bg-blue-600\\/30');
-
             activeLinks.forEach(link => {
                 const dropdown = link.closest('.menu-dropdown');
                 if (dropdown) {
