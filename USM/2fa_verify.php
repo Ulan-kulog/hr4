@@ -10,7 +10,7 @@ define('COOLDOWN_SECONDS', 3600);
 // Require that we have a pending login
 if (!isset($_SESSION['pending_employee_id'], $_SESSION['otp'])) {
   // No pending login — send back to main login
-  header("Location: index.php");
+  header("Location: ../index.php");
   exit();
 }
 
