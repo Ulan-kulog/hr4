@@ -106,14 +106,22 @@ function logDepartmentAttempt($conn, $Department_ID, $Log_Status, $Attempt_Count
                     VALUES (?, ?, ?, ?, ?)";
 
       $stmt = mysqli_prepare($conn, $sql);
+      // Normalize cooldown to integer (timestamp). Accepts integer, date string, or empty.
+      if (is_numeric($Cooldown_Until)) {
+        $cooldownInt = (int)$Cooldown_Until;
+      } else {
+        $ts = strtotime($Cooldown_Until);
+        $cooldownInt = $ts !== false ? (int)$ts : 0;
+      }
+
       mysqli_stmt_bind_param(
         $stmt,
-        "sssss",
+        "ssisi",
         $Department_ID,
         $Log_Status,
         $Attempt_Count,
         $details,
-        $Cooldown_Until,
+        $cooldownInt
       );
       return mysqli_stmt_execute($stmt);
     } else {
@@ -122,14 +130,22 @@ function logDepartmentAttempt($conn, $Department_ID, $Log_Status, $Attempt_Count
                     (department_account_id, status, attempt_count, details ,cooldown)
                     VALUES (?, ?, ?, ?, ?)";
       $stmt = mysqli_prepare($conn, $sql);
+      if (is_numeric($Cooldown_Until)) {
+        // dd($Cooldown_Until);
+        $cooldownInt = (int)$Cooldown_Until;
+      } else {
+        $ts = strtotime($Cooldown_Until);
+        $cooldownInt = $ts !== false ? (int)$ts : 0;
+      }
+
       mysqli_stmt_bind_param(
         $stmt,
-        "sssss",
+        "ssisi",
         $Department_ID,
         $Log_Status,
         $Attempt_Count,
         $details,
-        $Cooldown_Until,
+        $cooldownInt
       );
       return mysqli_stmt_execute($stmt);
     }
@@ -196,8 +212,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Cleanup pending/otp stuff
     unset($_SESSION["pending_employee_id"], $_SESSION["pending_role"], $_SESSION["pending_Dept_id"], $_SESSION["pending_email"], $_SESSION["otp"], $_SESSION["otp_expiry"], $_SESSION["otp_attempts"]);
 
-    // Log success with actual employee_id
-    logDepartmentAttempt($conn, $Actual_Dept_ID, 'Success', $otpAttemps, '2FA Successful', $cooldownUntil ?? 0);
+    // Log success with actual department id (no cooldown)
+    logDepartmentAttempt($conn, $Actual_Dept_ID, 'Success', $otpAttemps, '2FA Successful', 0);
 
     $redirectUrl = '../dashboard.php';
     header("Location: $redirectUrl");
@@ -207,8 +223,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $_SESSION["otp_attempts"] = $_SESSION["otp_attempts"] ?? 1;
     $otpAttempt = $_SESSION["otp_attempts"];
 
-    // Log failed attempt with actual employee_id
-    logDepartmentAttempt($conn, $Actual_Dept_ID, 'Failed', $otpAttempt, 'Incorrect OTP', '');
+    // Log failed attempt with actual department id (no cooldown)
+    logDepartmentAttempt($conn, $Actual_Dept_ID, 'Failed', $otpAttempt, 'Incorrect OTP', 0);
 
     if ($otpAttempt >= MAX_OTP_ATTEMPTS) {
       // Clear pending login to force relogin
