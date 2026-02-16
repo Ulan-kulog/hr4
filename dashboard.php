@@ -298,13 +298,6 @@ function format_number($val)
             <?php include 'INCLUDES/navbar.php'; ?>
 
             <main class="flex-1 p-6">
-                <!-- GLOBAL PRINT BUTTON (no-print) -->
-                <div class="flex justify-end mb-4 no-print">
-                    <button onclick="window.print()" class="flex items-center bg-blue-600 hover:bg-blue-700 shadow-lg px-5 py-2.5 rounded-lg text-white transition-colors">
-                        <i data-lucide="printer" class="mr-2 w-4 h-4"></i>
-                        Print / Save as PDF
-                    </button>
-                </div>
 
                 <!-- HR Analytics Dashboard -->
                 <div class="bg-white/70 shadow-sm backdrop-blur-sm p-6 border border-gray-100/50 rounded-2xl glass-effect">
@@ -313,14 +306,8 @@ function format_number($val)
                             <span class="bg-indigo-100/50 mr-3 p-2 rounded-lg text-indigo-600">
                                 <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
                             </span>
-                            HR Analytics Dashboard – 4 Live Metrics
+                            HR Analytics Dashboard
                         </h2>
-                        <select class="bg-white px-4 py-2 border border-gray-300 rounded-lg text-gray-700 no-print">
-                            <option>Last 30 Days</option>
-                            <option>Last Quarter</option>
-                            <option>Year to Date</option>
-                            <option>Last Year</option>
-                        </select>
                     </div>
 
                     <!-- 4 STAT CARDS -->
