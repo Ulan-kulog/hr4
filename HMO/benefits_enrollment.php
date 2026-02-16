@@ -167,12 +167,7 @@
                         <div class="bg-white shadow-sm p-4 border border-gray-100 rounded-xl">
                             <div class="flex justify-between items-center mb-3">
                                 <h3 class="font-semibold text-gray-800 text-sm">Top Benefits Enrollment Rate</h3>
-                                <select id="enrollmentTimeFilter" class="px-3 py-1 border border-gray-300 rounded-lg text-xs">
-                                    <option value="all">All Time</option>
-                                    <option value="month">This Month</option>
-                                    <option value="quarter">This Quarter</option>
-                                    <option value="year">This Year</option>
-                                </select>
+                                
                             </div>
                             <div class="small-chart">
                                 <canvas id="enrollmentStatusChart"></canvas>
@@ -188,10 +183,7 @@
                         <div class="bg-white shadow-sm p-4 border border-gray-100 rounded-xl">
                             <div class="flex justify-between items-center mb-3">
                                 <h3 class="font-semibold text-gray-800 text-sm">Department Enrollment</h3>
-                                <select id="deptFilter" class="px-3 py-1 border border-gray-300 rounded-lg text-xs">
-                                    <option value="all">All Departments</option>
-                                    <option value="top5">Top 5 Departments</option>
-                                </select>
+                                
                             </div>
                             <div class="small-chart">
                                 <canvas id="departmentChart"></canvas>
@@ -201,24 +193,12 @@
 
                     <!-- Benefits Table Section -->
                     <div class="bg-white shadow-sm mb-6 p-6 border border-gray-100 rounded-xl">
-                        <div class="flex justify-between items-center mb-6">
+                            <div class="flex justify-between items-center mb-6">
                             <div>
                                 <h3 class="font-semibold text-gray-800 text-lg">Benefits Management</h3>
                                 <p class="text-gray-500 text-sm">Manage all benefit plans and offerings</p>
                             </div>
-                            <div class="flex gap-2">
-                                <input type="text" placeholder="Search benefits..." class="px-4 py-2 border border-gray-300 rounded-lg w-64" id="searchBenefits">
-                                <select class="px-4 py-2 border border-gray-300 rounded-lg" id="benefitTypeFilter">
-                                    <option value="">All Types</option>
-                                    <option value="fixed">Fixed</option>
-                                    <option value="percentage">Percentage</option>
-                                </select>
-                                <select class="px-4 py-2 border border-gray-300 rounded-lg" id="taxableFilter">
-                                    <option value="">Taxable Status</option>
-                                    <option value="1">Taxable</option>
-                                    <option value="0">Non-Taxable</option>
-                                </select>
-                            </div>
+                            <div class="flex gap-2"></div>
                         </div>
 
                         <div class="table-responsive">
@@ -389,23 +369,7 @@
                                 <h3 class="font-semibold text-gray-800 text-lg">Employee Enrollments</h3>
                                 <p class="text-gray-500 text-sm">View and manage employee benefit enrollments</p>
                             </div>
-                            <div class="flex gap-2">
-                                <input type="text" placeholder="Search employees..." class="px-4 py-2 border border-gray-300 rounded-lg w-64" id="searchEmployees">
-                                <select class="px-4 py-2 border border-gray-300 rounded-lg" id="benefitFilter">
-                                    <option value="">All Benefits</option>
-                                    <option value="Premium HMO">Premium HMO</option>
-                                    <option value="Dental Insurance">Dental Insurance</option>
-                                    <option value="401(k) Match">401(k) Match</option>
-                                    <option value="Gym Membership">Gym Membership</option>
-                                </select>
-                                <select class="px-4 py-2 border border-gray-300 rounded-lg" id="statusFilter">
-                                    <option value="">All Status</option>
-                                    <option value="active">Active</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="cancelled">Cancelled</option>
-                                    <option value="expired">Expired</option>
-                                </select>
-                            </div>
+                            <div class="flex gap-2"></div>
                         </div>
 
                         <div class="overflow-x-auto">
@@ -590,23 +554,7 @@
                                 <h3 class="font-semibold text-gray-800 text-lg">Benefit Policies</h3>
                                 <p class="text-gray-500 text-sm">Manage company benefit policies and guidelines</p>
                             </div>
-                            <div class="flex gap-2">
-                                <input type="text" placeholder="Search policies..." class="px-4 py-2 border border-gray-300 rounded-lg w-64">
-                                <select class="px-4 py-2 border border-gray-300 rounded-lg">
-                                    <option>All Types</option>
-                                    <option>Benefit Policy</option>
-                                    <option>Enrollment Policy</option>
-                                    <option>Compliance</option>
-                                    <option>Eligibility Rules</option>
-                                </select>
-                                <select class="px-4 py-2 border border-gray-300 rounded-lg">
-                                    <option>All Status</option>
-                                    <option>Active</option>
-                                    <option>Draft</option>
-                                    <option>Archived</option>
-                                    <option>Under Review</option>
-                                </select>
-                            </div>
+                            <div class="flex gap-2"></div>
                         </div>
 
                         <div class="overflow-x-auto">
@@ -1259,66 +1207,7 @@
                     }
                 }, 100);
 
-                // Add search functionality for employee table
-                const searchInput = document.getElementById('searchEmployees');
-                if (searchInput) {
-                    searchInput.addEventListener('input', function(e) {
-                        const searchTerm = e.target.value.toLowerCase();
-                        const rows = document.querySelectorAll('#enrollmentsTable tbody tr');
-
-                        rows.forEach(row => {
-                            const employeeName = row.querySelector('td:nth-child(1) .font-medium').textContent.toLowerCase();
-                            const employeeId = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-                            const department = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
-                            const subDepartment = row.querySelector('td:nth-child(4)').textContent.toLowerCase();
-
-                            if (employeeName.includes(searchTerm) ||
-                                employeeId.includes(searchTerm) ||
-                                department.includes(searchTerm) ||
-                                subDepartment.includes(searchTerm)) {
-                                row.style.display = '';
-                            } else {
-                                row.style.display = 'none';
-                            }
-                        });
-                    });
-                }
-
-                // Add filter functionality for benefit type
-                const benefitFilter = document.getElementById('benefitFilter');
-                if (benefitFilter) {
-                    benefitFilter.addEventListener('change', function(e) {
-                        const selectedBenefit = e.target.value;
-                        const rows = document.querySelectorAll('#enrollmentsTable tbody tr');
-
-                        rows.forEach(row => {
-                            const benefitsCell = row.querySelector('td:nth-child(5)');
-                            if (!selectedBenefit || benefitsCell.textContent.includes(selectedBenefit)) {
-                                row.style.display = '';
-                            } else {
-                                row.style.display = 'none';
-                            }
-                        });
-                    });
-                }
-
-                // Add filter functionality for status
-                const statusFilter = document.getElementById('statusFilter');
-                if (statusFilter) {
-                    statusFilter.addEventListener('change', function(e) {
-                        const selectedStatus = e.target.value;
-                        const rows = document.querySelectorAll('#enrollmentsTable tbody tr');
-
-                        rows.forEach(row => {
-                            const statusCell = row.querySelector('td:nth-child(8) span');
-                            if (!selectedStatus || statusCell.textContent.toLowerCase().includes(selectedStatus.toLowerCase())) {
-                                row.style.display = '';
-                            } else {
-                                row.style.display = 'none';
-                            }
-                        });
-                    });
-                }
+                // Filtering functionality removed
             });
         </script>
     </div>

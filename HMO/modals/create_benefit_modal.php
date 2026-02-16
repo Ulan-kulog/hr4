@@ -1,6 +1,46 @@
 <!-- Create Benefit Modal -->
+<style>
+    /* Scoped light-theme overrides for the Create Benefit modal inputs */
+    #createBenefitModal .input,
+    #createBenefitModal input[type="number"],
+    #createBenefitModal .select,
+    #createBenefitModal select,
+    #createBenefitModal .textarea,
+    #createBenefitModal .label-text {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border-color: #d1d5db !important; /* tailwind gray-300 */
+    }
+
+    #createBenefitModal .input,
+    #createBenefitModal select,
+    #createBenefitModal .select select {
+        box-shadow: none !important;
+        outline: none !important;
+    }
+
+    #createBenefitModal .label-text {
+        color: #374151 !important; /* gray-700 */
+    }
+
+    #createBenefitModal .textarea {
+        background-color: #ffffff !important;
+        color: #111827 !important;
+    }
+
+    #createBenefitModal .toggle,
+    #createBenefitModal .checkbox {
+        accent-color: #16a34a; /* green-600 for toggles/checkboxes */
+    }
+
+    #createBenefitModal .modal-box {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+</style>
+
 <dialog id="createBenefitModal" class="modal-bottom modal sm:modal-middle">
-    <div class="bg-white/90 max-w-3xl text-black modal-box">
+    <div class="max-w-3xl modal-box bg-white text-black border border-gray-200 shadow-lg">
         <form method="dialog">
             <button class="top-2 right-2 absolute btn btn-sm btn-circle btn-ghost">✕</button>
         </form>

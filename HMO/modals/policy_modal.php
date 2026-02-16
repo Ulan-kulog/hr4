@@ -1,6 +1,41 @@
 <!-- Create Policy Modal -->
+<style>
+    /* Scoped light-theme overrides for the Create Policy modal inputs */
+    #createPolicyModal .input,
+    #createPolicyModal input[type="date"],
+    #createPolicyModal .select,
+    #createPolicyModal select,
+    #createPolicyModal .textarea,
+    #createPolicyModal .label-text {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border-color: #d1d5db !important; /* tailwind gray-300 */
+    }
+
+    #createPolicyModal .input,
+    #createPolicyModal select,
+    #createPolicyModal .select select {
+        box-shadow: none !important;
+        outline: none !important;
+    }
+
+    #createPolicyModal .label-text {
+        color: #374151 !important; /* gray-700 */
+    }
+
+    #createPolicyModal .textarea {
+        background-color: #ffffff !important;
+        color: #111827 !important;
+    }
+
+    #createPolicyModal .modal-box {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+</style>
+
 <dialog id="createPolicyModal" class="modal-bottom modal sm:modal-middle">
-    <div class="bg-white/90 max-w-4xl text-black modal-box">
+    <div class="max-w-4xl modal-box bg-white text-black border border-gray-200 shadow-lg">
         <form method="dialog">
             <button class="top-2 right-2 absolute btn btn-sm btn-circle btn-ghost">✕</button>
         </form>
