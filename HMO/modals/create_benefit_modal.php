@@ -9,7 +9,8 @@
     #createBenefitModal .label-text {
         background-color: #ffffff !important;
         color: #000000 !important;
-        border-color: #d1d5db !important; /* tailwind gray-300 */
+        border-color: #d1d5db !important;
+        /* tailwind gray-300 */
     }
 
     #createBenefitModal .input,
@@ -20,7 +21,8 @@
     }
 
     #createBenefitModal .label-text {
-        color: #374151 !important; /* gray-700 */
+        color: #374151 !important;
+        /* gray-700 */
     }
 
     #createBenefitModal .textarea {
@@ -30,7 +32,8 @@
 
     #createBenefitModal .toggle,
     #createBenefitModal .checkbox {
-        accent-color: #16a34a; /* green-600 for toggles/checkboxes */
+        accent-color: #16a34a;
+        /* green-600 for toggles/checkboxes */
     }
 
     #createBenefitModal .modal-box {
@@ -40,7 +43,7 @@
 </style>
 
 <dialog id="createBenefitModal" class="modal-bottom modal sm:modal-middle">
-    <div class="max-w-3xl modal-box bg-white text-black border border-gray-200 shadow-lg">
+    <div class="bg-white shadow-lg border border-gray-200 max-w-3xl text-black modal-box">
         <form method="dialog">
             <button class="top-2 right-2 absolute btn btn-sm btn-circle btn-ghost">✕</button>
         </form>

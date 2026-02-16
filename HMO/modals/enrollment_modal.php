@@ -9,7 +9,8 @@
     #newEnrollmentModal .form-control .label-text {
         background-color: #ffffff !important;
         color: #000000 !important;
-        border-color: #d1d5db !important; /* tailwind gray-300 */
+        border-color: #d1d5db !important;
+        /* tailwind gray-300 */
     }
 
     #newEnrollmentModal .input,
@@ -20,16 +21,19 @@
     }
 
     #newEnrollmentModal .label-text {
-        color: #374151 !important; /* gray-700 */
+        color: #374151 !important;
+        /* gray-700 */
     }
 
-    #newEnrollmentModal .benefit-checkbox + div,
+    #newEnrollmentModal .benefit-checkbox+div,
     #newEnrollmentModal .label {
-        color: #111827 !important; /* gray-900 for labels */
+        color: #111827 !important;
+        /* gray-900 for labels */
     }
 
     #newEnrollmentModal .checkbox {
-        accent-color: #2563eb; /* blue-600 for checkbox accent */
+        accent-color: #2563eb;
+        /* blue-600 for checkbox accent */
     }
 
     #newEnrollmentModal .modal-box {
@@ -39,7 +43,7 @@
 </style>
 
 <dialog id="newEnrollmentModal" class="modal-bottom modal sm:modal-middle">
-    <div class="max-w-4xl modal-box bg-white text-black border border-gray-200 shadow-lg">
+    <div class="bg-white shadow-lg border border-gray-200 max-w-4xl text-black modal-box">
         <form method="dialog" class="bg-white text-black">
             <button class="top-2 right-2 absolute btn btn-sm btn-circle btn-ghost">✕</button>
         </form>

@@ -167,7 +167,7 @@
                         <div class="bg-white shadow-sm p-4 border border-gray-100 rounded-xl">
                             <div class="flex justify-between items-center mb-3">
                                 <h3 class="font-semibold text-gray-800 text-sm">Top Benefits Enrollment Rate</h3>
-                                
+
                             </div>
                             <div class="small-chart">
                                 <canvas id="enrollmentStatusChart"></canvas>
@@ -183,7 +183,7 @@
                         <div class="bg-white shadow-sm p-4 border border-gray-100 rounded-xl">
                             <div class="flex justify-between items-center mb-3">
                                 <h3 class="font-semibold text-gray-800 text-sm">Department Enrollment</h3>
-                                
+
                             </div>
                             <div class="small-chart">
                                 <canvas id="departmentChart"></canvas>
@@ -193,7 +193,7 @@
 
                     <!-- Benefits Table Section -->
                     <div class="bg-white shadow-sm mb-6 p-6 border border-gray-100 rounded-xl">
-                            <div class="flex justify-between items-center mb-6">
+                        <div class="flex justify-between items-center mb-6">
                             <div>
                                 <h3 class="font-semibold text-gray-800 text-lg">Benefits Management</h3>
                                 <p class="text-gray-500 text-sm">Manage all benefit plans and offerings</p>
