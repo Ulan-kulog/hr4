@@ -1,7 +1,7 @@
 <?php
 $role = $_SESSION['role'] ?? 'guest';
 // Base path for consistent URL structure
-$base_url = '';
+$base_url = '/HR_4/';
 
 // Get current page for active state highlighting
 $current_page = basename($_SERVER['PHP_SELF']);
@@ -116,7 +116,7 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                             <span class="bg-blue-500 ml-auto px-2 py-0.5 rounded-full text-white text-xs"><?php echo date('M Y'); ?></span>
                         </a>
 
-                      
+
 
                         <!-- Payroll History – REMOVED per request -->
                     </div>
@@ -208,7 +208,7 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                         <!-- User Accounts -->
                         <a href="<?php echo $base_url; ?>/USM/department_accounts.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'department_accounts.php') ? 'bg-blue-600/30 text-white' : ''; ?>">
                             <i data-lucide="user-cog" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>User Accounts</span>
+                            <span>Department Accounts</span>
                         </a>
 
                         <!-- Audit Trail -->
@@ -223,11 +223,11 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                             <span>Role Management</span>
                         </a>
 
-                        <!-- System Settings -->
+                        <!-- System Settings
                         <a href="<?php echo $base_url; ?>/settings/general.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'general.php') ? 'bg-blue-600/30 text-white' : ''; ?>">
                             <i data-lucide="settings-2" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
                             <span>System Settings</span>
-                        </a>
+                        </a> -->
                     </div>
                 </div>
             </div>
@@ -240,24 +240,14 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
             </div>
 
             <!-- User Profile -->
-            <a href="<?php echo $base_url; ?>/profile.php" class="block">
+            <!-- <a href="<?php echo $base_url; ?>/profile.php" class="block">
                 <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group <?php echo ($current_page == 'profile.php') ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
                     <div class="bg-blue-800/30 group-hover:bg-blue-700/50 p-1.5 rounded-lg transition-colors">
                         <i data-lucide="user" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                     </div>
                     <span class="ml-3 sidebar-text">My Profile</span>
                 </div>
-            </a>
-
-            <!-- Help & Support -->
-            <a href="<?php echo $base_url; ?>/help.php" class="block">
-                <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group <?php echo ($current_page == 'help.php') ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
-                    <div class="bg-blue-800/30 group-hover:bg-blue-700/50 p-1.5 rounded-lg transition-colors">
-                        <i data-lucide="help-circle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                    </div>
-                    <span class="ml-3 sidebar-text">Help & Support</span>
-                </div>
-            </a>
+            </a> -->
 
             <!-- Logout -->
             <form action="<?php echo $base_url; ?>/USM/logout.php" method="POST" class="px-4 py-3 create-form">

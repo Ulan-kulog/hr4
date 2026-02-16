@@ -1,8 +1,8 @@
 <?php
 session_start();
-include("../main_connection.php");
+include("../connection.php");
 
-$db_name = "rest_core_2_usm";
+$db_name = "hr4_hr_4";
 $conn = $connections[$db_name] ?? die("❌ Connection not found for $db_name");
 
 // Pagination settings
