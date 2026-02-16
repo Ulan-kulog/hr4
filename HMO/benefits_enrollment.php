@@ -1,4 +1,8 @@
-<?php require_once 'backend.php'; ?>
+<?php
+require_once 'backend.php';
+
+// dd($employee_benefits);
+?>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -379,7 +383,6 @@
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Employee</th>
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Employee ID</th>
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Department</th>
-                                        <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Sub-Department</th>
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Enrolled Benefits</th>
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Total Cost</th>
                                         <th class="px-4 py-3 font-medium text-gray-600 text-sm text-left">Last Updated</th>
@@ -425,12 +428,7 @@
                                                     </span>
                                                 </td>
 
-                                                <!-- Sub-Department -->
-                                                <td class="px-4 py-3">
-                                                    <span class="text-gray-700 text-sm">
-                                                        <?= htmlspecialchars($eb['sub_department_name'] ?? '-') ?>
-                                                    </span>
-                                                </td>
+                                                <!-- Sub-Department removed -->
 
                                                 <!-- Enrolled Benefits -->
                                                 <td class="px-4 py-3">
@@ -509,7 +507,7 @@
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="9" class="px-4 py-6 text-gray-500 text-center">
+                                            <td colspan="8" class="px-4 py-6 text-gray-500 text-center">
                                                 <div class="flex flex-col items-center">
                                                     <i data-lucide="users" class="mb-2 w-12 h-12 text-gray-300"></i>
                                                     <p class="text-gray-500">No employee enrollments found</p>
