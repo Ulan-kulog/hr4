@@ -2,6 +2,7 @@
 $role = $_SESSION['role'] ?? 'guest';
 // Base path for consistent URL structure
 // $base_url = '/HR_4/';
+$base_url = '';
 
 // Get current page for active state highlighting
 $current_page = basename($_SERVER['PHP_SELF']);
