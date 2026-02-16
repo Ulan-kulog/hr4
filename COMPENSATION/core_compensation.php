@@ -339,6 +339,15 @@ $today = date('Y-m-d');
             background-color: #f3f4f6 !important;
             color: #374151 !important;
         }
+
+        /* Ensure all input fields have white background and dark text for readability */
+        input,
+        select,
+        textarea {
+            background-color: #ffffff !important;
+            color: #1f2937 !important;
+            /* text-gray-800 */
+        }
     </style>
 </head>
 
@@ -519,7 +528,7 @@ $today = date('Y-m-d');
                         <div class="flex sm:flex-row flex-col justify-between items-start sm:items-center mb-4">
                             <h3 class="font-semibold text-gray-800">Salary Structure</h3>
                             <div class="flex gap-2 mt-2 sm:mt-0">
-                                <input type="text" placeholder="Search grades..." class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                                <input type="text" placeholder="Search grades..." class="bg-white px-3 py-2 border border-gray-200 rounded-lg text-gray-900 text-sm">
                                 <button class="hover:bg-gray-50 p-2 border border-gray-200 rounded-lg">
                                     <i data-lucide="filter" class="w-4 h-4"></i>
                                 </button>
@@ -533,7 +542,6 @@ $today = date('Y-m-d');
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Position</th>
                                         <!-- <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Min Salary</th> -->
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Max Salary</th>
-                                        <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Employees</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">work_status</th>
                                     </tr>
                                 </thead>
@@ -552,7 +560,6 @@ $today = date('Y-m-d');
                                             // $minSalary = format_currency($minRaw);
                                             $maxSalary = format_currency($maxRaw);
                                             $work_status = htmlspecialchars($row['work_status'] ?? 'Active');
-                                            $employees = isset($row['employees']) ? (int)$row['employees'] : (isset($row['employees_count']) ? (int)$row['employees_count'] : '-');
                                             $dept = htmlspecialchars($row['department'] ?? $row['dept'] ?? '');
                                             $work_statusClass = work_status_class($work_status);
                                         ?>
@@ -561,7 +568,6 @@ $today = date('Y-m-d');
                                                 <td class="px-4 py-3 text-gray-900 text-sm"><?= $position ?></td>
                                                 <!-- <td class="px-4 py-3 text-gray-900 text-sm"><?= $minSalary ?></td> -->
                                                 <td class="px-4 py-3 text-gray-900 text-sm"><?= $maxSalary ?></td>
-                                                <td class="px-4 py-3 text-gray-900 text-sm"><?= $employees ?></td>
                                                 <td class="px-4 py-3"><span class="inline-flex items-center <?= $work_statusClass ?> px-2.5 py-0.5 rounded-full font-medium text-xs"><?= $work_status ?></span></td>
                                                 <td class="px-4 py-3">
                                                     <div class="flex gap-2">
@@ -582,7 +588,7 @@ $today = date('Y-m-d');
                         <div class="flex sm:flex-row flex-col justify-between items-start sm:items-center mb-4">
                             <h3 class="font-semibold text-gray-800">Bonus & Incentive Plans</h3>
                             <div class="flex gap-2 mt-2 sm:mt-0">
-                                <input type="text" id="searchBonus" placeholder="Search plans..." class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                                <input type="text" id="searchBonus" placeholder="Search plans..." class="bg-white px-3 py-2 border border-gray-200 rounded-lg text-gray-900 text-sm">
                                 <button class="hover:bg-gray-50 p-2 border border-gray-200 rounded-lg">
                                     <i data-lucide="filter" class="w-4 h-4"></i>
                                 </button>
@@ -677,7 +683,7 @@ $today = date('Y-m-d');
                         <div class="flex sm:flex-row flex-col justify-between items-start sm:items-center mb-4">
                             <h3 class="font-semibold text-gray-800">Allowance Management</h3>
                             <div class="flex gap-2 mt-2 sm:mt-0">
-                                <input type="text" id="searchAllowances" placeholder="Search allowances..." class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                                <input type="text" id="searchAllowances" placeholder="Search allowances..." class="bg-white px-3 py-2 border border-gray-200 rounded-lg text-gray-900 text-sm">
                                 <button class="hover:bg-gray-50 p-2 border border-gray-200 rounded-lg">
                                     <i data-lucide="filter" class="w-4 h-4"></i>
                                 </button>
@@ -734,7 +740,7 @@ $today = date('Y-m-d');
                                                             data-type="<?= $alw_type ?>"
                                                             data-dept="<?= $alw_dept ?>"
                                                             data-amount="<?= htmlspecialchars($alw_amount_raw) ?>"
-                                                            data-frequency="<?= htmlspecialchars($allowance['frequency'] ?? '') ?>"
+                                                            data-frequency="<?= htmlspecialchars($a['frequency'] ?? '') ?>"
                                                             data-criteria="<?= htmlspecialchars($alw_criteria) ?>"
                                                             data-work_status="<?= $alw_work_status ?>">
                                                             Edit

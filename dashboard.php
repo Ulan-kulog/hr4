@@ -17,7 +17,7 @@ $conn = $connections[$db_name];
 $emp_total   = $conn->query("SELECT COUNT(*) as cnt FROM employees")->fetch_assoc()['cnt'] ?? 0;
 $emp_active  = $conn->query("SELECT COUNT(*) as cnt FROM employees WHERE employment_status = 'active'")->fetch_assoc()['cnt'] ?? 0;
 $emp_sep     = $conn->query("SELECT COUNT(*) as cnt FROM employees WHERE employment_status = 'separated'")->fetch_assoc()['cnt'] ?? 0;
-$turnover_rate = $emp_total > 0 ? round(($emp_sep / $emp_total) * 100, 1) : 0;
+// $turnover_rate = $emp_total > 0 ? round(($emp_sep / $emp_total) * 100, 1) : 0;
 
 // --- 2. DEPARTMENT DISTRIBUTION ---
 $dept_dist = ['labels' => [], 'data' => []];
@@ -89,7 +89,7 @@ while ($row = $result->fetch_assoc()) {
     $bonus_dist['data'][]   = (int)$row['count'];
 }
 
-// --- 7. ALLOWANCE TYPES ---
+// --- 7.  TYPES ---
 $allowance_dist = ['labels' => [], 'data' => []];
 $al_query = "SELECT allowance_type, COUNT(*) as cnt 
              FROM allowances 
@@ -101,89 +101,12 @@ while ($row = $result->fetch_assoc()) {
     $allowance_dist['data'][]   = (int)$row['cnt'];
 }
 
-// --- 8. BENEFITS CATEGORY DISTRIBUTION ---
-$benefit_dist = ['labels' => [], 'data' => []];
-$ben_query = "SELECT benefit_type, COUNT(*) as cnt 
-              FROM benefits 
-              WHERE status = 'active' 
-              GROUP BY benefit_type";
-$result = $conn->query($ben_query);
-while ($row = $result->fetch_assoc()) {
-    $benefit_dist['labels'][] = $row['benefit_type'];
-    $benefit_dist['data'][]   = (int)$row['cnt'];
-}
+// Benefits category distribution removed per request
 
-// --- 9. NET PAY HISTOGRAM ---
-$netpay_histo = ['labels' => [], 'data' => []];
-$histo_query = "SELECT 
-                  CASE 
-                    WHEN net_pay < 15000 THEN '<15K'
-                    WHEN net_pay BETWEEN 15000 AND 19999 THEN '15K-20K'
-                    WHEN net_pay BETWEEN 20000 AND 24999 THEN '20K-25K'
-                    WHEN net_pay BETWEEN 25000 AND 29999 THEN '25K-30K'
-                    ELSE '30K+'
-                  END as salary_range,
-                  COUNT(*) as count
-                FROM payroll
-                GROUP BY salary_range
-                ORDER BY MIN(net_pay)";
-$result = $conn->query($histo_query);
-while ($row = $result->fetch_assoc()) {
-    $netpay_histo['labels'][] = $row['salary_range'];
-    $netpay_histo['data'][]   = (int)$row['count'];
-}
+// Net pay histogram removed per request
 
-// --- 10. TABLE HISTORY – MONTHLY RECORD CREATION ---
-$history_raw = [];
-$history_query = "
-    (SELECT 'Employees' as source, DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as cnt 
-     FROM employees 
-     GROUP BY DATE_FORMAT(created_at, '%Y-%m'))
-    UNION ALL
-    (SELECT 'Payroll', DATE_FORMAT(created_at, '%Y-%m'), COUNT(*) 
-     FROM payroll 
-     GROUP BY DATE_FORMAT(created_at, '%Y-%m'))
-    UNION ALL
-    (SELECT 'Allowances', DATE_FORMAT(created_at, '%Y-%m'), COUNT(*) 
-     FROM allowances 
-     GROUP BY DATE_FORMAT(created_at, '%Y-%m'))
-    ORDER BY month DESC 
-    LIMIT 12";
-$result = $conn->query($history_query);
-$history_by_month = [];
-while ($row = $result->fetch_assoc()) {
-    $month = $row['month'];
-    $source = $row['source'];
-    $cnt = (int)$row['cnt'];
-    if (!isset($history_by_month[$month])) {
-        $history_by_month[$month] = ['Employees' => 0, 'Payroll' => 0, 'Allowances' => 0];
-    }
-    $history_by_month[$month][$source] = $cnt;
-}
-ksort($history_by_month);
-$history_months = array_keys($history_by_month);
-$history_employees = array_column($history_by_month, 'Employees');
-$history_payroll   = array_column($history_by_month, 'Payroll');
-$history_allowances = array_column($history_by_month, 'Allowances');
 
-// --- 11. TENURE DISTRIBUTION ---
-$tenure = ['labels' => [], 'data' => []];
-$tenure_query = "SELECT 
-                  CASE 
-                    WHEN TIMESTAMPDIFF(YEAR, hire_date, CURDATE()) < 1 THEN '<1 year'
-                    WHEN TIMESTAMPDIFF(YEAR, hire_date, CURDATE()) BETWEEN 1 AND 2 THEN '1-2 years'
-                    WHEN TIMESTAMPDIFF(YEAR, hire_date, CURDATE()) BETWEEN 3 AND 5 THEN '3-5 years'
-                    ELSE '5+ years'
-                  END as tenure_range,
-                  COUNT(*) as count
-                FROM employees
-                WHERE hire_date IS NOT NULL
-                GROUP BY tenure_range";
-$result = $conn->query($tenure_query);
-while ($row = $result->fetch_assoc()) {
-    $tenure['labels'][] = $row['tenure_range'];
-    $tenure['data'][]   = (int)$row['count'];
-}
+// Tenure distribution removed per request
 
 // --- 12. GENDER DISTRIBUTION ---
 $gender_dist = ['labels' => [], 'data' => []];
@@ -194,6 +117,27 @@ $result = $conn->query($gender_query);
 while ($row = $result->fetch_assoc()) {
     $gender_dist['labels'][] = $row['gender'];
     $gender_dist['data'][]   = (int)$row['cnt'];
+}
+
+// --- AGE DISTRIBUTION ---
+$age_dist = ['labels' => [], 'data' => []];
+$age_query = "SELECT 
+  CASE 
+    WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) < 25 THEN '<25'
+    WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) BETWEEN 25 AND 34 THEN '25-34'
+    WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) BETWEEN 35 AND 44 THEN '35-44'
+    WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) BETWEEN 45 AND 54 THEN '45-54'
+    ELSE '55+'
+  END as age_group,
+  COUNT(*) as count
+FROM employees
+WHERE date_of_birth IS NOT NULL
+GROUP BY age_group
+ORDER BY MIN(TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()))";
+$result = $conn->query($age_query);
+while ($row = $result->fetch_assoc()) {
+    $age_dist['labels'][] = $row['age_group'];
+    $age_dist['data'][]   = (int)$row['count'];
 }
 
 // --- 13. EMPLOYMENT STATUS ---
@@ -207,53 +151,32 @@ while ($row = $status_res->fetch_assoc()) {
 }
 
 // --- 14. AVERAGE SALARY PER DEPARTMENT ---
-$dept_salary = ['labels' => [], 'data' => []];
-$ds_query = "SELECT d.name, AVG(e.salary) as avg_sal 
-             FROM employees e 
-             JOIN departments d ON e.department_id = d.id 
-             GROUP BY d.id";
+$dept_salary = ['labels' => [], 'data' => [], 'emp_count' => [], 'missing' => []];
+// Use LEFT JOIN from departments so departments with no employees still appear.
+// Treat salary = 0 or NULL as missing for the purpose of the average.
+$ds_query = "SELECT d.name,
+       COALESCE(AVG(NULLIF(e.salary, 0)), 0) AS avg_sal,
+       COUNT(e.id) AS emp_count,
+       SUM(e.salary IS NULL OR e.salary = 0) AS missing_salaries
+    FROM departments d
+    LEFT JOIN employees e ON e.department_id = d.id
+    GROUP BY d.id
+    ORDER BY d.name";
 $ds_res = $conn->query($ds_query);
-while ($row = $ds_res->fetch_assoc()) {
-    $dept_salary['labels'][] = $row['name'];
-    $dept_salary['data'][]   = round($row['avg_sal'], 0);
+if ($ds_res) {
+    while ($row = $ds_res->fetch_assoc()) {
+        $dept_salary['labels'][] = $row['name'];
+        $dept_salary['data'][]   = round((float)$row['avg_sal'], 0);
+        $dept_salary['emp_count'][] = (int)$row['emp_count'];
+        $dept_salary['missing'][] = (int)$row['missing_salaries'];
+    }
+} else {
+    error_log('Dept salary query failed: ' . $conn->error);
 }
 
 // --- 15. ADDITIONAL STATS FOR 20 CARDS ---
-$payroll_latest   = $conn->query("SELECT SUM(net_pay) as total, AVG(net_pay) as avg, MAX(net_pay) as max, MIN(net_pay) as min, SUM(overtime_hours) as ot FROM payroll WHERE period = (SELECT MAX(period) FROM payroll)")->fetch_assoc();
-$total_payroll    = $payroll_latest['total'] ?? 0;
-$avg_net_pay      = $payroll_latest['avg'] ?? 0;
-$max_net_pay      = $payroll_latest['max'] ?? 0;
-$min_net_pay      = $payroll_latest['min'] ?? 0;
-$total_overtime   = $payroll_latest['ot'] ?? 0;
-
 $dept_count       = $conn->query("SELECT COUNT(*) as c FROM departments WHERE active = 1")->fetch_assoc()['c'] ?? 0;
 $salary_grade_cnt = $conn->query("SELECT COUNT(*) as c FROM salary_grades")->fetch_assoc()['c'] ?? 0;
-$active_bonus     = $conn->query("SELECT COUNT(*) as c FROM bonus_plans WHERE status = 'active'")->fetch_assoc()['c'] ?? 0;
-$active_allow     = $conn->query("SELECT COUNT(*) as c FROM allowances WHERE status = 'active'")->fetch_assoc()['c'] ?? 0;
-$active_benefits  = $conn->query("SELECT COUNT(*) as c FROM benefits WHERE status = 'active'")->fetch_assoc()['c'] ?? 0;
-
-$new_hires_30     = $conn->query("SELECT COUNT(*) as c FROM employees WHERE hire_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)")->fetch_assoc()['c'] ?? 0;
-$separations_30   = $conn->query("SELECT COUNT(*) as c FROM employees WHERE employment_status = 'separated' AND updated_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)")->fetch_assoc()['c'] ?? 0;
-
-$avg_tenure_years = $conn->query("SELECT AVG(TIMESTAMPDIFF(YEAR, hire_date, CURDATE())) as avg_tenure FROM employees WHERE hire_date IS NOT NULL")->fetch_assoc()['avg_tenure'] ?? 0;
-
-$male_count       = $conn->query("SELECT COUNT(*) as c FROM employees WHERE gender = 'Male'")->fetch_assoc()['c'] ?? 0;
-$female_count     = $conn->query("SELECT COUNT(*) as c FROM employees WHERE gender = 'Female'")->fetch_assoc()['c'] ?? 0;
-
-$with_contract    = $conn->query("SELECT COUNT(*) as c FROM employees WHERE has_contract = 1")->fetch_assoc()['c'] ?? 0;
-$without_contract = $emp_total - $with_contract;
-
-$bonus_pool_total = $conn->query("SELECT 
-    SUM(
-        CASE 
-            WHEN amount_or_percentage NOT LIKE '%\\%' 
-            THEN CAST(REPLACE(REPLACE(amount_or_percentage, '₱', ''), ',', '') AS DECIMAL(10,2))
-            ELSE 0 
-        END
-    ) as total 
-    FROM bonus_plans 
-    WHERE status = 'active'")->fetch_assoc()['total'] ?? 0;
-
 $allowance_budget = $conn->query("SELECT 
     SUM(
         amount * 
@@ -270,16 +193,19 @@ $allowance_budget = $conn->query("SELECT
     WHERE status = 'active'")->fetch_assoc()['total'] ?? 0;
 
 // Helper to format currency
-function format_currency($val) {
+function format_currency($val)
+{
     if ($val === '' || $val === null || $val == 0) return '₱0';
     return '₱' . number_format((float)$val, 0);
 }
-function format_number($val) {
+function format_number($val)
+{
     return number_format((float)$val, 0);
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -294,18 +220,22 @@ function format_number($val) {
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
+
         .stat-card {
             transition: all 0.3s ease;
         }
+
         .stat-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
+
         .chart-toolbar {
             display: flex;
             gap: 0.5rem;
             margin-left: auto;
         }
+
         .chart-toolbar button {
             background: transparent;
             border: none;
@@ -314,13 +244,16 @@ function format_number($val) {
             border-radius: 6px;
             transition: background 0.2s;
         }
+
         .chart-toolbar button:hover {
-            background: rgba(0,0,0,0.05);
+            background: rgba(0, 0, 0, 0.05);
         }
+
         [data-tooltip] {
             position: relative;
             cursor: help;
         }
+
         [data-tooltip]:before {
             content: attr(data-tooltip);
             position: absolute;
@@ -338,15 +271,23 @@ function format_number($val) {
             pointer-events: none;
             transition: opacity 0.2s;
         }
+
         [data-tooltip]:hover:before {
             opacity: 1;
         }
+
         @media print {
-            .no-print { display: none; }
-            body { background: white; }
+            .no-print {
+                display: none;
+            }
+
+            body {
+                background: white;
+            }
         }
     </style>
 </head>
+
 <body class="bg-base-100 bg-white min-h-screen">
     <div class="flex h-screen">
         <!-- Sidebar (no-print) -->
@@ -358,8 +299,8 @@ function format_number($val) {
 
             <main class="flex-1 p-6">
                 <!-- GLOBAL PRINT BUTTON (no-print) -->
-                <div class="mb-4 no-print flex justify-end">
-                    <button onclick="window.print()" class="flex items-center bg-blue-600 hover:bg-blue-700 px-5 py-2.5 rounded-lg text-white transition-colors shadow-lg">
+                <div class="flex justify-end mb-4 no-print">
+                    <button onclick="window.print()" class="flex items-center bg-blue-600 hover:bg-blue-700 shadow-lg px-5 py-2.5 rounded-lg text-white transition-colors">
                         <i data-lucide="printer" class="mr-2 w-4 h-4"></i>
                         Print / Save as PDF
                     </button>
@@ -372,7 +313,7 @@ function format_number($val) {
                             <span class="bg-indigo-100/50 mr-3 p-2 rounded-lg text-indigo-600">
                                 <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
                             </span>
-                            HR Analytics Dashboard – 20 Live Metrics
+                            HR Analytics Dashboard – 4 Live Metrics
                         </h2>
                         <select class="bg-white px-4 py-2 border border-gray-300 rounded-lg text-gray-700 no-print">
                             <option>Last 30 Days</option>
@@ -382,8 +323,8 @@ function format_number($val) {
                         </select>
                     </div>
 
-                    <!-- 20 STAT CARDS (4x5) -->
-                    <div class="gap-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+                    <!-- 4 STAT CARDS -->
+                    <div class="gap-6 grid grid-cols-2 mb-8">
                         <!-- 1. Total Employees -->
                         <div class="stat-card">
                             <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
@@ -391,113 +332,8 @@ function format_number($val) {
                                     <div>
                                         <p class="font-medium text-[#001f54] text-sm">Total Employees</p>
                                         <h3 class="mt-1 font-bold text-3xl"><?= $emp_total ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs"><?= $emp_active ?> active</p>
                                     </div>
                                     <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="users" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 2. Turnover Rate -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Turnover Rate</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= $turnover_rate ?>%</h3>
-                                        <p class="mt-1 text-gray-500 text-xs"><?= $emp_sep ?> separated</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="repeat" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 3. Payroll Periods -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Payroll Periods</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= $payroll_periods ?? 0 ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">processed</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="clock" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 4. Active Benefits -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Active Benefits</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= $active_benefits ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">+<?= $active_allow ?> allowances</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="award" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 5. Total Payroll (Latest) -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Payroll Cost (latest)</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= format_currency($total_payroll) ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">net pay</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="credit-card" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 6. Average Net Pay -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Avg Net Pay</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= format_currency($avg_net_pay) ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">per employee</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="trending-up" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 7. Highest Net Pay -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Highest Net Pay</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= format_currency($max_net_pay) ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">latest period</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="arrow-up" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 8. Lowest Net Pay -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Lowest Net Pay</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= format_currency($min_net_pay) ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">latest period</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="arrow-down" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 9. Overtime Hours -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Overtime (latest)</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= format_number($total_overtime) ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">total hours</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="clock" class="w-6 h-6 text-[#F7B32B]"></i></div>
                                 </div>
                             </div>
                         </div>
@@ -508,7 +344,6 @@ function format_number($val) {
                                     <div>
                                         <p class="font-medium text-[#001f54] text-sm">Departments</p>
                                         <h3 class="mt-1 font-bold text-3xl"><?= $dept_count ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">active</p>
                                     </div>
                                     <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="building-2" class="w-6 h-6 text-[#F7B32B]"></i></div>
                                 </div>
@@ -524,110 +359,6 @@ function format_number($val) {
                                         <p class="mt-1 text-gray-500 text-xs">defined</p>
                                     </div>
                                     <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="bar-chart" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 12. Active Bonus Plans -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Active Bonus Plans</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= $active_bonus ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">bonus plans</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="gift" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 13. Active Allowances -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Active Allowances</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= $active_allow ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">allowance types</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="credit-card" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 14. New Hires (30d) -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">New Hires (30d)</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= $new_hires_30 ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">joined</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="user-plus" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 15. Separations (30d) -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Separations (30d)</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= $separations_30 ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">left</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="user-minus" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 16. Avg Tenure -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Avg Tenure</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= round($avg_tenure_years, 1) ?> yrs</h3>
-                                        <p class="mt-1 text-gray-500 text-xs">employees</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="calendar" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 17. Male Employees -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Male</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= $male_count ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">employees</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="user" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 18. Female Employees -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Female</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= $female_count ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">employees</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="user" class="w-6 h-6 text-[#F7B32B]"></i></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 19. Bonus Pool -->
-                        <div class="stat-card">
-                            <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-[#001f54] text-sm">Bonus Pool</p>
-                                        <h3 class="mt-1 font-bold text-3xl"><?= format_currency($bonus_pool_total) ?></h3>
-                                        <p class="mt-1 text-gray-500 text-xs">fixed amount</p>
-                                    </div>
-                                    <div class="bg-[#001f54] p-3 rounded-lg"><i data-lucide="package" class="w-6 h-6 text-[#F7B32B]"></i></div>
                                 </div>
                             </div>
                         </div>
@@ -652,25 +383,7 @@ function format_number($val) {
                             <span class="bg-blue-100 mr-2 p-2 rounded-lg text-blue-600"><i data-lucide="users" class="w-5 h-5"></i></span>
                             Employee Demographics
                         </h3>
-                        <div class="gap-6 grid grid-cols-1 lg:grid-cols-3">
-                            <?php
-                            $chart_descriptions = [
-                                'genderPieChart' => 'Distribution of employees by gender (from employees table)',
-                                'deptPieChart' => 'Number of employees per department',
-                                'tenureHistogram' => 'Years of service grouped into ranges',
-                                'laborCostChart' => 'Total net pay per department (latest period)',
-                                'overtimeTrendsChart' => 'Monthly overtime hours over the last 12 months',
-                                'netPayHistogram' => 'How many employees fall into each net pay bracket',
-                                'allowancePieChart' => 'Active allowances grouped by type',
-                                'benefitPieChart' => 'Active benefits grouped by category',
-                                'bonusPieChart' => 'Active bonus plans by bonus type',
-                                'salaryBenchmarkChart' => 'Min, actual average and max salary per grade',
-                                'historyTrendChart' => 'Record creation over time (Employees, Payroll, Allowances)',
-                                'tenurePieChart' => 'Same as histogram, displayed as pie',
-                                'employmentStatusChart' => 'Active vs separated vs other statuses',
-                                'departmentSalaryChart' => 'Average monthly salary per department'
-                            ];
-                            ?>
+                        <div class="gap-6 grid grid-cols-1 lg:grid-cols-2">
                             <!-- Gender Pie -->
                             <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
                                 <div class="flex justify-between items-center mb-4">
@@ -683,35 +396,40 @@ function format_number($val) {
                                         </div>
                                     </div>
                                 </div>
-                                <canvas id="genderPieChart"></canvas>
+                                <div style="max-width:800px; width:100%;">
+                                    <canvas id="genderPieChart" style="width:100%; height:320px;"></canvas>
+                                </div>
                             </div>
-                            <!-- Department Pie -->
+                            <!-- Age Distribution -->
                             <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Department Distribution</h4>
+                                    <h4 class="font-semibold text-gray-800">Age Distribution</h4>
                                     <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['deptPieChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <span data-tooltip="<?= $chart_descriptions['ageDistributionChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
-                                            <button onclick="downloadChart('deptPieChart')"><i data-lucide="download" class="w-4 h-4"></i></button>
-                                            <button onclick="printChart('deptPieChart', 'Department Distribution')"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                                            <button onclick="downloadChart('ageDistributionChart')" title="Download PNG"><i data-lucide="download" class="w-4 h-4"></i></button>
+                                            <button onclick="printChart('ageDistributionChart', 'Age Distribution')" title="Print Chart"><i data-lucide="printer" class="w-4 h-4"></i></button>
                                         </div>
                                     </div>
                                 </div>
-                                <canvas id="deptPieChart"></canvas>
+                                <canvas id="ageDistributionChart"></canvas>
                             </div>
-                            <!-- Tenure Histogram -->
+                            <!-- Tenure Distribution removed -->
+                            <!-- Employment Status -->
                             <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Tenure Histogram</h4>
+                                    <h4 class="font-semibold text-gray-800">Employment Status</h4>
                                     <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['tenureHistogram'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <span data-tooltip="<?= $chart_descriptions['employmentStatusChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
-                                            <button onclick="downloadChart('tenureHistogram')"><i data-lucide="download" class="w-4 h-4"></i></button>
-                                            <button onclick="printChart('tenureHistogram', 'Tenure Histogram')"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                                            <button onclick="downloadChart('employmentStatusChart')" title="Download PNG"><i data-lucide="download" class="w-4 h-4"></i></button>
+                                            <button onclick="printChart('employmentStatusChart', 'Employment Status')" title="Print Chart"><i data-lucide="printer" class="w-4 h-4"></i></button>
                                         </div>
                                     </div>
                                 </div>
-                                <canvas id="tenureHistogram"></canvas>
+                                <div style="max-width:800px; width:100%;">
+                                    <canvas id="employmentStatusChart" style="width:100%; height:320px;"></canvas>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -751,20 +469,7 @@ function format_number($val) {
                                 </div>
                                 <canvas id="overtimeTrendsChart"></canvas>
                             </div>
-                            <!-- Net Pay Histogram (full width) -->
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl lg:col-span-2">
-                                <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Net Pay Distribution</h4>
-                                    <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['netPayHistogram'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
-                                        <div class="chart-toolbar no-print">
-                                            <button onclick="downloadChart('netPayHistogram')"><i data-lucide="download" class="w-4 h-4"></i></button>
-                                            <button onclick="printChart('netPayHistogram', 'Net Pay Distribution')"><i data-lucide="printer" class="w-4 h-4"></i></button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <canvas id="netPayHistogram"></canvas>
-                            </div>
+                            <!-- Net Pay Distribution removed -->
                         </div>
                     </div>
 
@@ -789,20 +494,7 @@ function format_number($val) {
                                 </div>
                                 <canvas id="allowancePieChart"></canvas>
                             </div>
-                            <!-- Benefit Pie -->
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                                <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Benefit Categories</h4>
-                                    <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['benefitPieChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
-                                        <div class="chart-toolbar no-print">
-                                            <button onclick="downloadChart('benefitPieChart')"><i data-lucide="download" class="w-4 h-4"></i></button>
-                                            <button onclick="printChart('benefitPieChart', 'Benefit Categories')"><i data-lucide="printer" class="w-4 h-4"></i></button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <canvas id="benefitPieChart"></canvas>
-                            </div>
+                            <!-- Benefit Categories removed -->
                             <!-- Bonus Pie -->
                             <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
                                 <div class="flex justify-between items-center mb-4">
@@ -858,59 +550,6 @@ function format_number($val) {
                         </div>
                     </div>
 
-                    <!-- SECTION 5: TABLE HISTORY -->
-                    <div class="mb-8">
-                        <h3 class="flex items-center mb-4 font-bold text-gray-800 text-xl">
-                            <span class="bg-red-100 mr-2 p-2 rounded-lg text-red-600"><i data-lucide="database" class="w-5 h-5"></i></span>
-                            Record Creation Trends
-                        </h3>
-                        <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                            <div class="flex justify-between items-center mb-4">
-                                <h4 class="font-semibold text-gray-800">Monthly Records Created</h4>
-                                <div class="flex items-center gap-2">
-                                    <span data-tooltip="<?= $chart_descriptions['historyTrendChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
-                                    <div class="chart-toolbar no-print">
-                                        <button onclick="downloadChart('historyTrendChart')"><i data-lucide="download" class="w-4 h-4"></i></button>
-                                        <button onclick="printChart('historyTrendChart', 'Record Creation Trends')"><i data-lucide="printer" class="w-4 h-4"></i></button>
-                                    </div>
-                                </div>
-                            </div>
-                            <canvas id="historyTrendChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- SECTION 6: ADDITIONAL INSIGHTS -->
-                    <div class="gap-6 grid grid-cols-1 lg:grid-cols-2 mb-6">
-                        <!-- Tenure Pie -->
-                        <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                            <div class="flex justify-between items-center mb-4">
-                                <h4 class="font-semibold text-gray-800">Tenure Distribution</h4>
-                                <div class="flex items-center gap-2">
-                                    <span data-tooltip="<?= $chart_descriptions['tenurePieChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
-                                    <div class="chart-toolbar no-print">
-                                        <button onclick="downloadChart('tenurePieChart')"><i data-lucide="download" class="w-4 h-4"></i></button>
-                                        <button onclick="printChart('tenurePieChart', 'Tenure Distribution')"><i data-lucide="printer" class="w-4 h-4"></i></button>
-                                    </div>
-                                </div>
-                            </div>
-                            <canvas id="tenurePieChart"></canvas>
-                        </div>
-                        <!-- Employment Status -->
-                        <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
-                            <div class="flex justify-between items-center mb-4">
-                                <h4 class="font-semibold text-gray-800">Employment Status</h4>
-                                <div class="flex items-center gap-2">
-                                    <span data-tooltip="<?= $chart_descriptions['employmentStatusChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
-                                    <div class="chart-toolbar no-print">
-                                        <button onclick="downloadChart('employmentStatusChart')"><i data-lucide="download" class="w-4 h-4"></i></button>
-                                        <button onclick="printChart('employmentStatusChart', 'Employment Status')"><i data-lucide="printer" class="w-4 h-4"></i></button>
-                                    </div>
-                                </div>
-                            </div>
-                            <canvas id="employmentStatusChart"></canvas>
-                        </div>
-                    </div>
-
                 </div> <!-- end dashboard -->
             </main>
         </div>
@@ -935,7 +574,37 @@ function format_number($val) {
                     borderWidth: 0
                 }]
             },
-            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        // --- AGE DISTRIBUTION ---
+        charts.ageDistributionChart = new Chart(document.getElementById('ageDistributionChart'), {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode($age_dist['labels'] ?? []) ?>,
+                datasets: [{
+                    label: 'Employees',
+                    data: <?= json_encode($age_dist['data'] ?? []) ?>,
+                    backgroundColor: '#f59e0b',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
         });
 
         // --- 2. DEPARTMENT PIE ---
@@ -949,23 +618,17 @@ function format_number($val) {
                     borderWidth: 0
                 }]
             },
-            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
         });
 
-        // --- 3. TENURE HISTOGRAM ---
-        charts.tenureHistogram = new Chart(document.getElementById('tenureHistogram'), {
-            type: 'bar',
-            data: {
-                labels: <?= json_encode($tenure['labels'] ?? []) ?>,
-                datasets: [{
-                    label: 'Employees',
-                    data: <?= json_encode($tenure['data'] ?? []) ?>,
-                    backgroundColor: '#8b5cf6',
-                    borderRadius: 4
-                }]
-            },
-            options: { responsive: true, scales: { y: { beginAtZero: true } } }
-        });
+        // --- Tenure chart removed ---
 
         // --- 4. LABOR COST ---
         charts.laborCostChart = new Chart(document.getElementById('laborCostChart'), {
@@ -979,7 +642,18 @@ function format_number($val) {
                     borderRadius: 4
                 }]
             },
-            options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: '₱ Thousands' } } } }
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '₱ Thousands'
+                        }
+                    }
+                }
+            }
         });
 
         // --- 5. OVERTIME TRENDS ---
@@ -996,23 +670,21 @@ function format_number($val) {
                     fill: true
                 }]
             },
-            options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'Hours' } } } }
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Hours'
+                        }
+                    }
+                }
+            }
         });
 
-        // --- 6. NET PAY HISTOGRAM ---
-        charts.netPayHistogram = new Chart(document.getElementById('netPayHistogram'), {
-            type: 'bar',
-            data: {
-                labels: <?= json_encode($netpay_histo['labels'] ?? []) ?>,
-                datasets: [{
-                    label: 'Number of Employees',
-                    data: <?= json_encode($netpay_histo['data'] ?? []) ?>,
-                    backgroundColor: '#3b82f6',
-                    borderRadius: 4
-                }]
-            },
-            options: { responsive: true, scales: { y: { beginAtZero: true } } }
-        });
+        // --- Net Pay histogram removed ---
 
         // --- 7. ALLOWANCE PIE ---
         charts.allowancePieChart = new Chart(document.getElementById('allowancePieChart'), {
@@ -1025,22 +697,17 @@ function format_number($val) {
                     borderWidth: 0
                 }]
             },
-            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
         });
 
-        // --- 8. BENEFIT PIE ---
-        charts.benefitPieChart = new Chart(document.getElementById('benefitPieChart'), {
-            type: 'pie',
-            data: {
-                labels: <?= json_encode($benefit_dist['labels'] ?? []) ?>,
-                datasets: [{
-                    data: <?= json_encode($benefit_dist['data'] ?? []) ?>,
-                    backgroundColor: ['#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#10b981'],
-                    borderWidth: 0
-                }]
-            },
-            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-        });
+        // --- Benefit pie removed ---
 
         // --- 9. BONUS PIE ---
         charts.bonusPieChart = new Chart(document.getElementById('bonusPieChart'), {
@@ -1053,7 +720,14 @@ function format_number($val) {
                     borderWidth: 0
                 }]
             },
-            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
         });
 
         // --- 10. SALARY BENCHMARK ---
@@ -1061,42 +735,38 @@ function format_number($val) {
             type: 'bar',
             data: {
                 labels: <?= json_encode($salary_grade['labels'] ?? []) ?>,
-                datasets: [
-                    { label: 'Min Salary', data: <?= json_encode($salary_grade['min'] ?? []) ?>, backgroundColor: '#9ca3af' },
-                    { label: 'Avg Salary', data: <?= json_encode($salary_grade['avg'] ?? []) ?>, backgroundColor: '#3b82f6' },
-                    { label: 'Max Salary', data: <?= json_encode($salary_grade['max'] ?? []) ?>, backgroundColor: '#10b981' }
-                ]
-            },
-            options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'Salary (₱)' } } } }
-        });
-
-        // --- 11. HISTORY TREND ---
-        charts.historyTrendChart = new Chart(document.getElementById('historyTrendChart'), {
-            type: 'line',
-            data: {
-                labels: <?= json_encode($history_months) ?>,
-                datasets: [
-                    { label: 'Employees', data: <?= json_encode($history_employees) ?>, borderColor: '#3b82f6', tension: 0.3 },
-                    { label: 'Payroll', data: <?= json_encode($history_payroll) ?>, borderColor: '#10b981', tension: 0.3 },
-                    { label: 'Allowances', data: <?= json_encode($history_allowances) ?>, borderColor: '#f59e0b', tension: 0.3 }
-                ]
-            },
-            options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'Records Created' } } } }
-        });
-
-        // --- 12. TENURE PIE ---
-        charts.tenurePieChart = new Chart(document.getElementById('tenurePieChart'), {
-            type: 'pie',
-            data: {
-                labels: <?= json_encode($tenure['labels'] ?? []) ?>,
                 datasets: [{
-                    data: <?= json_encode($tenure['data'] ?? []) ?>,
-                    backgroundColor: ['#ef4444', '#f59e0b', '#10b981', '#3b82f6'],
-                    borderWidth: 0
-                }]
+                        label: 'Min Salary',
+                        data: <?= json_encode($salary_grade['min'] ?? []) ?>,
+                        backgroundColor: '#9ca3af'
+                    },
+                    {
+                        label: 'Avg Salary',
+                        data: <?= json_encode($salary_grade['avg'] ?? []) ?>,
+                        backgroundColor: '#3b82f6'
+                    },
+                    {
+                        label: 'Max Salary',
+                        data: <?= json_encode($salary_grade['max'] ?? []) ?>,
+                        backgroundColor: '#10b981'
+                    }
+                ]
             },
-            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Salary (₱)'
+                        }
+                    }
+                }
+            }
         });
+
+
 
         // --- 13. EMPLOYMENT STATUS ---
         charts.employmentStatusChart = new Chart(document.getElementById('employmentStatusChart'), {
@@ -1109,7 +779,15 @@ function format_number($val) {
                     borderWidth: 0
                 }]
             },
-            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
         });
 
         // --- 14. DEPARTMENT AVG SALARY ---
@@ -1124,7 +802,14 @@ function format_number($val) {
                     borderRadius: 4
                 }]
             },
-            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
         });
 
         // ------------------------------------------------------------
@@ -1152,4 +837,5 @@ function format_number($val) {
         lucide.createIcons();
     </script>
 </body>
+
 </html>
