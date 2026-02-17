@@ -2,7 +2,7 @@
 $role = $_SESSION['role'] ?? 'guest';
 // Base path for consistent URL structure
 // $base_url = '/HR_4/';
-$base_url = '/HR_4';
+$base_url = '';
 
 // Get current page for active state highlighting
 $current_page = basename($_SERVER['PHP_SELF']);
@@ -54,7 +54,7 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
 
             <!-- Employee Management Dropdown -->
             <div class="relative menu-dropdown" data-dropdown="employee-management">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['manage_employee.php', 'departments.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
+                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['manage_employee.php', 'departments.php', 'for_compliance.php'])) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
                     <div class="flex items-center">
                         <div class="bg-blue-800/30 p-1.5 rounded-lg transition-colors">
                             <i data-lucide="users" class="w-5 h-5 text-[#F7B32B]"></i>
@@ -78,6 +78,12 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                             <i data-lucide="clipboard-check" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
                             <span>Under Review</span>
                             <span class="bg-yellow-500 ml-auto px-2 py-0.5 rounded-full text-white text-xs"><?php echo getUnderReviewCount(); ?></span>
+                        </a>
+
+                        <!-- Compliances (NEW) -->
+                        <a href="<?php echo $base_url; ?>/CHM/for_compliance.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'for_compliance.php' && $current_dir == 'CHM') ? 'bg-blue-600/30 text-white' : ''; ?>">
+                            <i data-lucide="file-check" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
+                            <span>Compliances</span>
                         </a>
 
                         <!-- Departments -->
@@ -116,8 +122,6 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                             <span>Current Payroll</span>
                             <span class="bg-blue-500 ml-auto px-2 py-0.5 rounded-full text-white text-xs"><?php echo date('M Y'); ?></span>
                         </a>
-
-
 
                         <!-- Payroll History – REMOVED per request -->
                     </div>
