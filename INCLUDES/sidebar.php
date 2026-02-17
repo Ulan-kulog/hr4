@@ -2,7 +2,7 @@
 $role = $_SESSION['role'] ?? 'guest';
 // Base path for consistent URL structure
 // $base_url = '/HR_4/';
-$base_url = '';
+$base_url = '/HR_4';
 
 // Get current page for active state highlighting
 $current_page = basename($_SERVER['PHP_SELF']);
@@ -12,7 +12,7 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
 
 <div class="fixed md:relative flex flex-col bg-[#001f54] shadow-xl pt-5 pb-4 h-full md:transform-none transition-all -translate-x-full md:translate-x-0 duration-300 ease-in-out transform sidebar-expandable" id="sidebar">
     <!-- Sidebar Header -->
-    <div class="flex flex-shrink-0 justify-between items-center mb-6 px-4 text-center">
+    <!-- <div class="flex flex-shrink-0 justify-between items-center mb-6 px-4 text-center">
         <h1 class="flex items-center gap-2 font-bold text-white text-xl">
             <img src="<?php echo $base_url; ?>../images/tagline_no_bg.png"
                 alt="Full Logo"
@@ -23,7 +23,7 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                 class="w-auto h-25"
                 id="sonly">
         </h1>
-    </div>
+    </div> -->
 
     <!-- Navigation Menu -->
     <div class="flex flex-col flex-1 overflow-hidden">

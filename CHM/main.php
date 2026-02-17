@@ -5,44 +5,22 @@ include("../connection.php");
 $db_name = "hr4_hr_4";
 $conn = $connections[$db_name] ?? die("❌ Connection not found for $db_name");
 
-// Pagination variables
-$limit = 10; // Number of records per page
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($page - 1) * $limit;
-
-// Search and filter variables
-$search = isset($_GET['search']) ? $_GET['search'] : '';
-$status_filter = isset($_GET['status']) ? $_GET['status'] : '';
-$department_filter = isset($_GET['department']) ? $_GET['department'] : '';
-
-// Build query conditions
-$conditions = [];
-$params = [];
-$types = '';
-
-if (!empty($search)) {
-    $conditions[] = "(e.employee_id LIKE ? OR e.first_name LIKE ? OR e.last_name LIKE ?)";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $types .= 'sss';
-}
-
-if (!empty($status_filter)) {
-    $conditions[] = "e.status = ?";
-    $params[] = $status_filter;
-    $types .= 's';
-}
-
-if (!empty($department_filter)) {
-    $conditions[] = "d.id = ?";
-    $params[] = $department_filter;
-    $types .= 'i';
-}
-
-$where_clause = '';
-if (!empty($conditions)) {
-    $where_clause = 'WHERE ' . implode(' AND ', $conditions);
+// If AJAX request for stats (returns counts for the six statuses)
+if (isset($_GET['action']) && $_GET['action'] === 'get_stats') {
+    header('Content-Type: application/json');
+    $statuses = ['regular', 'probationary', 'for_compliance', 'suspended', 'AWOL', 'terminated'];
+    $stats = [];
+    foreach ($statuses as $status) {
+        $q = "SELECT COUNT(*) as total FROM employees WHERE employment_status = ?";
+        $stmt = $conn->prepare($q);
+        $stmt->bind_param("s", $status);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res->fetch_assoc();
+        $stats[$status] = $row['total'] ?? 0;
+    }
+    echo json_encode($stats);
+    exit;
 }
 
 // Fetch departments for dropdown
@@ -55,96 +33,27 @@ if ($dept_result) {
     }
 }
 
-// Fetch employees data with pagination and filters
-$employees = [];
-$count_query = "SELECT COUNT(*) as total FROM employees e 
-                LEFT JOIN departments d ON e.department_id = d.id 
-                $where_clause";
-
-if (!empty($params)) {
-    $stmt = $conn->prepare($count_query);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $count_result = $stmt->get_result();
-} else {
-    $count_result = $conn->query($count_query);
-}
-
-if ($count_result) {
-    $row = $count_result->fetch_assoc();
-    $total_records = $row['total'];
-    $total_pages = ceil($total_records / $limit);
-}
-
-// Fetch employees data
-$query = "SELECT e.*, d.name as department_name, 
-          CONCAT(e.first_name, ' ', e.last_name) as full_name,
-          DATE_FORMAT(e.hire_date, '%M %d, %Y') as formatted_hire_date
-          FROM employees e 
-          LEFT JOIN departments d ON e.department_id = d.id 
-          $where_clause 
-          ORDER BY e.hire_date DESC 
-          LIMIT ? OFFSET ?";
-
-$params[] = $limit;
-$params[] = $offset;
-$types .= 'ii';
-
-if (!empty($params)) {
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $result = $stmt->get_result();
-} else {
-    $result = $conn->query($query);
-}
-
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $employees[] = $row;
+// Fetch sub-departments for dropdown
+$sub_departments = [];
+$sub_dept_query = "SELECT id, name, department_id FROM sub_departments ORDER BY name";
+$sub_dept_result = $conn->query($sub_dept_query);
+if ($sub_dept_result) {
+    while ($row = $sub_dept_result->fetch_assoc()) {
+        $sub_departments[] = $row;
     }
 }
 
-// Fetch stats data
-$stats = [
-    'total_employees' => 0,
-    'new_hires' => 0,
-    'departments' => 0,
-    'on_leave' => 0
-];
-
-// Total employees
-$stats_query = "SELECT COUNT(*) as total FROM employees";
-$stats_result = $conn->query($stats_query);
-if ($stats_result) {
-    $row = $stats_result->fetch_assoc();
-    $stats['total_employees'] = $row['total'];
-}
-
-// New hires this month
-$new_hires_query = "SELECT COUNT(*) as total FROM employees 
-                   WHERE MONTH(hire_date) = MONTH(CURRENT_DATE()) 
-                   AND YEAR(hire_date) = YEAR(CURRENT_DATE())";
-$new_hires_result = $conn->query($new_hires_query);
-if ($new_hires_result) {
-    $row = $new_hires_result->fetch_assoc();
-    $stats['new_hires'] = $row['total'];
-}
-
-// Total departments
-$dept_count_query = "SELECT COUNT(*) as total FROM departments";
-$dept_count_result = $conn->query($dept_count_query);
-if ($dept_count_result) {
-    $row = $dept_count_result->fetch_assoc();
-    $stats['departments'] = $row['total'];
-}
-
-// Employees on leave
-$leave_query = "SELECT COUNT(*) as total FROM employees WHERE work_status = 'on_leave'";
-$leave_result = $conn->query($leave_query);
-if ($leave_result) {
-    $row = $leave_result->fetch_assoc();
-    $stats['on_leave'] = $row['total'];
+// Initial stats for page load (six statuses)
+$statuses = ['regular', 'probationary', 'for_compliance', 'suspended', 'AWOL', 'terminated'];
+$initial_stats = [];
+foreach ($statuses as $status) {
+    $q = "SELECT COUNT(*) as total FROM employees WHERE employment_status = ?";
+    $stmt = $conn->prepare($q);
+    $stmt->bind_param("s", $status);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res->fetch_assoc();
+    $initial_stats[$status] = $row['total'] ?? 0;
 }
 ?>
 <!DOCTYPE html>
@@ -163,16 +72,13 @@ if ($leave_result) {
             --primary-color: #001f54;
             --accent-color: #F7B32B;
         }
-
         .stats-card {
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
-
         .stats-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
-
         .avatar.online::before,
         .avatar.offline::before,
         .avatar.away::before {
@@ -185,23 +91,13 @@ if ($leave_result) {
             border-radius: 50%;
             border: 2px solid white;
         }
-
-        .avatar.online::before {
-            background-color: #10B981;
-        }
-
-        .avatar.offline::before {
-            background-color: #EF4444;
-        }
-
-        .avatar.away::before {
-            background-color: #F59E0B;
-        }
+        .avatar.online::before { background-color: #10B981; }
+        .avatar.offline::before { background-color: #EF4444; }
+        .avatar.away::before { background-color: #F59E0B; }
     </style>
 </head>
 
 <body class="bg-base-100 min-h-screen">
-    <!-- Drawer for mobile -->
     <div class="drawer lg:drawer-open">
         <input id="my-drawer-2" type="checkbox" class="drawer-toggle" />
         <div class="flex flex-col drawer-content">
@@ -210,161 +106,175 @@ if ($leave_result) {
 
             <!-- Main Content -->
             <main class="flex-1 p-4 md:p-6">
-                <!-- Stats Cards -->
-                <div class="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-6">
-                    <!-- Total Employees -->
-                    <div class="bg-base-100 shadow-lg border stats-card card">
-                        <div class="card-body">
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <h3 class="font-bold text-3xl card-title"><?php echo $stats['total_employees']; ?></h3>
-                                    <p class="opacity-70 text-sm">Total Employees</p>
-                                </div>
-                                <div class="bg-primary/10 p-3 rounded-full text-primary">
-                                    <i data-lucide="users" class="w-6 h-6"></i>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <div class="flex justify-between mb-1 text-sm">
-                                    <span>Active: <?php echo $stats['total_employees'] - $stats['on_leave']; ?></span>
-                                    <span><?php echo $stats['total_employees']; ?> total</span>
-                                </div>
-                                <progress class="w-full progress progress-primary"
-                                    value="<?php echo $stats['total_employees'] - $stats['on_leave']; ?>"
-                                    max="<?php echo $stats['total_employees']; ?>"></progress>
+                <!-- Status Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-3 gap-4 mb-8" id="stats-container">
+
+    <!-- Regular -->
+    <div class="stat-card bg-white text-black shadow-2xl p-4 rounded-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 hover:bg-gray-50"
+         data-status="regular">
+        <div class="flex justify-between items-start">
+            <div>
+                <p class="text-sm font-medium text-[#001f54] hover:drop-shadow-md transition-all">
+                    Regular
+                </p>
+                <h3 class="text-2xl font-bold mt-1">
+                    <?php echo $initial_stats['regular']; ?>
+                </h3>
+                <p class="text-xs text-gray-500 mt-1">Employees</p>
+            </div>
+            <div class="p-2 rounded-lg bg-[#001f54] flex items-center justify-center transition-all duration-300 hover:bg-[#002b70]">
+                <i data-lucide="badge-check" class="w-5 h-5 text-[#F7B32B]"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Probationary -->
+    <div class="stat-card bg-white text-black shadow-2xl p-4 rounded-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 hover:bg-gray-50"
+         data-status="probationary">
+        <div class="flex justify-between items-start">
+            <div>
+                <p class="text-sm font-medium text-[#001f54] hover:drop-shadow-md transition-all">
+                    Probationary
+                </p>
+                <h3 class="text-2xl font-bold mt-1">
+                    <?php echo $initial_stats['probationary']; ?>
+                </h3>
+                <p class="text-xs text-gray-500 mt-1">Employees</p>
+            </div>
+            <div class="p-2 rounded-lg bg-[#001f54] flex items-center justify-center transition-all duration-300 hover:bg-[#002b70]">
+                <i data-lucide="clock" class="w-5 h-5 text-[#F7B32B]"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- For Compliance -->
+    <div class="stat-card bg-white text-black shadow-2xl p-4 rounded-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 hover:bg-gray-50"
+         data-status="for_compliance">
+        <div class="flex justify-between items-start">
+            <div>
+                <p class="text-sm font-medium text-[#001f54] hover:drop-shadow-md transition-all">
+                    For Compliance
+                </p>
+                <h3 class="text-2xl font-bold mt-1">
+                    <?php echo $initial_stats['for_compliance']; ?>
+                </h3>
+                <p class="text-xs text-gray-500 mt-1">Employees</p>
+            </div>
+            <div class="p-2 rounded-lg bg-[#001f54] flex items-center justify-center transition-all duration-300 hover:bg-[#002b70]">
+                <i data-lucide="file-text" class="w-5 h-5 text-[#F7B32B]"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Suspended -->
+    <div class="stat-card bg-white text-black shadow-2xl p-4 rounded-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 hover:bg-gray-50"
+         data-status="suspended">
+        <div class="flex justify-between items-start">
+            <div>
+                <p class="text-sm font-medium text-[#001f54] hover:drop-shadow-md transition-all">
+                    Suspended
+                </p>
+                <h3 class="text-2xl font-bold mt-1">
+                    <?php echo $initial_stats['suspended']; ?>
+                </h3>
+                <p class="text-xs text-gray-500 mt-1">Employees</p>
+            </div>
+            <div class="p-2 rounded-lg bg-[#001f54] flex items-center justify-center transition-all duration-300 hover:bg-[#002b70]">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-[#F7B32B]"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- AWOL -->
+    <div class="stat-card bg-white text-black shadow-2xl p-4 rounded-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 hover:bg-gray-50"
+         data-status="AWOL">
+        <div class="flex justify-between items-start">
+            <div>
+                <p class="text-sm font-medium text-[#001f54] hover:drop-shadow-md transition-all">
+                    AWOL
+                </p>
+                <h3 class="text-2xl font-bold mt-1">
+                    <?php echo $initial_stats['AWOL']; ?>
+                </h3>
+                <p class="text-xs text-gray-500 mt-1">Employees</p>
+            </div>
+            <div class="p-2 rounded-lg bg-[#001f54] flex items-center justify-center transition-all duration-300 hover:bg-[#002b70]">
+                <i data-lucide="user-x" class="w-5 h-5 text-[#F7B32B]"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terminated -->
+    <div class="stat-card bg-white text-black shadow-2xl p-4 rounded-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 hover:bg-gray-50"
+         data-status="terminated">
+        <div class="flex justify-between items-start">
+            <div>
+                <p class="text-sm font-medium text-[#001f54] hover:drop-shadow-md transition-all">
+                    Terminated
+                </p>
+                <h3 class="text-2xl font-bold mt-1">
+                    <?php echo $initial_stats['terminated']; ?>
+                </h3>
+                <p class="text-xs text-gray-500 mt-1">Employees</p>
+            </div>
+            <div class="p-2 rounded-lg bg-[#001f54] flex items-center justify-center transition-all duration-300 hover:bg-[#002b70]">
+                <i data-lucide="user-minus" class="w-5 h-5 text-[#F7B32B]"></i>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+                <!-- Filter Section -->
+                <div class="bg-white shadow-sm mb-6 p-3 border border-gray-200 rounded-xl">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+                        <div>
+                            <label class="block mb-1 font-medium text-gray-700 text-xs">Department</label>
+                            <select id="departmentFilter" class="bg-white px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-full">
+                                <option value="">All Departments</option>
+                                <?php foreach ($departments as $dept): ?>
+                                    <option value="<?php echo $dept['id']; ?>"><?php echo htmlspecialchars($dept['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block mb-1 font-medium text-gray-700 text-xs">Sub-Department</label>
+                            <select id="subDepartmentFilter" class="bg-white px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-full">
+                                <option value="">All Sub-Departments</option>
+                                <?php foreach ($sub_departments as $sub): ?>
+                                    <option value="<?php echo $sub['id']; ?>" data-dept="<?php echo $sub['department_id']; ?>"><?php echo htmlspecialchars($sub['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block mb-1 font-medium text-gray-700 text-xs">Employee Code</label>
+                            <div class="flex gap-1">
+                                <input type="text" id="employeeIdSearch" placeholder="Enter Code" class="flex-1 bg-white px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                <button id="searchByIdBtn" class="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded text-white text-sm transition-colors"><i data-lucide="search" class="w-4 h-4"></i></button>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- New Hires -->
-                    <div class="bg-base-100 shadow-lg border stats-card card">
-                        <div class="card-body">
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <h3 class="font-bold text-3xl card-title"><?php echo $stats['new_hires']; ?></h3>
-                                    <p class="opacity-70 text-sm">New Hires This Month</p>
-                                </div>
-                                <div class="bg-success/10 p-3 rounded-full text-success">
-                                    <i data-lucide="user-plus" class="w-6 h-6"></i>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <div class="flex justify-between mb-1 text-sm">
-                                    <span>This month</span>
-                                    <span><?php echo $stats['new_hires']; ?> hires</span>
-                                </div>
-                                <progress class="w-full progress progress-success"
-                                    value="<?php echo $stats['new_hires']; ?>"
-                                    max="50"></progress>
-                            </div>
+                        <div class="flex items-end gap-1">
+                            <button id="clearFilters" class="hover:bg-gray-50 px-3 py-1.5 border border-gray-300 rounded text-sm text-gray-700 transition-colors">Clear</button>
+                            <button id="refreshData" class="bg-gray-800 hover:bg-gray-900 px-3 py-1.5 rounded text-sm text-white transition-colors"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
                         </div>
                     </div>
-
-                    <!-- Departments -->
-                    <div class="bg-base-100 shadow-lg border stats-card card">
-                        <div class="card-body">
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <h3 class="font-bold text-3xl card-title"><?php echo $stats['departments']; ?></h3>
-                                    <p class="opacity-70 text-sm">Active Departments</p>
-                                </div>
-                                <div class="bg-info/10 p-3 rounded-full text-info">
-                                    <i data-lucide="building" class="w-6 h-6"></i>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <div class="flex justify-between mb-1 text-sm">
-                                    <span>Active departments</span>
-                                    <span><?php echo $stats['departments']; ?> units</span>
-                                </div>
-                                <progress class="w-full progress progress-info"
-                                    value="<?php echo $stats['departments']; ?>"
-                                    max="20"></progress>
-                            </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                        <div>
+                            <label class="block mb-1 font-medium text-gray-700 text-xs">Employment Status</label>
+                            <select id="employmentStatusFilter" class="bg-white px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-full">
+                                <option value="">All Status</option>
+                                <option value="probationary">Probationary</option>
+                                <option value="regular">Regular</option>
+                                <option value="suspended">Suspended</option>
+                                <option value="AWOL">AWOL</option>
+                                <option value="terminated">Terminated</option>
+                                <option value="contractual">Contractual</option>
+                                <option value="for_compliance">For Compliance</option>
+                            </select>
                         </div>
-                    </div>
-
-                    <!-- On Leave -->
-                    <div class="bg-base-100 shadow-lg border stats-card card">
-                        <div class="card-body">
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <h3 class="font-bold text-3xl card-title"><?php echo $stats['on_leave']; ?></h3>
-                                    <p class="opacity-70 text-sm">Currently On Leave</p>
-                                </div>
-                                <div class="bg-warning/10 p-3 rounded-full text-warning">
-                                    <i data-lucide="umbrella" class="w-6 h-6"></i>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <div class="flex justify-between mb-1 text-sm">
-                                    <span>On leave</span>
-                                    <span><?php echo $stats['on_leave']; ?> employees</span>
-                                </div>
-                                <progress class="w-full progress progress-warning"
-                                    value="<?php echo $stats['on_leave']; ?>"
-                                    max="<?php echo $stats['total_employees']; ?>"></progress>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Action Buttons and Filters -->
-                <div class="bg-base-100 shadow-lg mb-6 border card">
-                    <div class="card-body">
-                        <div class="flex lg:flex-row flex-col justify-between items-start lg:items-center gap-4">
-                            <!-- Action Buttons -->
-                            <div class="flex flex-wrap gap-2">
-                                <button onclick="addEmployeeModal.showModal()" class="btn btn-primary">
-                                    <i data-lucide="user-plus" class="w-4 h-4"></i>
-                                    Add New Employee
-                                </button>
-                                <button class="btn-outline btn">
-                                    <i data-lucide="download" class="w-4 h-4"></i>
-                                    Export Report
-                                </button>
-                            </div>
-
-                            <!-- Search and Filters -->
-                            <form method="GET" class="flex sm:flex-row flex-col gap-2 w-full lg:w-auto">
-                                <div class="join">
-                                    <div>
-                                        <div>
-                                            <input class="input input-bordered join-item"
-                                                type="text"
-                                                name="search"
-                                                placeholder="Search Employee ID or Name"
-                                                value="<?php echo htmlspecialchars($search); ?>">
-                                        </div>
-                                    </div>
-                                    <select class="select-bordered select join-item" name="status">
-                                        <option value="">All Status</option>
-                                        <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active</option>
-                                        <option value="on_leave" <?php echo $status_filter === 'on_leave' ? 'selected' : ''; ?>>On Leave</option>
-                                        <option value="terminated" <?php echo $status_filter === 'terminated' ? 'selected' : ''; ?>>Terminated</option>
-                                    </select>
-                                    <select class="select-bordered select join-item" name="department">
-                                        <option value="">All Departments</option>
-                                        <?php foreach ($departments as $dept): ?>
-                                            <option value="<?php echo $dept['id']; ?>"
-                                                <?php echo $department_filter == $dept['id'] ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($dept['name']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <div class="indicator">
-                                        <button type="submit" class="btn btn-primary join-item">
-                                            <i data-lucide="filter" class="w-4 h-4"></i>
-                                            Filter
-                                        </button>
-                                        <?php if (!empty($search) || !empty($status_filter) || !empty($department_filter)): ?>
-                                            <a href="?" class="-top-2 -right-2 absolute btn btn-ghost btn-sm">
-                                                <i data-lucide="x" class="w-3 h-3"></i>
-                                            </a>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </form>
+                        <div>
+                            <label class="block mb-1 font-medium text-gray-700 text-xs">Search (Name/Email)</label>
+                            <input type="text" id="generalSearch" placeholder="Search..." class="bg-white px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-full">
                         </div>
                     </div>
                 </div>
@@ -377,271 +287,64 @@ if ($leave_result) {
                                 <thead>
                                     <tr class="bg-base-200">
                                         <th>Employee</th>
-                                        <th>Employee ID</th>
+                                        <th>Employee Code</th>
                                         <th>Position</th>
                                         <th>Department</th>
-                                        <th>Status</th>
+                                        <th>Employment Status</th>
                                         <th>Hire Date</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    <?php if (!empty($employees)): ?>
-                                        <?php foreach ($employees as $employee): ?>
-                                            <tr class="hover">
-                                                <td>
-                                                    <div class="flex items-center gap-3">
-                                                        <div class="avatar <?php echo $employee['work_status'] === 'active' ? 'online' : ($employee['work_status'] === 'on_leave' ? 'away' : 'offline'); ?>">
-                                                            <div class="rounded-full w-10 h-10">
-                                                                <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($employee['full_name']); ?>&background=001f54&color=fff"
-                                                                    alt="<?php echo htmlspecialchars($employee['full_name']); ?>" />
-                                                            </div>
-                                                        </div>
-                                                        <div>
-                                                            <div class="font-bold"><?php echo htmlspecialchars($employee['full_name']); ?></div>
-                                                            <div class="opacity-50 text-sm"><?php echo htmlspecialchars($employee['email']); ?></div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="badge-outline badge"><?php echo htmlspecialchars($employee['id']); ?></div>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($employee['position'] ?? 'N/A'); ?></td>
-                                                <td><?php echo htmlspecialchars($employee['department_name'] ?? 'N/A'); ?></td>
-                                                <td>
-                                                    <?php if ($employee['work_status'] === 'active'): ?>
-                                                        <span class="gap-1 badge badge-success">
-                                                            <i data-lucide="check-circle" class="w-3 h-3"></i>
-                                                            Active
-                                                        </span>
-                                                    <?php elseif ($employee['work_status'] === 'on_leave'): ?>
-                                                        <span class="gap-1 badge badge-warning">
-                                                            <i data-lucide="umbrella" class="w-3 h-3"></i>
-                                                            On Leave
-                                                        </span>
-                                                    <?php else: ?>
-                                                        <span class="gap-1 badge badge-error">
-                                                            <i data-lucide="x-circle" class="w-3 h-3"></i>
-                                                            Terminated
-                                                        </span>
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td><?php echo $employee['formatted_hire_date'] ?? 'N/A'; ?></td>
-                                                <td>
-                                                    <div class="flex gap-2">
-                                                        <button class="btn btn-ghost btn-xs" onclick="viewEmployee(<?php echo $employee['id']; ?>)">
-                                                            <i data-lucide="eye" class="w-4 h-4"></i>
-                                                        </button>
-                                                        <button class="btn btn-ghost btn-xs" onclick="editEmployee(<?php echo $employee['id']; ?>)">
-                                                            <i data-lucide="pencil" class="w-4 h-4"></i>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        <tr>
-                                            <td colspan="7" class="py-8 text-center">
-                                                <div class="flex flex-col items-center gap-2">
-                                                    <i data-lucide="users" class="opacity-20 w-12 h-12"></i>
-                                                    <p class="opacity-70 text-lg">No employees found</p>
-                                                    <p class="opacity-50 text-sm">Try adjusting your filters or add new employees</p>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endif; ?>
+                                <tbody id="employee-table-body">
+                                    <!-- Filled by AJAX -->
+                                    <tr><td colspan="7" class="text-center py-8">Loading...</td></tr>
                                 </tbody>
                             </table>
                         </div>
-
                         <!-- Pagination -->
-                        <?php if ($total_pages > 1): ?>
-                            <div class="flex justify-between items-center p-4 border-t">
-                                <div class="opacity-70 text-sm">
-                                    Showing <span class="font-bold"><?php echo (($page - 1) * $limit) + 1; ?></span>
-                                    to <span class="font-bold"><?php echo min($page * $limit, $total_records); ?></span>
-                                    of <span class="font-bold"><?php echo $total_records; ?></span> results
-                                </div>
-                                <div class="join">
-                                    <a href="?<?php echo http_build_query(array_merge($_GET, ['page' => max(1, $page - 1)])); ?>"
-                                        class="btn btn-outline join-item <?php echo $page <= 1 ? 'btn-disabled' : ''; ?>">
-                                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
-                                    </a>
-
-                                    <?php for ($i = 1; $i <= min(5, $total_pages); $i++): ?>
-                                        <a href="?<?php echo http_build_query(array_merge($_GET, ['page' => $i])); ?>"
-                                            class="btn join-item <?php echo $page == $i ? 'btn-active' : 'btn-outline'; ?>">
-                                            <?php echo $i; ?>
-                                        </a>
-                                    <?php endfor; ?>
-
-                                    <?php if ($total_pages > 5): ?>
-                                        <button class="btn-outline btn join-item btn-disabled">...</button>
-                                        <a href="?<?php echo http_build_query(array_merge($_GET, ['page' => $total_pages])); ?>"
-                                            class="btn-outline btn join-item">
-                                            <?php echo $total_pages; ?>
-                                        </a>
-                                    <?php endif; ?>
-
-                                    <a href="?<?php echo http_build_query(array_merge($_GET, ['page' => min($total_pages, $page + 1)])); ?>"
-                                        class="btn btn-outline join-item <?php echo $page >= $total_pages ? 'btn-disabled' : ''; ?>">
-                                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
-                                    </a>
-                                </div>
-                            </div>
-                        <?php endif; ?>
+                        <div id="pagination-container" class="flex justify-between items-center p-4 border-t"></div>
                     </div>
                 </div>
             </main>
         </div>
 
-        <!-- Sidebar for desktop -->
         <div class="drawer-side">
             <label for="my-drawer-2" aria-label="close sidebar" class="drawer-overlay"></label>
             <?php include '../INCLUDES/sidebar.php'; ?>
         </div>
     </div>
 
-    <!-- Add Employee Modal -->
-    <dialog id="addEmployeeModal" class="modal">
-        <div class="bg-white/90 rounded-lg max-w-5xl text-black modal-box">
+    <!-- View Employee Modal -->
+    <dialog id="viewEmployeeModal" class="modal">
+        <div class="modal-box max-w-4xl w-11/12">
+            <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button></form>
+            <h3 class="font-bold text-lg mb-4">Employee Details</h3>
+            <div id="employeeDetails" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            <!-- Compliance Notes Section -->
+            <div class="mt-4 p-4 bg-base-200 rounded-lg">
+                <h4 class="font-semibold mb-2">Compliance Notes</h4>
+                <div id="complianceNotesDisplay" class="text-sm"></div>
+            </div>
+            <div class="modal-action flex gap-2 mt-4">
+                <button class="btn btn-secondary" onclick="openForComplianceModal()">Set For Compliance</button>
+                <button class="btn" onclick="viewEmployeeModal.close()">Close</button>
+            </div>
+        </div>
+    </dialog>
 
-
-            <form method="dialog">
-                <button class="top-2 right-2 absolute btn btn-sm btn-circle btn-ghost">✕</button>
-            </form>
-            <h3 class="mb-6 font-bold text-lg">Add New Job Position</h3>
-
-            <form id="addJobPositionForm" class="space-y-4">
-                <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text">Position Title *</span>
-                        </label>
-                        <input type="text" name="title" required
-                            class="w-full input input-bordered"
-                            placeholder="e.g., Senior Software Engineer">
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text">Employment Type *</span>
-                        </label>
-                        <select name="type" required class="w-full select-bordered select">
-                            <option value="">Select Type</option>
-                            <option value="full_time">Full-time</option>
-                            <option value="part_time">Part-time</option>
-                            <option value="contract">Contract</option>
-                            <option value="internship">Internship</option>
-                        </select>
-                    </div>
+    <!-- For Compliance Modal -->
+    <dialog id="forComplianceModal" class="modal">
+        <div class="modal-box">
+            <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button></form>
+            <h3 class="font-bold text-lg mb-4">Set For Compliance</h3>
+            <form id="forComplianceForm" onsubmit="event.preventDefault(); submitForCompliance();">
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">Reason / Comment <span class="text-error">*</span></span></label>
+                    <textarea id="complianceComment" class="textarea textarea-bordered" placeholder="Enter reason" required></textarea>
                 </div>
-
-                <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text">Department *</span>
-                        </label>
-                        <select name="department_id" id="departmentSelect" required class="w-full select-bordered select">
-                            <option value="">Select Department</option>
-                            <?php foreach ($departments as $dept): ?>
-                                <option value="<?php echo $dept['id']; ?>">
-                                    <?php echo htmlspecialchars($dept['name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text">Status *</span>
-                        </label>
-                        <select name="status" required class="w-full select-bordered select">
-                            <option value="draft">Draft</option>
-                            <option value="open" selected>Open</option>
-                            <option value="closed">Closed</option>
-                        </select>
-                        <label class="label">
-                            <span class="label-text-alt text-gray-500">Draft: Not visible, Open: Accepting applications, Closed: No longer accepting</span>
-                        </label>
-                    </div>
-                </div>
-
-
-                <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text">Salary Range *</span>
-                        </label>
-                        <div class="flex items-center gap-2">
-                            <span class="text-gray-600">₱</span>
-                            <input type="number" name="salary_min" required min="0" step="0.01"
-                                class="w-full input input-bordered"
-                                placeholder="Minimum salary">
-                        </div>
-                        <label class="label">
-                            <span class="label-text-alt text-gray-500">Minimum salary in pesos</span>
-                        </label>
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text">&nbsp;</span>
-                        </label>
-                        <div class="flex items-center gap-2">
-                            <span class="text-gray-600">₱</span>
-                            <input type="number" name="salary_max" required min="0" step="0.01"
-                                class="w-full input input-bordered"
-                                placeholder="Maximum salary">
-                        </div>
-                        <label class="label">
-                            <span class="label-text-alt text-gray-500">Maximum salary in pesos</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text">Number of Vacancies *</span>
-                        </label>
-                        <input type="number" name="vacancies" required min="1" value="1"
-                            class="w-full input input-bordered">
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text">Job Posting Duration *</span>
-                        </label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" name="job_period_days" required min="1" value="30"
-                                class="w-full input input-bordered">
-                            <span class="text-gray-600">Days</span>
-                        </div>
-                        <label class="label">
-                            <span class="label-text-alt text-gray-500">How many days the job will be posted</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="gap-4 grid grid-cols-1 md:grid-cols-2">
-                    <div class="form-control">
-                        <label class="cursor-pointer label">
-                            <span class="label-text">Exam Required</span>
-                            <input type="checkbox" name="exam_required" class="toggle toggle-primary">
-                        </label>
-                        <label class="label">
-                            <span class="label-text-alt text-gray-500">Check if exam is required for this position</span>
-                        </label>
-                    </div>
-                </div>
-
                 <div class="modal-action">
-                    <button type="button" onclick="addEmployeeModal.close()" class="btn btn-ghost">Cancel</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i data-lucide="save" class="mr-2 w-4 h-4"></i>
-                        Save Job Position
-                    </button>
+                    <button type="submit" class="btn btn-primary">Confirm</button>
+                    <button type="button" class="btn" onclick="document.getElementById('forComplianceModal').close()">Cancel</button>
                 </div>
             </form>
         </div>
@@ -649,305 +352,333 @@ if ($leave_result) {
 
     <!-- Toast Notification -->
     <div id="toast" class="toast-top z-50 toast toast-end">
-        <div class="hidden alert" id="toast-alert">
-            <span id="toast-message"></span>
-        </div>
+        <div class="hidden alert" id="toast-alert"><span id="toast-message"></span></div>
     </div>
 
     <script src="../JAVASCRIPT/sidebar.js"></script>
     <script>
-        // Initialize Lucide icons
         lucide.createIcons();
 
         // Toast function
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast-alert');
             const messageEl = document.getElementById('toast-message');
-
-            // Set message and type
             messageEl.textContent = message;
             toast.className = `alert ${type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg`;
-
-            // Show toast
             toast.classList.remove('hidden');
-
-            // Hide after 3 seconds
-            setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 3000);
+            setTimeout(() => toast.classList.add('hidden'), 3000);
         }
 
-        // View employee function
-        function viewEmployee(id) {
-            // Implement view functionality
-            showToast(`Viewing employee ID: ${id}`, 'info');
+        // State
+        let currentFilters = {
+            department: '',
+            sub_department: '',
+            employee_id: '',
+            emp_status: '',
+            search: '',
+            page: 1
+        };
+        let currentEmployeeId = null;
+
+        // Load employees via AJAX
+        function loadEmployees(page = 1) {
+            currentFilters.page = page;
+            const params = new URLSearchParams(currentFilters);
+            fetch(`API/get_employee.php?${params}`)
+                .then(res => res.json())
+                .then(data => {
+                    renderTable(data.employees);
+                    renderPagination(data.total, data.page, data.limit);
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('employee-table-body').innerHTML = '<tr><td colspan="7" class="text-center py-8">Error loading data</td></tr>';
+                });
         }
 
-        // Edit employee function
-        function editEmployee(id) {
-            // Implement edit functionality
-            showToast(`Editing employee ID: ${id}`, 'info');
-        }
-
-        // Form submission for adding employee
-        document.getElementById('addEmployeeForm')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            const form = e.target;
-            const submitBtn = form.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-
-            // Show loading state
-            submitBtn.innerHTML = '<i data-lucide="loader-2" class="mr-2 w-4 h-4 animate-spin"></i>Saving...';
-            submitBtn.disabled = true;
-
-            try {
-                const formData = new FormData(form);
-
-                // In a real application, you would send this to your API
-                // For now, we'll simulate a successful submission
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                showToast('Employee added successfully!', 'success');
-
-                // Close modal
-                addEmployeeModal.close();
-                form.reset();
-
-                // Reload page after 1 second
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
-
-            } catch (error) {
-                console.error('Error:', error);
-                showToast('Failed to add employee. Please try again.', 'error');
-            } finally {
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
+        // Render table rows
+        function renderTable(employees) {
+            const tbody = document.getElementById('employee-table-body');
+            if (!employees.length) {
+                tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center">
+                    <div class="flex flex-col items-center gap-2">
+                        <i data-lucide="users" class="opacity-20 w-12 h-12"></i>
+                        <p class="opacity-70 text-lg">No employees found</p>
+                        <p class="opacity-50 text-sm">Try adjusting your filters</p>
+                    </div>
+                </td></tr>`;
                 lucide.createIcons();
+                return;
+            }
+
+            let html = '';
+            employees.forEach(emp => {
+                const fullName = `${emp.first_name} ${emp.last_name}`;
+                const status = emp.employment_status || 'N/A';
+                let badgeClass = 'badge-ghost';
+                if (status === 'regular') badgeClass = 'badge-success';
+                else if (status === 'probationary') badgeClass = 'badge-warning';
+                else if (status === 'for_compliance') badgeClass = 'badge-info';
+                else if (status === 'suspended') badgeClass = 'badge-error';
+                else if (status === 'AWOL') badgeClass = 'badge-neutral';
+                else if (status === 'terminated') badgeClass = 'badge-error';
+
+                html += `<tr class="hover" data-employee-id="${emp.id}">
+                    <td>
+                        <div class="flex items-center gap-3">
+                            <div class="avatar ${emp.work_status === 'active' ? 'online' : (emp.work_status === 'on_leave' ? 'away' : 'offline')}">
+                                <div class="rounded-full w-10 h-10">
+                                    <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=001f54&color=fff" alt="${fullName}" />
+                                </div>
+                            </div>
+                            <div>
+                                <div class="font-bold">${fullName}</div>
+                                <div class="opacity-50 text-sm">${emp.email || ''}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><div class="badge-outline badge">${emp.employee_code || emp.id}</div></td>
+                    <td>${emp.job || 'N/A'}</td>
+                    <td>${emp.department_name || 'N/A'}</td>
+                    <td class="status-badge"><span class="badge ${badgeClass}">${status.charAt(0).toUpperCase() + status.slice(1)}</span></td>
+                    <td>${emp.formatted_hire_date || 'N/A'}</td>
+                    <td><button class="btn btn-ghost btn-sm" onclick="viewEmployee(${emp.id})"><i data-lucide="eye" class="w-4 h-4"></i></button></td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+            lucide.createIcons();
+        }
+
+        // Render pagination
+        function renderPagination(total, currentPage, limit) {
+            const container = document.getElementById('pagination-container');
+            const totalPages = Math.ceil(total / limit);
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let html = `<div class="opacity-70 text-sm">
+                Showing <span class="font-bold">${(currentPage-1)*limit+1}</span> to <span class="font-bold">${Math.min(currentPage*limit, total)}</span> of <span class="font-bold">${total}</span> results
+            </div><div class="join">`;
+
+            // Previous
+            html += `<button class="btn btn-outline join-item ${currentPage <= 1 ? 'btn-disabled' : ''}" onclick="changePage(${currentPage-1})"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>`;
+
+            // Page numbers (simplified)
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage-2 && i <= currentPage+2)) {
+                    html += `<button class="btn join-item ${currentPage === i ? 'btn-active' : 'btn-outline'}" onclick="changePage(${i})">${i}</button>`;
+                } else if (i === currentPage-3 || i === currentPage+3) {
+                    html += `<button class="btn join-item btn-disabled">...</button>`;
+                }
+            }
+
+            // Next
+            html += `<button class="btn btn-outline join-item ${currentPage >= totalPages ? 'btn-disabled' : ''}" onclick="changePage(${currentPage+1})"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>`;
+            html += '</div>';
+            container.innerHTML = html;
+            lucide.createIcons();
+        }
+
+        function changePage(page) {
+            loadEmployees(page);
+        }
+
+        // Function to update stats cards from stats object
+        function updateStatsCards(stats) {
+            document.querySelector('[data-status="regular"] .card-title').textContent = stats.regular || 0;
+            document.querySelector('[data-status="probationary"] .card-title').textContent = stats.probationary || 0;
+            document.querySelector('[data-status="for_compliance"] .card-title').textContent = stats.for_compliance || 0;
+            document.querySelector('[data-status="suspended"] .card-title').textContent = stats.suspended || 0;
+            document.querySelector('[data-status="AWOL"] .card-title').textContent = stats.AWOL || 0;
+            document.querySelector('[data-status="terminated"] .card-title').textContent = stats.terminated || 0;
+        }
+
+        // Load stats via AJAX (using same file with action=get_stats)
+        function loadStats() {
+            fetch('employees.php?action=get_stats')
+                .then(res => res.json())
+                .then(stats => updateStatsCards(stats))
+                .catch(err => console.error('Failed to load stats', err));
+        }
+
+        // Filter change handlers
+        function updateFilterAndLoad() {
+            currentFilters = {
+                department: document.getElementById('departmentFilter').value,
+                sub_department: document.getElementById('subDepartmentFilter').value,
+                employee_id: document.getElementById('employeeIdSearch').value.trim(),
+                emp_status: document.getElementById('employmentStatusFilter').value,
+                search: document.getElementById('generalSearch').value.trim(),
+                page: 1
+            };
+            loadEmployees(1);
+        }
+
+        document.getElementById('departmentFilter').addEventListener('change', updateFilterAndLoad);
+        document.getElementById('subDepartmentFilter').addEventListener('change', updateFilterAndLoad);
+        document.getElementById('employmentStatusFilter').addEventListener('change', updateFilterAndLoad);
+        document.getElementById('generalSearch').addEventListener('keyup', debounce(updateFilterAndLoad, 500));
+        document.getElementById('employeeIdSearch').addEventListener('keyup', debounce(updateFilterAndLoad, 500));
+        document.getElementById('searchByIdBtn').addEventListener('click', updateFilterAndLoad);
+
+        document.getElementById('clearFilters').addEventListener('click', function() {
+            document.getElementById('departmentFilter').value = '';
+            document.getElementById('subDepartmentFilter').value = '';
+            document.getElementById('employeeIdSearch').value = '';
+            document.getElementById('employmentStatusFilter').value = '';
+            document.getElementById('generalSearch').value = '';
+            updateFilterAndLoad();
+        });
+
+        document.getElementById('refreshData').addEventListener('click', function() {
+            loadEmployees(currentFilters.page);
+            loadStats();
+        });
+
+        // Debounce helper
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Sub-department filtering based on department
+        document.getElementById('departmentFilter').addEventListener('change', function() {
+            const deptId = this.value;
+            const subSelect = document.getElementById('subDepartmentFilter');
+            const options = subSelect.querySelectorAll('option');
+            options.forEach(opt => {
+                if (opt.value === '') return;
+                if (deptId === '' || opt.getAttribute('data-dept') === deptId) {
+                    opt.style.display = '';
+                } else {
+                    opt.style.display = 'none';
+                }
+            });
+            if (subSelect.value && !Array.from(options).some(o => o.value === subSelect.value && o.style.display !== 'none')) {
+                subSelect.value = '';
             }
         });
 
-        // Mobile drawer toggle
+        // Employee view and compliance
+        function viewEmployee(id) {
+            currentEmployeeId = id;
+            document.getElementById('viewEmployeeModal').showModal();
+            fetch(`API/get_employee_details.php?id=${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        renderEmployeeDetails(data.employee);
+                        // Display compliance notes
+                        const notesDiv = document.getElementById('complianceNotesDisplay');
+                        if (data.employee.compliance_notes) {
+                            notesDiv.innerHTML = `<p>${data.employee.compliance_notes}</p>`;
+                        } else {
+                            notesDiv.innerHTML = '<p class="opacity-50">No compliance notes</p>';
+                        }
+                    } else {
+                        showToast('Failed to load employee details', 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    showToast('Error loading employee details', 'error');
+                });
+        }
+
+        function renderEmployeeDetails(emp) {
+            const container = document.getElementById('employeeDetails');
+            container.innerHTML = `
+                <div class="card bg-base-200">
+                    <div class="card-body">
+                        <p><span class="font-semibold">Full Name:</span> ${emp.first_name} ${emp.middle_name ? emp.middle_name + ' ' : ''}${emp.last_name}</p>
+                        <p><span class="font-semibold">Employee Code:</span> ${emp.employee_code || emp.id}</p>
+                        <p><span class="font-semibold">Email:</span> ${emp.email}</p>
+                        <p><span class="font-semibold">Phone:</span> ${emp.phone_number || 'N/A'}</p>
+                        <p><span class="font-semibold">Gender:</span> ${emp.gender || 'N/A'}</p>
+                    </div>
+                </div>
+                <div class="card bg-base-200">
+                    <div class="card-body">
+                        <p><span class="font-semibold">Department:</span> ${emp.department_name || 'N/A'}</p>
+                        <p><span class="font-semibold">Position:</span> ${emp.job || 'N/A'}</p>
+                        <p><span class="font-semibold">Hire Date:</span> ${emp.hire_date || 'N/A'}</p>
+                        <p><span class="font-semibold">Employment Status:</span> ${emp.employment_status}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function openForComplianceModal() {
+            if (!currentEmployeeId) return;
+            document.getElementById('forComplianceModal').showModal();
+        }
+
+        function submitForCompliance() {
+            const comment = document.getElementById('complianceComment').value;
+            if (!comment.trim()) {
+                showToast('Comment is required', 'error');
+                return;
+            }
+
+            fetch('API/update_employment_status.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    employee_id: currentEmployeeId,
+                    employment_status: 'for_compliance',
+                    comment: comment
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Employee marked as For Compliance');
+                    document.getElementById('forComplianceModal').close();
+                    document.getElementById('viewEmployeeModal').close();
+
+                    // Update the table row status badge
+                    const row = document.querySelector(`tr[data-employee-id="${currentEmployeeId}"]`);
+                    if (row) {
+                        const statusCell = row.querySelector('.status-badge');
+                        if (statusCell) {
+                            statusCell.innerHTML = `<span class="badge badge-info">For Compliance</span>`;
+                        }
+                    }
+
+                    // Refresh stats
+                    loadStats();
+                } else {
+                    showToast('Update failed: ' + (data.message || 'Unknown error'), 'error');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showToast('Error updating status', 'error');
+            });
+        }
+
+        // Initial load
+        loadEmployees(1);
+        loadStats();
+
+        // Trigger sub-department filtering on load
+        window.addEventListener('load', function() {
+            const event = new Event('change');
+            document.getElementById('departmentFilter').dispatchEvent(event);
+        });
+
         document.getElementById('menu-toggle')?.addEventListener('click', function() {
             document.getElementById('my-drawer-2').checked = true;
         });
-
-        // Department change handler for sub-department dropdown
-        document.getElementById('departmentSelect')?.addEventListener('change', function(e) {
-            const departmentId = e.target.value;
-            const subDepartmentSelect = document.getElementById('subDepartmentSelect');
-
-            if (departmentId) {
-                // Enable sub-department dropdown
-                subDepartmentSelect.disabled = false;
-                subDepartmentSelect.innerHTML = '<option value="">Loading sub-departments...</option>';
-
-                // In a real application, you would fetch sub-departments from API
-                // For now, we'll simulate with sample data
-                setTimeout(() => {
-                    const sampleSubDepartments = [{
-                            id: 1,
-                            name: 'Web Development'
-                        },
-                        {
-                            id: 2,
-                            name: 'Mobile Development'
-                        },
-                        {
-                            id: 3,
-                            name: 'DevOps'
-                        },
-                        {
-                            id: 4,
-                            name: 'Quality Assurance'
-                        },
-                        {
-                            id: 5,
-                            name: 'UI/UX Design'
-                        }
-                    ];
-
-                    subDepartmentSelect.innerHTML = '<option value="">Select Sub-Department (Optional)</option>';
-                    sampleSubDepartments.forEach(subDept => {
-                        const option = document.createElement('option');
-                        option.value = subDept.id;
-                        option.textContent = subDept.name;
-                        subDepartmentSelect.appendChild(option);
-                    });
-                }, 500);
-            } else {
-                // Disable and reset sub-department dropdown
-                subDepartmentSelect.disabled = true;
-                subDepartmentSelect.innerHTML = '<option value="">Select Sub-Department (Optional)</option>';
-            }
-        });
-
-        // Form submission for adding job position with confirmation
-        document.getElementById('addJobPositionForm')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            const form = e.target;
-
-            // First show confirmation dialog
-            const confirmResult = await Swal.fire({
-                title: 'Add Job Position?',
-                text: 'Are you sure you want to add this job position?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#001f54',
-                cancelButtonColor: '#6b7280',
-                confirmButtonText: 'Yes, Add It!',
-                cancelButtonText: 'Cancel',
-                reverseButtons: true
-            });
-
-            // If user cancels, stop here
-            if (!confirmResult.isConfirmed) {
-                return;
-            }
-
-            // Proceed with validation and submission
-            const submitBtn = form.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-
-            // Validate salary range
-            const salaryMin = parseFloat(form.salary_min.value);
-            const salaryMax = parseFloat(form.salary_max.value);
-
-            if (salaryMin > salaryMax) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Validation Error',
-                    html: `
-                <div class="text-left">
-                    <p class="mb-2"><strong>Salary Range Error</strong></p>
-                    <p class="text-sm">Minimum salary (₱${salaryMin.toLocaleString()}) cannot be greater than maximum salary (₱${salaryMax.toLocaleString()})</p>
-                </div>
-            `,
-                    confirmButtonColor: '#001f54',
-                });
-                return;
-            }
-
-            // Validate job period
-            const jobPeriodDays = parseInt(form.job_period_days.value);
-            if (jobPeriodDays < 1) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Validation Error',
-                    text: 'Job posting duration must be at least 1 day',
-                    confirmButtonColor: '#001f54',
-                });
-                return;
-            }
-
-            // Validate vacancies
-            const vacancies = parseInt(form.vacancies.value);
-            if (vacancies < 1) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Validation Error',
-                    text: 'Number of vacancies must be at least 1',
-                    confirmButtonColor: '#001f54',
-                });
-                return;
-            }
-
-            // Show loading SweetAlert
-            Swal.fire({
-                title: 'Processing...',
-                text: 'Please wait while we save the job position',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                allowEnterKey: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-
-            try {
-                const formData = new FormData(form);
-
-                // Send to API
-                const response = await fetch('API/save_employee.php', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                // Close loading SweetAlert
-                Swal.close();
-
-                if (result.success) {
-                    // Success SweetAlert with auto-close and reload
-                    await Swal.fire({
-                        icon: 'success',
-                        title: 'Success!',
-                        html: `
-                    <div class="text-left">
-                        <p class="mb-2"><strong>Job Position Added Successfully</strong></p>
-                        <div class="space-y-1 text-sm">
-                            <p><span class="font-medium">Title:</span> ${result.data?.title || 'N/A'}</p>
-                            <p><span class="font-medium">Type:</span> ${result.data?.type || 'N/A'}</p>
-                            <p><span class="font-medium">Status:</span> ${result.data?.status || 'N/A'}</p>
-                            <p><span class="font-medium">Salary Range:</span> ${result.data?.salary_range || 'N/A'}</p>
-                            <p><span class="font-medium">Vacancies:</span> ${result.data?.vacancies || 'N/A'}</p>
-                        </div>
-                    </div>
-                `,
-                        confirmButtonColor: '#001f54',
-                        confirmButtonText: 'OK',
-                        willClose: () => {
-                            // Close modal
-                            addEmployeeModal.close();
-                            form.reset();
-
-                            // Reload page to show new data
-                            window.location.reload();
-                        }
-                    });
-                } else {
-                    // Error SweetAlert
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Failed to Save',
-                        html: `
-                    <div class="text-left">
-                        <p class="mb-2"><strong>Error Details:</strong></p>
-                        <p class="text-sm">${result.message || 'An error occurred while saving the job position'}</p>
-                    </div>
-                `,
-                        confirmButtonColor: '#001f54',
-                    });
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                // Close loading SweetAlert
-                Swal.close();
-
-                // Network/Server Error SweetAlert
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Connection Error',
-                    html: `
-                <div class="text-left">
-                    <p class="mb-2"><strong>Network Error</strong></p>
-                    <p class="text-sm">Failed to connect to server. Please check your connection and try again.</p>
-                    <p class="mt-2 text-gray-500 text-xs">Error: ${error.message}</p>
-                </div>
-            `,
-                    confirmButtonColor: '#001f54',
-                });
-            } finally {
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-                lucide.createIcons();
-            }
-        });
     </script>
 </body>
-
 </html>
