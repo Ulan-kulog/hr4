@@ -67,10 +67,6 @@ switch ($action) {
         getCurrentPayroll($conn);
         break;
         
-    case 'export_employees':
-        exportEmployees($conn);
-        break;
-        
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
 }
@@ -298,18 +294,13 @@ function updateSalaryStatus($conn) {
         return;
     }
     
-    $allowed_statuses = ['Under review', 'Approved', 'Denied', 'For compliance'];
+    $allowed_statuses = ['Under review', 'For financing', 'Denied financing', 'For compliance'];
     if (!in_array($status, $allowed_statuses)) {
         echo json_encode(['success' => false, 'message' => 'Invalid status']);
         return;
     }
     
     $reason_escaped = $conn->real_escape_string($reason);
-    
-    // Get current status for history
-    $current_sql = "SELECT salary_status FROM employees WHERE id = '$id'";
-    $result = $conn->query($current_sql);
-    $current_data = $result->fetch_assoc();
     
     $sql = "UPDATE employees SET 
             salary_status = '$status',
@@ -318,23 +309,6 @@ function updateSalaryStatus($conn) {
             WHERE id = '$id'";
     
     if ($conn->query($sql)) {
-        // Log to salary change history
-        $changed_by = $_SESSION['username'] ?? 'System';
-        $history_sql = "INSERT INTO salary_change_history (
-            employee_id,
-            old_status,
-            new_status,
-            reason,
-            changed_by
-        ) VALUES (
-            '$id',
-            '{$current_data['salary_status']}',
-            '$status',
-            '$reason_escaped',
-            '$changed_by'
-        )";
-        $conn->query($history_sql);
-        
         echo json_encode([
             'success' => true,
             'message' => "Salary status updated to '$status'",
@@ -456,22 +430,6 @@ function createPayroll($conn) {
     if ($conn->query($sql)) {
         $payroll_id = $conn->insert_id;
         
-        // Log to payroll audit log
-        $audit_sql = "INSERT INTO payroll_audit_log (
-            payroll_id,
-            employee_id,
-            action_type,
-            reason,
-            performed_by
-        ) VALUES (
-            '$payroll_id',
-            '$employee_id',
-            'Created',
-            'Payroll created for period $period',
-            '$processed_by'
-        )";
-        $conn->query($audit_sql);
-        
         echo json_encode([
             'success' => true,
             'message' => 'Payroll created successfully',
@@ -501,13 +459,7 @@ function updatePayroll($conn) {
         return;
     }
     
-    // Get current payroll data for audit log
-    $current_sql = "SELECT * FROM payroll WHERE id = '$payroll_id'";
-    $result = $conn->query($current_sql);
-    $current_data = $result->fetch_assoc();
-    
     $notes_escaped = $conn->real_escape_string($notes);
-    $performed_by = $_SESSION['username'] ?? 'System';
     
     $sql = "UPDATE payroll SET 
             basic_salary = '$basic_salary',
@@ -524,33 +476,6 @@ function updatePayroll($conn) {
             WHERE id = '$payroll_id'";
     
     if ($conn->query($sql)) {
-        // Log changes to audit log
-        $changes = [];
-        
-        // Compare each field and log changes
-        $fields = ['basic_salary', 'overtime_hours', 'overtime_rate', 'overtime_pay', 
-                  'allowances', 'deductions', 'net_pay', 'period', 'status', 'notes'];
-        
-        foreach ($fields as $field) {
-            $new_value = ${$field} ?? '';
-            $old_value = $current_data[$field] ?? '';
-            
-            if ($new_value != $old_value) {
-                $changes[] = "('$payroll_id', '{$current_data['employee_id']}', 'Updated', '$field', 
-                             '" . $conn->real_escape_string($old_value) . "', 
-                             '" . $conn->real_escape_string($new_value) . "', 
-                             'Field updated', '$performed_by')";
-            }
-        }
-        
-        // Insert audit logs if there are changes
-        if (!empty($changes)) {
-            $audit_sql = "INSERT INTO payroll_audit_log 
-                         (payroll_id, employee_id, action_type, field_changed, old_value, new_value, reason, performed_by) 
-                         VALUES " . implode(',', $changes);
-            $conn->query($audit_sql);
-        }
-        
         echo json_encode([
             'success' => true,
             'message' => 'Payroll updated successfully',
@@ -725,10 +650,4 @@ function deletePayroll($conn) {
         echo json_encode(['success' => false, 'message' => 'Failed to delete payroll: ' . $conn->error]);
     }
 }
-
-// Export employees to Excel
-function exportEmployees($conn) {
-    // This would typically generate an Excel file
-    // For now, we'll just return a success message
-    echo json_encode(['success' => true, 'message' => 'Export functionality to be implemented']);
-}
+?>
