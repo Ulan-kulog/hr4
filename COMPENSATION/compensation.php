@@ -219,7 +219,7 @@ $avgValue = $totalRequests > 0 ? $totalValue / $totalRequests : 0;
                         </div>
                         <div class="space-y-1">
                             <label class="font-bold text-gray-400 text-xs uppercase">Type</label>
-                            <select name="request_type" id="form_type" required class="p-2.5 border rounded-lg outline-none w-full text-sm">
+                            <select name="request_type" id="form_type" required class="bg-white p-2.5 border rounded-lg outline-none w-full text-sm">
                                 <option value="salary_adjustment">Salary Adjustment</option>
                                 <option value="allowance">Allowance</option>
                                 <option value="bonus">Bonus</option>
@@ -236,11 +236,11 @@ $avgValue = $totalRequests > 0 ? $totalValue / $totalRequests : 0;
                     </div>
                     <div class="space-y-1">
                         <label class="font-bold text-gray-400 text-xs uppercase">Effective Date</label>
-                        <input type="date" name="effective_date" id="form_date" required class="p-2.5 border rounded-lg outline-none w-full text-sm">
+                        <input type="date" name="effective_date" id="form_date" required class="bg-white p-2.5 border rounded-lg outline-none w-full text-sm">
                     </div>
                     <div class="space-y-1">
                         <label class="font-bold text-gray-400 text-xs uppercase">Justification</label>
-                        <textarea name="justification" id="form_just" rows="3" required class="p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-100 w-full text-sm"></textarea>
+                        <textarea name="justification" id="form_just" rows="3" required class="bg-white p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-100 w-full text-sm"></textarea>
                     </div>
                     <div class="flex justify-end gap-3 pt-4 border-t">
                         <button type="button" onclick="closeModal()" class="px-4 font-medium text-gray-500 hover:text-gray-700 transition">Cancel</button>

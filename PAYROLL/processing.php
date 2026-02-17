@@ -171,7 +171,7 @@ foreach ($employees_data as $id => $emp) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         /* Ensure Swal appears above everything */
-        .swal2-container { z-index: 9999999 !important; }
+        .swal2-container { z-index: 999999 !important; }
         /* Modal backdrop should not block Swal */
         .modal::backdrop { z-index: 99998; }
         .modal { z-index: 99999; }
@@ -220,6 +220,13 @@ foreach ($employees_data as $id => $emp) {
         .pagination button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        /* Print-friendly export (ensure no extra elements) */
+        @media print {
+            body * { visibility: hidden; }
+            #exportContainer, #exportContainer * { visibility: visible; }
+            #exportContainer { position: absolute; left: 0; top: 0; width: 100%; }
         }
     </style>
 </head>
@@ -403,7 +410,8 @@ foreach ($employees_data as $id => $emp) {
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Salary</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Employment Status</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Salary Status</th>
-                                        <!-- Payroll Status column removed -->
+                                        <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Payroll Status</th>
+                                        <!-- Net Pay column removed -->
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
@@ -660,6 +668,12 @@ foreach ($employees_data as $id => $emp) {
                 }[emp.salary_status] || 'bg-gray-100 text-gray-800';
 
                 const payroll = emp.payroll;
+                const payrollStatusClass = payroll ? {
+                    'Approved': 'bg-green-100 text-green-800',
+                    'Paid': 'bg-blue-100 text-blue-800',
+                    'Pending': 'bg-yellow-100 text-yellow-800',
+                    'Draft': 'bg-gray-100 text-gray-800'
+                }[payroll.status] || 'bg-gray-100 text-gray-800' : '';
 
                 row.innerHTML = `
                     <td class="px-4 py-3">
@@ -698,7 +712,13 @@ foreach ($employees_data as $id => $emp) {
                             ${formatSalaryStatus(emp.salary_status)}
                         </span>
                     </td>
-                    <!-- Payroll Status column removed -->
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        ${payroll ? 
+                            `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${payrollStatusClass}">${payroll.status}</span>` : 
+                            `<span class="inline-flex items-center bg-gray-100 px-2.5 py-0.5 rounded-full font-medium text-gray-800 text-xs">No Payroll</span>`
+                        }
+                    </td>
+                    <!-- Net Pay column removed -->
                     <td class="px-4 py-3 text-sm whitespace-nowrap">
                         <div class="flex items-center space-x-2">
                             <button onclick="viewEmployee(${emp.id})"
@@ -821,49 +841,28 @@ foreach ($employees_data as $id => $emp) {
             }
         });
 
-        // ========== EXPORT PDF (REVISED WITH CLEAN HTML TEMPLATE) ==========
+        // ========== EXPORT PDF (REVISED) ==========
         function exportSelectedPDF() {
             const selectedIds = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
             if (selectedIds.length === 0) {
-                Swal.fire({
-                    title: 'No selection',
-                    text: 'Please select at least one employee to export.',
-                    icon: 'warning',
-                    target: document.body
-                });
+                Swal.fire('No selection', 'Please select at least one employee to export.', 'warning');
                 return;
             }
             const employeesToExport = allEmployees.filter(e => selectedIds.includes(e.id.toString()));
 
-            // Clean HTML template for PDF (no oklch, no complex CSS)
             let html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <title>Employee Payroll Report</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        h1 { color: #001f54; text-align: center; }
-                        p { text-align: center; margin-bottom: 20px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; border: 1px solid #333; }
-                        th { background: #001f54; color: white; padding: 8px; border: 1px solid #001f54; }
-                        td { padding: 8px; border: 1px solid #666; }
-                        tr:nth-child(even) { background: #f2f2f2; }
-                    </style>
-                </head>
-                <body>
-                    <h1>Employee Payroll Report</h1>
-                    <p>Generated on: ${new Date().toLocaleDateString()}</p>
-                    <table>
+                <div id="exportContainer" style="padding: 20px; font-family: Arial, sans-serif;">
+                    <h2 style="text-align: center; color: #001f54;">Employee Payroll Report</h2>
+                    <p style="text-align: center; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
+                    <table style="width:100%; border-collapse: collapse; margin-top:20px; border: 1px solid #ddd;">
                         <thead>
-                            <tr>
-                                <th>Code</th>
-                                <th>Name</th>
-                                <th>Position</th>
-                                <th>Employment Status</th>
-                                <th>Salary Status</th>
-                                <th>Net Pay</th>
+                            <tr style="background:#001f54; color:white;">
+                                <th style="padding:8px; border:1px solid #001f54;">Code</th>
+                                <th style="padding:8px; border:1px solid #001f54;">Name</th>
+                                <th style="padding:8px; border:1px solid #001f54;">Position</th>
+                                <th style="padding:8px; border:1px solid #001f54;">Employment Status</th>
+                                <th style="padding:8px; border:1px solid #001f54;">Salary Status</th>
+                                <th style="padding:8px; border:1px solid #001f54;">Net Pay</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -871,17 +870,17 @@ foreach ($employees_data as $id => $emp) {
             employeesToExport.forEach(emp => {
                 const fullName = emp.first_name + (emp.middle_name ? ' ' + emp.middle_name : '') + (emp.last_name ? ' ' + emp.last_name : '');
                 html += `
-                    <tr>
-                        <td>${emp.employee_code}</td>
-                        <td>${fullName}</td>
-                        <td>${emp.job || ''}</td>
-                        <td>${emp.employment_status}</td>
-                        <td>${formatSalaryStatus(emp.salary_status)}</td>
-                        <td>₱${emp.payroll ? parseFloat(emp.payroll.net_pay).toFixed(2) : '0.00'}</td>
+                    <tr style="border-bottom:1px solid #ddd;">
+                        <td style="padding:8px; border:1px solid #ddd;">${emp.employee_code}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">${fullName}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">${emp.job || ''}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">${emp.employment_status}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">${formatSalaryStatus(emp.salary_status)}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">₱${emp.payroll ? parseFloat(emp.payroll.net_pay).toFixed(2) : '0.00'}</td>
                     </tr>
                 `;
             });
-            html += `</tbody></table></body></html>`;
+            html += `</tbody></table></div>`;
 
             const element = document.createElement('div');
             element.innerHTML = html;
@@ -891,11 +890,10 @@ foreach ($employees_data as $id => $emp) {
             Swal.fire({
                 title: 'Generating PDF...',
                 allowOutsideClick: false,
-                target: document.body,
                 didOpen: () => Swal.showLoading()
             });
 
-            html2pdf().from(element.querySelector('body')).set({
+            html2pdf().from(element.querySelector('#exportContainer')).set({
                 margin: 0.5,
                 filename: `employees_export_${Date.now()}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
@@ -905,12 +903,7 @@ foreach ($employees_data as $id => $emp) {
                 Swal.close();
                 document.body.removeChild(element);
             }).catch(error => {
-                Swal.fire({
-                    title: 'Error',
-                    text: 'PDF generation failed: ' + error,
-                    icon: 'error',
-                    target: document.body
-                });
+                Swal.fire('Error', 'PDF generation failed: ' + error, 'error');
                 document.body.removeChild(element);
             });
         }
@@ -921,39 +914,24 @@ foreach ($employees_data as $id => $emp) {
 
             const fullName = emp.first_name + (emp.middle_name ? ' ' + emp.middle_name : '') + (emp.last_name ? ' ' + emp.last_name : '');
             let html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <title>Employee Details</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        h1 { color: #001f54; text-align: center; }
-                        p { text-align: center; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        td { padding: 8px; border-bottom: 1px solid #666; }
-                        td:first-child { font-weight: bold; width: 30%; }
-                    </style>
-                </head>
-                <body>
-                    <h1>Employee Details</h1>
-                    <p>Generated on: ${new Date().toLocaleDateString()}</p>
-                    <table>
-                        <tr><td>Employee Code:</td><td>${emp.employee_code}</td></tr>
-                        <tr><td>Name:</td><td>${fullName}</td></tr>
-                        <tr><td>Email:</td><td>${emp.email || ''}</td></tr>
-                        <tr><td>Phone:</td><td>${emp.phone_number || ''}</td></tr>
-                        <tr><td>Position:</td><td>${emp.job || ''}</td></tr>
-                        <tr><td>Employment Status:</td><td>${emp.employment_status}</td></tr>
-                        <tr><td>Salary Status:</td><td>${formatSalaryStatus(emp.salary_status)}</td></tr>
-                        <tr><td>Salary:</td><td>₱${parseFloat(emp.salary).toFixed(2)}</td></tr>
+                <div id="exportContainer" style="padding:20px; font-family:Arial, sans-serif;">
+                    <h2 style="text-align:center; color:#001f54;">Employee Details</h2>
+                    <p style="text-align:center;">Generated on: ${new Date().toLocaleDateString()}</p>
+                    <table style="width:100%; border-collapse: collapse; margin-top:20px;">
+                        <tr><td style="padding:5px;"><strong>Employee Code:</strong></td><td style="padding:5px;">${emp.employee_code}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Name:</strong></td><td style="padding:5px;">${fullName}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Email:</strong></td><td style="padding:5px;">${emp.email || ''}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Phone:</strong></td><td style="padding:5px;">${emp.phone_number || ''}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Position:</strong></td><td style="padding:5px;">${emp.job || ''}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Employment Status:</strong></td><td style="padding:5px;">${emp.employment_status}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Salary Status:</strong></td><td style="padding:5px;">${formatSalaryStatus(emp.salary_status)}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Salary:</strong></td><td style="padding:5px;">₱${parseFloat(emp.salary).toFixed(2)}</td></tr>
                         ${emp.payroll ? `
-                        <tr><td>Payroll Status:</td><td>${emp.payroll.status}</td></tr>
-                        <tr><td>Net Pay:</td><td>₱${parseFloat(emp.payroll.net_pay).toFixed(2)}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Payroll Status:</strong></td><td style="padding:5px;">${emp.payroll.status}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Net Pay:</strong></td><td style="padding:5px;">₱${parseFloat(emp.payroll.net_pay).toFixed(2)}</td></tr>
                         ` : ''}
                     </table>
-                </body>
-                </html>
+                </div>
             `;
             const element = document.createElement('div');
             element.innerHTML = html;
@@ -962,11 +940,10 @@ foreach ($employees_data as $id => $emp) {
             Swal.fire({
                 title: 'Generating PDF...',
                 allowOutsideClick: false,
-                target: document.body,
                 didOpen: () => Swal.showLoading()
             });
 
-            html2pdf().from(element.querySelector('body')).set({
+            html2pdf().from(element.querySelector('#exportContainer')).set({
                 margin: 0.5,
                 filename: `employee_${emp.employee_code}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
@@ -976,12 +953,7 @@ foreach ($employees_data as $id => $emp) {
                 Swal.close();
                 document.body.removeChild(element);
             }).catch(error => {
-                Swal.fire({
-                    title: 'Error',
-                    text: 'PDF generation failed: ' + error,
-                    icon: 'error',
-                    target: document.body
-                });
+                Swal.fire('Error', 'PDF generation failed: ' + error, 'error');
                 document.body.removeChild(element);
             });
         }
@@ -1046,12 +1018,7 @@ foreach ($employees_data as $id => $emp) {
         function viewEmployee(employeeId) {
             const employee = window.employeesData[employeeId];
             if (!employee) {
-                Swal.fire({
-                    title: 'Error',
-                    text: 'Employee not found',
-                    icon: 'error',
-                    target: document.body
-                });
+                Swal.fire('Error', 'Employee not found', 'error');
                 return;
             }
             currentEmployeeData = employee;
@@ -1295,12 +1262,7 @@ foreach ($employees_data as $id => $emp) {
             const comment = document.getElementById('salaryActionComment').value.trim();
 
             if ((actionType === 'deny' || actionType === 'compliance') && !comment) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Comments Required',
-                    text: 'Please provide detailed comments for this action',
-                    target: document.body
-                });
+                Swal.fire({ icon: 'warning', title: 'Comments Required', text: 'Please provide detailed comments for this action' });
                 return;
             }
 
@@ -1319,29 +1281,13 @@ foreach ($employees_data as $id => $emp) {
                 });
                 const data = await response.json();
                 if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Success!',
-                        text: data.message,
-                        timer: 2000,
-                        showConfirmButton: false,
-                        target: document.body
-                    }).then(() => { hideSalaryActionForm(); viewModal.close(); location.reload(); });
+                    Swal.fire({ icon: 'success', title: 'Success!', text: data.message, timer: 2000, showConfirmButton: false })
+                        .then(() => { hideSalaryActionForm(); viewModal.close(); location.reload(); });
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: data.message,
-                        target: document.body
-                    });
+                    Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to update salary status',
-                    target: document.body
-                });
+                Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to update salary status' });
             }
         }
 
@@ -1359,20 +1305,10 @@ foreach ($employees_data as $id => $emp) {
                     displayPayrollHistory(data.history);
                     payrollHistoryModal.showModal();
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: data.message || 'Failed to load payroll history',
-                        target: document.body
-                    });
+                    Swal.fire({ icon: 'error', title: 'Error!', text: data.message || 'Failed to load payroll history' });
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to load payroll history',
-                    target: document.body
-                });
+                Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to load payroll history' });
             }
         }
 
@@ -1430,24 +1366,13 @@ foreach ($employees_data as $id => $emp) {
                         title: 'Payroll Details',
                         html: `<div class="text-left">${Object.entries(data.payroll).map(([k,v])=>`<p><strong>${k}:</strong> ${v}</p>`).join('')}</div>`,
                         icon: 'info',
-                        confirmButtonText: 'Close',
-                        target: document.body
+                        confirmButtonText: 'Close'
                     });
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: data.message,
-                        target: document.body
-                    });
+                    Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to load payroll details',
-                    target: document.body
-                });
+                Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to load payroll details' });
             }
         }
 
@@ -1466,7 +1391,6 @@ foreach ($employees_data as $id => $emp) {
                 showCancelButton: true,
                 confirmButtonText: 'Approve',
                 cancelButtonText: 'Cancel',
-                target: document.body,
                 customClass: {
                     confirmButton: 'bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded-lg',
                     cancelButton: 'bg-gray-300 text-gray-800 hover:bg-gray-400 px-4 py-2 rounded-lg'
@@ -1483,29 +1407,13 @@ foreach ($employees_data as $id => $emp) {
                         });
                         const data = await response.json();
                         if (data.success) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Approved!',
-                                text: `Financing for ${employeeName} has been approved`,
-                                timer: 2000,
-                                showConfirmButton: false,
-                                target: document.body
-                            }).then(() => location.reload());
+                            Swal.fire({ icon: 'success', title: 'Approved!', text: `Financing for ${employeeName} has been approved`, timer: 2000, showConfirmButton: false })
+                                .then(() => location.reload());
                         } else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error!',
-                                text: data.message,
-                                target: document.body
-                            });
+                            Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                         }
                     } catch (error) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Network Error!',
-                            text: 'Failed to approve financing',
-                            target: document.body
-                        });
+                        Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to approve financing' });
                     }
                 }
             });
@@ -1526,7 +1434,6 @@ foreach ($employees_data as $id => $emp) {
                 showCancelButton: true,
                 confirmButtonText: 'Deny',
                 cancelButtonText: 'Cancel',
-                target: document.body,
                 customClass: {
                     confirmButton: 'bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-lg',
                     cancelButton: 'bg-gray-300 text-gray-800 hover:bg-gray-400 px-4 py-2 rounded-lg'
@@ -1542,29 +1449,13 @@ foreach ($employees_data as $id => $emp) {
                         });
                         const data = await response.json();
                         if (data.success) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Denied!',
-                                text: `Financing for ${employeeName} has been denied`,
-                                timer: 2000,
-                                showConfirmButton: false,
-                                target: document.body
-                            }).then(() => location.reload());
+                            Swal.fire({ icon: 'success', title: 'Denied!', text: `Financing for ${employeeName} has been denied`, timer: 2000, showConfirmButton: false })
+                                .then(() => location.reload());
                         } else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error!',
-                                text: data.message,
-                                target: document.body
-                            });
+                            Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                         }
                     } catch (error) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Network Error!',
-                            text: 'Failed to deny financing',
-                            target: document.body
-                        });
+                        Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to deny financing' });
                     }
                 }
             });
@@ -1585,7 +1476,6 @@ foreach ($employees_data as $id => $emp) {
                 showCancelButton: true,
                 confirmButtonText: 'Send for Compliance',
                 cancelButtonText: 'Cancel',
-                target: document.body,
                 customClass: {
                     confirmButton: 'bg-yellow-600 text-white hover:bg-yellow-700 px-4 py-2 rounded-lg',
                     cancelButton: 'bg-gray-300 text-gray-800 hover:bg-gray-400 px-4 py-2 rounded-lg'
@@ -1601,29 +1491,13 @@ foreach ($employees_data as $id => $emp) {
                         });
                         const data = await response.json();
                         if (data.success) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Sent for Compliance!',
-                                text: `Salary for ${employeeName} has been sent for compliance review`,
-                                timer: 2000,
-                                showConfirmButton: false,
-                                target: document.body
-                            }).then(() => location.reload());
+                            Swal.fire({ icon: 'success', title: 'Sent for Compliance!', text: `Salary for ${employeeName} has been sent for compliance review`, timer: 2000, showConfirmButton: false })
+                                .then(() => location.reload());
                         } else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error!',
-                                text: data.message,
-                                target: document.body
-                            });
+                            Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                         }
                     } catch (error) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Network Error!',
-                            text: 'Failed to send for compliance',
-                            target: document.body
-                        });
+                        Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to send for compliance' });
                     }
                 }
             });
@@ -1641,7 +1515,6 @@ foreach ($employees_data as $id => $emp) {
                 showCancelButton: true,
                 confirmButtonText: 'Yes, mark inactive',
                 cancelButtonText: 'Cancel',
-                target: document.body,
                 customClass: {
                     confirmButton: 'bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-lg',
                     cancelButton: 'bg-gray-300 text-gray-800 hover:bg-gray-400 px-4 py-2 rounded-lg'
@@ -1662,29 +1535,13 @@ foreach ($employees_data as $id => $emp) {
                 });
                 const data = await response.json();
                 if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Success!',
-                        text: data.message,
-                        timer: 2000,
-                        showConfirmButton: false,
-                        target: document.body
-                    }).then(() => location.reload());
+                    Swal.fire({ icon: 'success', title: 'Success!', text: data.message, timer: 2000, showConfirmButton: false })
+                        .then(() => location.reload());
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: data.message,
-                        target: document.body
-                    });
+                    Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to update work status',
-                    target: document.body
-                });
+                Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to update work status' });
             }
         }
 
@@ -1734,12 +1591,7 @@ foreach ($employees_data as $id => $emp) {
                     createPayroll(employeeId, employeeName, 0);
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error!',
-                    text: 'Failed to load payroll data',
-                    target: document.body
-                });
+                Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to load payroll data' });
             }
         }
 
@@ -1804,7 +1656,6 @@ foreach ($employees_data as $id => $emp) {
                         showCancelButton: true,
                         confirmButtonText: 'Yes, mark Paid',
                         cancelButtonText: 'Cancel',
-                        target: document.body,
                         customClass: {
                             confirmButton: 'bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg',
                             cancelButton: 'bg-gray-300 text-gray-800 hover:bg-gray-400 px-4 py-2 rounded-lg'
@@ -1845,29 +1696,13 @@ foreach ($employees_data as $id => $emp) {
                 const data = await response.json();
 
                 if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Success!',
-                        text: data.message,
-                        timer: 1500,
-                        showConfirmButton: false,
-                        target: document.body
-                    }).then(() => { closePayrollModal(); location.reload(); });
+                    Swal.fire({ icon: 'success', title: 'Success!', text: data.message, timer: 1500, showConfirmButton: false })
+                        .then(() => { closePayrollModal(); location.reload(); });
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error!',
-                        text: data.message || 'Failed to save payroll',
-                        target: document.body
-                    });
+                    Swal.fire({ icon: 'error', title: 'Error!', text: data.message || 'Failed to save payroll' });
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.message || 'Failed to save payroll',
-                    target: document.body
-                });
+                Swal.fire({ icon: 'error', title: 'Error', text: error.message || 'Failed to save payroll' });
             } finally {
                 const submitBtnFinal = document.getElementById('payrollSubmitBtn');
                 submitBtnFinal.disabled = false;

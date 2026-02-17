@@ -101,32 +101,18 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
             <!-- PAYROLL SECTION -->
             <!-- =========================== -->
 
-            <!-- Payroll Processing Dropdown -->
-            <div class="relative menu-dropdown" data-dropdown="payroll-processing">
-                <button class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white dropdown-toggle <?php echo (in_array($current_page, ['processing.php']) || ($current_page == 'under_review.php' && $current_dir == 'PAYROLL')) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
-                    <div class="flex items-center">
-                        <div class="bg-blue-800/30 p-1.5 rounded-lg transition-colors">
-                            <i data-lucide="dollar-sign" class="w-5 h-5 text-[#F7B32B]"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text">Payroll Processing</span>
+            <!-- Payroll Processing - Direct Link (no dropdown) -->
+            <a href="<?php echo $base_url; ?>/PAYROLL/processing.php" class="block">
+                <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group <?php echo (in_array($current_page, ['processing.php']) || ($current_page == 'under_review.php' && $current_dir == 'PAYROLL')) ? 'bg-blue-600/30 border-l-4 border-[#F7B32B]' : ''; ?>">
+                    <div class="bg-blue-800/30 p-1.5 rounded-lg transition-colors">
+                        <i data-lucide="dollar-sign" class="w-5 h-5 text-[#F7B32B]"></i>
                     </div>
-                    <i data-lucide="chevron-down" class="ml-auto w-4 h-4 transition-transform duration-200 dropdown-arrow"></i>
-                </button>
-
-                <!-- Dropdown Menu -->
-                <div class="max-h-0 overflow-hidden transition-all duration-300 dropdown-content">
-                    <div class="space-y-1 py-2">
-                        <!-- Current Payroll -->
-                        <a href="<?php echo $base_url; ?>/PAYROLL/processing.php" class="flex items-center px-4 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white group/item ml-8 <?php echo ($current_page == 'processing.php') ? 'bg-blue-600/30 text-white' : ''; ?>">
-                            <i data-lucide="calculator" class="mr-3 w-4 h-4 text-[#F7B32B] group-hover/item:text-white"></i>
-                            <span>Current Payroll</span>
-                            <span class="bg-blue-500 ml-auto px-2 py-0.5 rounded-full text-white text-xs"><?php echo date('M Y'); ?></span>
-                        </a>
-
-                        <!-- Payroll History – REMOVED per request -->
-                    </div>
+                    <span class="ml-3 sidebar-text">Payroll Processing</span>
+                    <?php if (in_array($current_page, ['processing.php'])): ?>
+                        <span class="bg-blue-500 ml-auto px-2 py-0.5 rounded-full text-white text-xs"><?php echo date('M Y'); ?></span>
+                    <?php endif; ?>
                 </div>
-            </div>
+            </a>
 
             <!-- Compensation Management Dropdown -->
             <div class="relative menu-dropdown" data-dropdown="compensation-management">
@@ -256,7 +242,7 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
 
             <!-- Logout -->
             <form action="<?php echo $base_url; ?>/USM/logout.php" method="POST" class="px-4 py-3 create-form">
-                <button type="submit" class="group flex items-center hover:bg-blue-600/50 rounded-lg w-full font-medium text-white text-sm transition-all">
+                <button type="submit" class="group flex items-center hover:bg-blue-600/50 rounded-lg w-full font-medium white text-sm transition-all">
                     <div class="bg-blue-800/30 group-hover:bg-blue-700/50 p-1.5 rounded-lg transition-colors">
                         <i data-lucide="log-out" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                     </div>
