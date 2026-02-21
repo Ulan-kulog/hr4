@@ -35,7 +35,7 @@ function buildFullName($first_name, $middle_name, $last_name)
 }
 
 // ---------------------------------------------
-// FETCH ALL EMPLOYEES (NO WHERE FILTER)
+// FETCH ONLY ACTIVE & REGULAR EMPLOYEES
 // ---------------------------------------------
 $current_month = date('Y-m');
 $local_query = "SELECT 
@@ -69,7 +69,8 @@ $local_query = "SELECT
                 p.notes as payroll_notes
                 FROM employees e 
                 LEFT JOIN payroll p ON e.id = p.employee_id AND p.period = '$current_month'
-                ORDER BY e.first_name, e.last_name";   // ← NO WHERE, all employees
+                WHERE e.work_status = 'Active' AND e.employment_status = 'Regular'
+                ORDER BY e.first_name, e.last_name";
 
 $local_result = $conn->query($local_query);
 
@@ -84,7 +85,7 @@ while ($row = $local_result->fetch_assoc()) {
 }
 
 // ---------------------------------------------
-// CALCULATE STATISTICS (NOW BASED ON ALL EMPLOYEES)
+// CALCULATE STATISTICS (BASED ON FILTERED EMPLOYEES)
 // ---------------------------------------------
 $stats = [
     'total_employees' => count($employees_data),
@@ -92,7 +93,6 @@ $stats = [
     'approved' => 0,
     'denied' => 0,
     'for_compliance' => 0,
-    'total_payroll' => 0,
     'active' => 0,
     'inactive' => 0
 ];
@@ -103,10 +103,10 @@ foreach ($employees_data as $employee) {
         case 'Under review':
             $stats['under_review']++;
             break;
-        case 'Approved':
+        case 'For financing':
             $stats['approved']++;
             break;
-        case 'Denied':
+        case 'Denied financing':
             $stats['denied']++;
             break;
         case 'For compliance':
@@ -119,13 +119,9 @@ foreach ($employees_data as $employee) {
     } else {
         $stats['inactive']++;
     }
-
-    if ($employee['net_pay']) {
-        $stats['total_payroll'] += $employee['net_pay'];
-    }
 }
 
-// ---------- Pass all employee data to JavaScript (direct from DB) ----------
+// ---------- Pass all employee data to JavaScript ----------
 $js_employees = [];
 foreach ($employees_data as $id => $emp) {
     $js_employees[$id] = [
@@ -171,10 +167,16 @@ foreach ($employees_data as $id => $emp) {
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.20/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <!-- html2pdf for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
+        /* Ensure Swal appears above everything */
         .swal2-container { z-index: 999999 !important; }
+        /* Modal backdrop should not block Swal */
+        .modal::backdrop { z-index: 99998; }
         .modal { z-index: 99999; }
         .modal-box { max-height: 90vh; overflow-y: auto; }
+        
         .table th { background-color: #f9fafb; font-weight: 600; color: #374151; padding: 1rem 0.75rem; }
         .table td { padding: 1rem 0.75rem; vertical-align: middle; }
         .avatar.placeholder>div { display: flex; align-items: center; justify-content: center; }
@@ -189,6 +191,43 @@ foreach ($employees_data as $id => $emp) {
         body.show-financials .netpay-value { display: inline; }
         body.show-financials .salary-hidden,
         body.show-financials .netpay-hidden { display: none; }
+
+        /* Modal-specific salary toggle */
+        .modal.show-financials .salary-value,
+        .modal.show-financials .netpay-value { display: inline; }
+        .modal.show-financials .salary-hidden,
+        .modal.show-financials .netpay-hidden { display: none; }
+
+        /* Pagination styles */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .pagination button {
+            padding: 0.5rem 1rem;
+            border: 1px solid #e2e8f0;
+            background: white;
+            border-radius: 0.375rem;
+            cursor: pointer;
+        }
+        .pagination button.active {
+            background: #001f54;
+            color: white;
+            border-color: #001f54;
+        }
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Print-friendly export (ensure no extra elements) */
+        @media print {
+            body * { visibility: hidden; }
+            #exportContainer, #exportContainer * { visibility: visible; }
+            #exportContainer { position: absolute; left: 0; top: 0; width: 100%; }
+        }
     </style>
 </head>
 
@@ -223,9 +262,6 @@ foreach ($employees_data as $id => $emp) {
                             Payroll Analytics Dashboard
                         </h2>
                         <div class="flex gap-2">
-                            <button onclick="exportToExcel()" class="flex items-center bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white transition-colors">
-                                <i data-lucide="download" class="mr-2 w-4 h-4"></i> Export Report
-                            </button>
                             <select class="bg-white px-4 py-2 border border-gray-300 rounded-lg text-gray-700">
                                 <option>Last 30 Days</option>
                                 <option>Last Quarter</option>
@@ -235,8 +271,8 @@ foreach ($employees_data as $id => $emp) {
                         </div>
                     </div>
 
-                    <!-- Key Payroll Metrics - NOW WORKING WITH ALL EMPLOYEES -->
-                    <div class="gap-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+                    <!-- Key Payroll Metrics - 3 columns grid -->
+                    <div class="gap-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-8">
                         <!-- Total Employees -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
                             <div class="flex justify-between items-start">
@@ -263,24 +299,24 @@ foreach ($employees_data as $id => $emp) {
                                 </div>
                             </div>
                         </div>
-                        <!-- Approved -->
+                        <!-- Under review for financing (previously For Financing) -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Approved</p>
+                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Under review for financing</p>
                                     <h3 class="mt-1 font-bold text-3xl"><?php echo $stats['approved']; ?></h3>
-                                    <p class="mt-1 text-gray-500 text-xs">Ready for payroll</p>
+                                    <p class="mt-1 text-gray-500 text-xs">Ready for financing</p>
                                 </div>
                                 <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
                                     <i data-lucide="check-circle" class="w-6 h-6 text-[#F7B32B]"></i>
                                 </div>
                             </div>
                         </div>
-                        <!-- For Compliance -->
+                        <!-- For compliance financing (previously For Compliance) -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">For Compliance</p>
+                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">For compliance financing</p>
                                     <h3 class="mt-1 font-bold text-3xl"><?php echo $stats['for_compliance']; ?></h3>
                                     <p class="mt-1 text-gray-500 text-xs">Requires compliance review</p>
                                 </div>
@@ -289,10 +325,6 @@ foreach ($employees_data as $id => $emp) {
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Additional Payroll Metrics -->
-                    <div class="gap-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-8">
                         <!-- Active Employees -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
                             <div class="flex justify-between items-start">
@@ -306,45 +338,16 @@ foreach ($employees_data as $id => $emp) {
                                 </div>
                             </div>
                         </div>
-                        <!-- Denied -->
+                        <!-- Denied review (previously Denied Financing) -->
                         <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Denied</p>
+                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Denied review</p>
                                     <h3 class="mt-1 font-bold text-3xl"><?php echo $stats['denied']; ?></h3>
-                                    <p class="mt-1 text-gray-500 text-xs">Salary requests rejected</p>
+                                    <p class="mt-1 text-gray-500 text-xs">Financing requests rejected</p>
                                 </div>
                                 <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
                                     <i data-lucide="x-circle" class="w-6 h-6 text-[#F7B32B]"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Total Payroll -->
-                        <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Total Payroll</p>
-                                    <h3 class="mt-1 font-bold text-3xl">₱<?php echo number_format($stats['total_payroll'], 0); ?></h3>
-                                    <p class="mt-1 text-gray-500 text-xs">Current month total</p>
-                                </div>
-                                <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
-                                    <i data-lucide="dollar-sign" class="w-6 h-6 text-[#F7B32B]"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Average Salary -->
-                        <div class="bg-white hover:bg-gray-50 shadow-2xl hover:shadow-2xl p-5 rounded-xl text-black hover:scale-105 transition-all duration-300 stat-card">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <p class="hover:drop-shadow-md font-medium text-[#001f54] text-sm transition-all">Avg. Salary</p>
-                                    <?php
-                                    $avg_salary = $stats['total_employees'] > 0 ? array_sum(array_column($employees_data, 'salary')) / $stats['total_employees'] : 0;
-                                    ?>
-                                    <h3 class="mt-1 font-bold text-3xl">₱<?php echo number_format($avg_salary, 0); ?></h3>
-                                    <p class="mt-1 text-gray-500 text-xs">Per employee monthly</p>
-                                </div>
-                                <div class="flex justify-center items-center bg-[#001f54] hover:bg-[#002b70] p-3 rounded-lg transition-all duration-300">
-                                    <i data-lucide="trending-up" class="w-6 h-6 text-[#F7B32B]"></i>
                                 </div>
                             </div>
                         </div>
@@ -360,25 +363,30 @@ foreach ($employees_data as $id => $emp) {
                                 <p class="text-gray-500">Manage salary status and payroll</p>
                             </div>
                             <div class="flex flex-wrap gap-3">
+                                <!-- Search by employee code -->
+                                <input type="text" id="searchEmployeeCode" placeholder="Search by Employee Code" class="input input-bordered input-sm w-48">
+                                
                                 <!-- Toggle Salary/Net Pay visibility -->
                                 <button id="toggleFinancialsBtn" onclick="toggleFinancials()" class="btn-outline btn">
                                     <i data-lucide="eye-off" id="toggleIcon" class="mr-2 w-4 h-4"></i>
                                     <span id="toggleText">Show Salary/Net Pay</span>
                                 </button>
-                                <button onclick="exportToExcel()" class="btn-outline btn">
-                                    <i data-lucide="download" class="mr-2 w-4 h-4"></i> Export Excel
+                                
+                                <!-- Export Selected PDF button -->
+                                <button onclick="exportSelectedPDF()" class="btn-outline btn">
+                                    <i data-lucide="file-text" class="mr-2 w-4 h-4"></i> Export Selected PDF
                                 </button>
+                                
                                 <div class="dropdown dropdown-end">
                                     <div tabindex="0" role="button" class="btn-outline btn">
                                         <i data-lucide="filter" class="mr-2 w-4 h-4"></i> Filter
                                     </div>
                                     <ul tabindex="0" class="z-[1] bg-base-100 shadow p-2 rounded-box w-52 dropdown-content menu">
                                         <li><a onclick="filterByStatus('all')">All Employees</a></li>
-                                        <li><a onclick="filterByStatus('Under review')">Under Review Only</a></li>
-                                        <li><a onclick="filterByStatus('Active')">Active Only</a></li>
-                                        <li><a onclick="filterByStatus('Approved')">Approved Only</a></li>
-                                        <li><a onclick="filterByStatus('Denied')">Denied Only</a></li>
-                                        <li><a onclick="filterByStatus('For compliance')">For Compliance Only</a></li>
+                                        <li><a onclick="filterByStatus('Under review')">Under review</a></li>
+                                        <li><a onclick="filterByStatus('For financing')">Under review for financing</a></li>
+                                        <li><a onclick="filterByStatus('Denied financing')">Denied review</a></li>
+                                        <li><a onclick="filterByStatus('For compliance')">For compliance financing</a></li>
                                     </ul>
                                 </div>
                             </div>
@@ -386,141 +394,47 @@ foreach ($employees_data as $id => $emp) {
                     </div>
                 </div>
 
-                <!-- Employee Table - NOW SHOWING ALL EMPLOYEES -->
+                <!-- Employee Table - RENDERED BY JAVASCRIPT -->
                 <div class="bg-white shadow-lg card">
                     <div class="p-0 card-body">
                         <div class="overflow-x-auto">
                             <table class="table w-full table-auto">
                                 <thead class="bg-gray-50">
                                     <tr>
+                                        <th class="px-4 py-3 w-10">
+                                            <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" class="checkbox checkbox-sm">
+                                        </th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Employee</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Employee Code</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Position</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Salary</th>
-                                        <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Work Status</th>
+                                        <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Employment Status</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Salary Status</th>
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Payroll Status</th>
-                                        <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Net Pay</th>
+                                        <!-- Net Pay column removed -->
                                         <th class="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-gray-200">
-                                    <?php foreach ($employees_data as $employee):
-                                        $full_name = buildFullName($employee['first_name'], $employee['middle_name'], $employee['last_name']);
-                                        $work_status_class = [
-                                            'Active' => 'bg-green-100 text-green-800',
-                                            'Inactive' => 'bg-red-100 text-red-800',
-                                            'On Leave' => 'bg-yellow-100 text-yellow-800',
-                                            'Under Review' => 'bg-blue-100 text-blue-800'
-                                        ];
-                                        $salary_status_class = [
-                                            'Under review' => 'bg-yellow-100 text-yellow-800',
-                                            'Approved' => 'bg-green-100 text-green-800',
-                                            'Denied' => 'bg-red-100 text-red-800',
-                                            'For compliance' => 'bg-purple-100 text-purple-800'
-                                        ];
-                                    ?>
-                                        <tr class="hover:bg-gray-50 transition-colors employee-row"
-                                            data-salary-status="<?php echo $employee['salary_status']; ?>"
-                                            data-work-status="<?php echo $employee['work_status']; ?>">
-                                            <td class="px-4 py-3 whitespace-nowrap">
-                                                <div class="flex items-center">
-                                                    <div class="flex-shrink-0 w-10 h-10">
-                                                        <div class="flex justify-center items-center bg-blue-100 rounded-full w-10 h-10 font-semibold text-blue-600">
-                                                            <?php echo substr($employee['first_name'], 0, 1) . substr($employee['last_name'] ?? '', 0, 1); ?>
-                                                        </div>
-                                                    </div>
-                                                    <div class="ml-4">
-                                                        <div class="font-medium text-gray-900 text-sm"><?php echo htmlspecialchars($full_name); ?></div>
-                                                        <div class="text-gray-500 text-sm"><?php echo htmlspecialchars($employee['email']); ?></div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td class="px-4 py-3 whitespace-nowrap">
-                                                <span class="inline-flex items-center bg-gray-100 px-2.5 py-0.5 rounded-full font-medium text-gray-800 text-xs">
-                                                    <?php echo $employee['employee_code']; ?>
-                                                </span>
-                                            </td>
-                                            <td class="px-4 py-3 text-gray-900 text-sm whitespace-nowrap"><?php echo htmlspecialchars($employee['job']); ?></td>
-                                            <td class="px-4 py-3 font-semibold text-gray-900 text-sm whitespace-nowrap">
-                                                <span class="salary-hidden">********</span>
-                                                <span class="salary-value">₱<?php echo number_format($employee['salary'], 2); ?></span>
-                                            </td>
-                                            <td class="px-4 py-3 whitespace-nowrap">
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $work_status_class[$employee['work_status']] ?? 'bg-gray-100 text-gray-800'; ?>">
-                                                    <?php echo $employee['work_status']; ?>
-                                                </span>
-                                            </td>
-                                            <td class="px-4 py-3 whitespace-nowrap">
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $salary_status_class[$employee['salary_status']] ?? 'bg-gray-100 text-gray-800'; ?>">
-                                                    <?php echo $employee['salary_status']; ?>
-                                                </span>
-                                            </td>
-                                            <td class="px-4 py-3 whitespace-nowrap">
-                                                <?php if (isset($payroll_data[$employee['id']])):
-                                                    $payroll_status_class = [
-                                                        'Approved' => 'bg-green-100 text-green-800',
-                                                        'Paid' => 'bg-blue-100 text-blue-800',
-                                                        'Pending' => 'bg-yellow-100 text-yellow-800',
-                                                        'Draft' => 'bg-gray-100 text-gray-800'
-                                                    ];
-                                                ?>
-                                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $payroll_status_class[$employee['payroll_status']] ?? 'bg-gray-100 text-gray-800'; ?>">
-                                                        <?php echo $employee['payroll_status']; ?>
-                                                    </span>
-                                                <?php else: ?>
-                                                    <span class="inline-flex items-center bg-gray-100 px-2.5 py-0.5 rounded-full font-medium text-gray-800 text-xs">No Payroll</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td class="px-4 py-3 font-bold text-gray-900 text-sm whitespace-nowrap">
-                                                <span class="netpay-hidden">********</span>
-                                                <span class="netpay-value">₱<?php echo number_format($employee['net_pay'] ?? 0, 2); ?></span>
-                                            </td>
-                                            <td class="px-4 py-3 text-sm whitespace-nowrap">
-                                                <div class="flex items-center space-x-2">
-                                                    <button onclick="viewEmployee(<?php echo $employee['id']; ?>)"
-                                                        class="inline-flex items-center bg-blue-600 hover:bg-blue-700 px-3 py-1.5 border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium text-white text-xs">
-                                                        <i data-lucide="eye" class="mr-1 w-3 h-3"></i> View
-                                                    </button>
-                                                    <div class="relative">
-                                                        <button type="button" class="inline-flex items-center bg-white hover:bg-gray-50 px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium text-gray-700 text-xs dropdown-toggle">
-                                                            <i data-lucide="more-vertical" class="w-3 h-3"></i>
-                                                        </button>
-                                                        <div class="hidden right-0 absolute bg-white ring-opacity-5 shadow-lg mt-2 rounded-md ring-1 ring-black w-48 dropdown-menu">
-                                                            <div class="py-1" role="menu">
-                                                                <a href="#" onclick="approveSalary(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Approve Salary</a>
-                                                                <a href="#" onclick="denySalary(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Deny Salary</a>
-                                                                <a href="#" onclick="forCompliance(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">For Compliance</a>
-                                                                <div class="border-gray-100 border-t"></div>
-                                                                <?php if (!isset($payroll_data[$employee['id']])): ?>
-                                                                    <a href="#" onclick="createPayroll(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>', <?php echo $employee['salary']; ?>)" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Create Payroll</a>
-                                                                <?php else: ?>
-                                                                    <a href="#" onclick="editPayroll(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Edit Payroll</a>
-                                                                <?php endif; ?>
-                                                                <a href="#" onclick="viewPayrollHistory(<?php echo $employee['id']; ?>, '<?php echo addslashes($full_name); ?>')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Payroll History</a>
-                                                                <div class="border-gray-100 border-t"></div>
-                                                                <?php if ($employee['work_status'] == 'Active'): ?>
-                                                                    <a href="#" onclick="markInactive(<?php echo $employee['id']; ?>)" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Mark Inactive</a>
-                                                                <?php else: ?>
-                                                                    <a href="#" onclick="markActive(<?php echo $employee['id']; ?>)" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Mark Active</a>
-                                                                <?php endif; ?>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
+                                <tbody id="employeeTableBody" class="divide-y divide-gray-200">
+                                    <!-- Filled by JavaScript -->
                                 </tbody>
                             </table>
                         </div>
+                        <!-- Pagination controls -->
+                        <div id="pagination" class="pagination"></div>
                     </div>
                 </div>
 
-                <!-- View Employee Modal - PURE WHITE BACKGROUND + WHITE CARDS -->
+                <!-- View Employee Modal (redesigned organized list) -->
                 <dialog id="viewModal" class="modal">
                     <div class="bg-white max-w-4xl text-black modal-box">
-                        <h3 class="mb-6 font-bold text-lg">Employee Details</h3>
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="font-bold text-lg">Employee Details</h3>
+                            <button onclick="toggleModalFinancials()" class="btn-outline btn btn-sm">
+                                <i data-lucide="eye" id="modalToggleIcon" class="mr-2 w-4 h-4"></i>
+                                <span id="modalToggleText">Hide Salary</span>
+                            </button>
+                        </div>
                         <div id="employeeDetails" class="space-y-6">
                             <!-- Content loaded via JavaScript -->
                         </div>
@@ -531,16 +445,19 @@ foreach ($employees_data as $id => $emp) {
                                 <div class="flex flex-wrap justify-between gap-2" id="salaryActionButtons">
                                     <div class="flex flex-wrap gap-2">
                                         <button id="approveSalaryBtn" class="btn btn-success btn-sm" onclick="showSalaryActionForm('approve')">
-                                            <i data-lucide="check-circle" class="mr-2 w-4 h-4"></i> Approve Salary
+                                            <i data-lucide="check-circle" class="mr-2 w-4 h-4"></i> Approve for Financing
                                         </button>
                                         <button id="denySalaryBtn" class="btn btn-error btn-sm" onclick="showSalaryActionForm('deny')">
-                                            <i data-lucide="x-circle" class="mr-2 w-4 h-4"></i> Deny Salary Request
+                                            <i data-lucide="x-circle" class="mr-2 w-4 h-4"></i> Deny Financing
                                         </button>
                                         <button id="forComplianceBtn" class="btn btn-warning btn-sm" onclick="showSalaryActionForm('compliance')">
                                             <i data-lucide="shield" class="mr-2 w-4 h-4"></i> For Compliance
                                         </button>
                                         <button onclick="viewPayrollHistory(currentEmployeeId, currentEmployeeData?.first_name + ' ' + currentEmployeeData?.last_name)" class="btn btn-info btn-sm">
                                             <i data-lucide="history" class="mr-2 w-4 h-4"></i> Payroll History
+                                        </button>
+                                        <button onclick="exportSingleEmployeePDF(currentEmployeeId)" class="btn btn-secondary btn-sm">
+                                            <i data-lucide="file-text" class="mr-2 w-4 h-4"></i> Export as PDF
                                         </button>
                                     </div>
                                     <button class="btn btn-ghost btn-sm" onclick="viewModal.close()">Close</button>
@@ -580,7 +497,7 @@ foreach ($employees_data as $id => $emp) {
                     </div>
                 </dialog>
 
-                <!-- Payroll History Modal - PURE WHITE BACKGROUND -->
+                <!-- Payroll History Modal -->
                 <dialog id="payrollHistoryModal" class="modal">
                     <div class="bg-white max-w-6xl text-black modal-box">
                         <h3 class="mb-4 font-bold text-lg" id="payrollHistoryTitle">Payroll History</h3>
@@ -608,7 +525,7 @@ foreach ($employees_data as $id => $emp) {
                     </div>
                 </dialog>
 
-                <!-- Create/Edit Payroll Modal - PURE WHITE BACKGROUND -->
+                <!-- Create/Edit Payroll Modal -->
                 <dialog id="payrollModal" class="modal">
                     <div class="bg-white max-w-2xl text-black modal-box">
                         <h3 class="mb-4 font-bold text-lg" id="payrollModalTitle">Create Payroll</h3>
@@ -696,9 +613,369 @@ foreach ($employees_data as $id => $emp) {
         let currentEmployeeName = null;
         let currentEmployeeData = null;
 
-        // ========== SALARY/NET PAY TOGGLE ==========
-        let showFinancials = false;
+        // Data and pagination
+        let allEmployees = Object.values(window.employeesData);
+        let filteredEmployees = allEmployees;
+        let currentPage = 1;
+        const rowsPerPage = 10;
+        let currentFilter = 'all'; // track current filter
 
+        // DOM elements
+        const tbody = document.getElementById('employeeTableBody');
+        const paginationDiv = document.getElementById('pagination');
+        const searchInput = document.getElementById('searchEmployeeCode');
+
+        // Helper function to format salary status for display
+        function formatSalaryStatus(status) {
+            const map = {
+                'Under review': 'Under review',
+                'For financing': 'Under review for financing',
+                'Denied financing': 'Denied review',
+                'For compliance': 'For compliance financing'
+            };
+            return map[status] || status;
+        }
+
+        // ========== RENDER TABLE ==========
+        function renderTable() {
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const paginatedEmployees = filteredEmployees.slice(start, end);
+
+            tbody.innerHTML = '';
+            paginatedEmployees.forEach(emp => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition-colors';
+                row.dataset.employeeId = emp.id;
+                row.dataset.salaryStatus = emp.salary_status;
+                row.dataset.workStatus = emp.work_status;
+
+                const fullName = emp.first_name + (emp.middle_name ? ' ' + emp.middle_name : '') + (emp.last_name ? ' ' + emp.last_name : '');
+                
+                // Employment status badge styling
+                const employmentStatusClass = {
+                    'Regular': 'bg-green-100 text-green-800',
+                    'Probationary': 'bg-yellow-100 text-yellow-800',
+                    'Trainee': 'bg-blue-100 text-blue-800',
+                    'Contractual': 'bg-purple-100 text-purple-800'
+                }[emp.employment_status] || 'bg-gray-100 text-gray-800';
+
+                const salaryStatusClass = {
+                    'Under review': 'bg-yellow-100 text-yellow-800',
+                    'For financing': 'bg-green-100 text-green-800',
+                    'Denied financing': 'bg-red-100 text-red-800',
+                    'For compliance': 'bg-purple-100 text-purple-800'
+                }[emp.salary_status] || 'bg-gray-100 text-gray-800';
+
+                const payroll = emp.payroll;
+                const payrollStatusClass = payroll ? {
+                    'Approved': 'bg-green-100 text-green-800',
+                    'Paid': 'bg-blue-100 text-blue-800',
+                    'Pending': 'bg-yellow-100 text-yellow-800',
+                    'Draft': 'bg-gray-100 text-gray-800'
+                }[payroll.status] || 'bg-gray-100 text-gray-800' : '';
+
+                row.innerHTML = `
+                    <td class="px-4 py-3">
+                        <input type="checkbox" class="row-checkbox checkbox checkbox-sm" value="${emp.id}">
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 w-10 h-10">
+                                <div class="flex justify-center items-center bg-blue-100 rounded-full w-10 h-10 font-semibold text-blue-600">
+                                    ${emp.first_name.charAt(0)}${emp.last_name ? emp.last_name.charAt(0) : ''}
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <div class="font-medium text-gray-900 text-sm">${fullName}</div>
+                                <div class="text-gray-500 text-sm">${emp.email || ''}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="inline-flex items-center bg-gray-100 px-2.5 py-0.5 rounded-full font-medium text-gray-800 text-xs">
+                            ${emp.employee_code}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-900 text-sm whitespace-nowrap">${emp.job || ''}</td>
+                    <td class="px-4 py-3 font-semibold text-gray-900 text-sm whitespace-nowrap">
+                        <span class="salary-hidden">********</span>
+                        <span class="salary-value">₱${parseFloat(emp.salary).toLocaleString('en-US', {minimumFractionDigits:2})}</span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${employmentStatusClass}">
+                            ${emp.employment_status}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${salaryStatusClass}">
+                            ${formatSalaryStatus(emp.salary_status)}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        ${payroll ? 
+                            `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${payrollStatusClass}">${payroll.status}</span>` : 
+                            `<span class="inline-flex items-center bg-gray-100 px-2.5 py-0.5 rounded-full font-medium text-gray-800 text-xs">No Payroll</span>`
+                        }
+                    </td>
+                    <!-- Net Pay column removed -->
+                    <td class="px-4 py-3 text-sm whitespace-nowrap">
+                        <div class="flex items-center space-x-2">
+                            <button onclick="viewEmployee(${emp.id})"
+                                class="inline-flex items-center bg-blue-600 hover:bg-blue-700 px-3 py-1.5 border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium text-white text-xs">
+                                <i data-lucide="eye" class="mr-1 w-3 h-3"></i> View
+                            </button>
+                            <div class="relative">
+                                <button type="button" class="inline-flex items-center bg-white hover:bg-gray-50 px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium text-gray-700 text-xs dropdown-toggle">
+                                    <i data-lucide="more-vertical" class="w-3 h-3"></i>
+                                </button>
+                                <div class="hidden right-0 absolute bg-white ring-opacity-5 shadow-lg mt-2 rounded-md ring-1 ring-black w-48 dropdown-menu">
+                                    <div class="py-1" role="menu">
+                                        <a href="#" onclick="approveSalary(${emp.id}, '${fullName.replace(/'/g, "\\'")}')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Approve for Financing</a>
+                                        <a href="#" onclick="denySalary(${emp.id}, '${fullName.replace(/'/g, "\\'")}')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Deny Financing</a>
+                                        <a href="#" onclick="forCompliance(${emp.id}, '${fullName.replace(/'/g, "\\'")}')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">For Compliance</a>
+                                        <div class="border-gray-100 border-t"></div>
+                                        ${!payroll ? 
+                                            `<a href="#" onclick="createPayroll(${emp.id}, '${fullName.replace(/'/g, "\\'")}', ${emp.salary})" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Create Payroll</a>` : 
+                                            `<a href="#" onclick="editPayroll(${emp.id}, '${fullName.replace(/'/g, "\\'")}')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Edit Payroll</a>`
+                                        }
+                                        <a href="#" onclick="viewPayrollHistory(${emp.id}, '${fullName.replace(/'/g, "\\'")}')" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Payroll History</a>
+                                        <div class="border-gray-100 border-t"></div>
+                                        ${emp.work_status == 'Active' ? 
+                                            `<a href="#" onclick="markInactive(${emp.id})" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Mark Inactive</a>` : 
+                                            `<a href="#" onclick="markActive(${emp.id})" class="block hover:bg-gray-100 px-4 py-2 text-gray-700 text-sm">Mark Active</a>`
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            lucide.createIcons();
+            updatePagination();
+            updateSelectAllState();
+        }
+
+        // ========== PAGINATION ==========
+        function updatePagination() {
+            const totalPages = Math.ceil(filteredEmployees.length / rowsPerPage);
+            paginationDiv.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            const prevBtn = document.createElement('button');
+            prevBtn.textContent = 'Previous';
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.onclick = () => { currentPage--; renderTable(); };
+            paginationDiv.appendChild(prevBtn);
+
+            for (let i = 1; i <= totalPages; i++) {
+                const btn = document.createElement('button');
+                btn.textContent = i;
+                btn.className = i === currentPage ? 'active' : '';
+                btn.onclick = () => { currentPage = i; renderTable(); };
+                paginationDiv.appendChild(btn);
+            }
+
+            const nextBtn = document.createElement('button');
+            nextBtn.textContent = 'Next';
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.onclick = () => { currentPage++; renderTable(); };
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        // ========== FILTER & SEARCH ==========
+        function filterByStatus(status) {
+            currentFilter = status;
+            applyFilterAndSearch();
+        }
+
+        function applyFilterAndSearch() {
+            // Start with all employees
+            let filtered = allEmployees;
+
+            // Apply filter (using raw status values for comparison)
+            if (currentFilter === 'Active') {
+                filtered = filtered.filter(e => e.work_status === 'Active');
+            } else if (currentFilter !== 'all') {
+                filtered = filtered.filter(e => e.salary_status === currentFilter);
+            }
+
+            // Apply search
+            const term = searchInput.value.trim().toLowerCase();
+            if (term) {
+                filtered = filtered.filter(e => e.employee_code.toLowerCase().includes(term));
+            }
+
+            filteredEmployees = filtered;
+            currentPage = 1;
+            renderTable();
+        }
+
+        searchInput.addEventListener('input', applyFilterAndSearch);
+
+        // ========== CHECKBOX SELECTION ==========
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+        }
+
+        function updateSelectAllState() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            if (checkboxes.length === 0) {
+                selectAll.checked = false;
+                return;
+            }
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            selectAll.checked = allChecked;
+            selectAll.indeterminate = !allChecked && Array.from(checkboxes).some(cb => cb.checked);
+        }
+
+        document.addEventListener('change', function(e) {
+            if (e.target.classList.contains('row-checkbox')) {
+                updateSelectAllState();
+            }
+        });
+
+        // ========== EXPORT PDF (REVISED) ==========
+        function exportSelectedPDF() {
+            const selectedIds = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
+            if (selectedIds.length === 0) {
+                Swal.fire('No selection', 'Please select at least one employee to export.', 'warning');
+                return;
+            }
+            const employeesToExport = allEmployees.filter(e => selectedIds.includes(e.id.toString()));
+
+            let html = `
+                <div id="exportContainer" style="padding: 20px; font-family: Arial, sans-serif;">
+                    <h2 style="text-align: center; color: #001f54;">Employee Payroll Report</h2>
+                    <p style="text-align: center; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
+                    <table style="width:100%; border-collapse: collapse; margin-top:20px; border: 1px solid #ddd;">
+                        <thead>
+                            <tr style="background:#001f54; color:white;">
+                                <th style="padding:8px; border:1px solid #001f54;">Code</th>
+                                <th style="padding:8px; border:1px solid #001f54;">Name</th>
+                                <th style="padding:8px; border:1px solid #001f54;">Position</th>
+                                <th style="padding:8px; border:1px solid #001f54;">Employment Status</th>
+                                <th style="padding:8px; border:1px solid #001f54;">Salary Status</th>
+                                <th style="padding:8px; border:1px solid #001f54;">Net Pay</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            employeesToExport.forEach(emp => {
+                const fullName = emp.first_name + (emp.middle_name ? ' ' + emp.middle_name : '') + (emp.last_name ? ' ' + emp.last_name : '');
+                html += `
+                    <tr style="border-bottom:1px solid #ddd;">
+                        <td style="padding:8px; border:1px solid #ddd;">${emp.employee_code}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">${fullName}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">${emp.job || ''}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">${emp.employment_status}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">${formatSalaryStatus(emp.salary_status)}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">₱${emp.payroll ? parseFloat(emp.payroll.net_pay).toFixed(2) : '0.00'}</td>
+                    </tr>
+                `;
+            });
+            html += `</tbody></table></div>`;
+
+            const element = document.createElement('div');
+            element.innerHTML = html;
+            document.body.appendChild(element);
+            
+            // Show loading
+            Swal.fire({
+                title: 'Generating PDF...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            html2pdf().from(element.querySelector('#exportContainer')).set({
+                margin: 0.5,
+                filename: `employees_export_${Date.now()}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, logging: true },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' }
+            }).save().then(() => {
+                Swal.close();
+                document.body.removeChild(element);
+            }).catch(error => {
+                Swal.fire('Error', 'PDF generation failed: ' + error, 'error');
+                document.body.removeChild(element);
+            });
+        }
+
+        function exportSingleEmployeePDF(employeeId) {
+            const emp = allEmployees.find(e => e.id == employeeId);
+            if (!emp) return;
+
+            const fullName = emp.first_name + (emp.middle_name ? ' ' + emp.middle_name : '') + (emp.last_name ? ' ' + emp.last_name : '');
+            let html = `
+                <div id="exportContainer" style="padding:20px; font-family:Arial, sans-serif;">
+                    <h2 style="text-align:center; color:#001f54;">Employee Details</h2>
+                    <p style="text-align:center;">Generated on: ${new Date().toLocaleDateString()}</p>
+                    <table style="width:100%; border-collapse: collapse; margin-top:20px;">
+                        <tr><td style="padding:5px;"><strong>Employee Code:</strong></td><td style="padding:5px;">${emp.employee_code}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Name:</strong></td><td style="padding:5px;">${fullName}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Email:</strong></td><td style="padding:5px;">${emp.email || ''}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Phone:</strong></td><td style="padding:5px;">${emp.phone_number || ''}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Position:</strong></td><td style="padding:5px;">${emp.job || ''}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Employment Status:</strong></td><td style="padding:5px;">${emp.employment_status}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Salary Status:</strong></td><td style="padding:5px;">${formatSalaryStatus(emp.salary_status)}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Salary:</strong></td><td style="padding:5px;">₱${parseFloat(emp.salary).toFixed(2)}</td></tr>
+                        ${emp.payroll ? `
+                        <tr><td style="padding:5px;"><strong>Payroll Status:</strong></td><td style="padding:5px;">${emp.payroll.status}</td></tr>
+                        <tr><td style="padding:5px;"><strong>Net Pay:</strong></td><td style="padding:5px;">₱${parseFloat(emp.payroll.net_pay).toFixed(2)}</td></tr>
+                        ` : ''}
+                    </table>
+                </div>
+            `;
+            const element = document.createElement('div');
+            element.innerHTML = html;
+            document.body.appendChild(element);
+            
+            Swal.fire({
+                title: 'Generating PDF...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            html2pdf().from(element.querySelector('#exportContainer')).set({
+                margin: 0.5,
+                filename: `employee_${emp.employee_code}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            }).save().then(() => {
+                Swal.close();
+                document.body.removeChild(element);
+            }).catch(error => {
+                Swal.fire('Error', 'PDF generation failed: ' + error, 'error');
+                document.body.removeChild(element);
+            });
+        }
+
+        // ========== INITIAL RENDER ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            renderTable();
+            // Initialize dropdowns
+            document.querySelectorAll('.dropdown-toggle').forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const menu = this.nextElementSibling;
+                    menu.classList.toggle('hidden');
+                });
+            });
+            document.addEventListener('click', function() {
+                document.querySelectorAll('.dropdown-menu').forEach(menu => menu.classList.add('hidden'));
+            });
+        });
+
+        // ========== TOGGLE FINANCIALS (global) ==========
+        let showFinancials = false;
         function toggleFinancials() {
             showFinancials = !showFinancials;
             const body = document.body;
@@ -717,25 +994,27 @@ foreach ($employees_data as $id => $emp) {
             lucide.createIcons();
         }
 
-        // Initialize toggle state (hidden by default)
-        document.addEventListener('DOMContentLoaded', function() {
-            document.body.classList.remove('show-financials');
-            // Initialize dropdowns
-            document.querySelectorAll('.dropdown-toggle').forEach(button => {
-                button.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    const menu = this.nextElementSibling;
-                    menu.classList.toggle('hidden');
-                });
-            });
-            document.addEventListener('click', function() {
-                document.querySelectorAll('.dropdown-menu').forEach(menu => menu.classList.add('hidden'));
-            });
-            lucide.createIcons();
-        });
-        // ========== END TOGGLE ==========
+        // ========== TOGGLE FINANCIALS (modal only) ==========
+        let modalShowFinancials = false;
+        function toggleModalFinancials() {
+            modalShowFinancials = !modalShowFinancials;
+            const modal = document.getElementById('viewModal');
+            const icon = document.getElementById('modalToggleIcon');
+            const text = document.getElementById('modalToggleText');
 
-        // ----- View Employee Details - USING DIRECT DATA -----
+            if (modalShowFinancials) {
+                modal.classList.add('show-financials');
+                icon.setAttribute('data-lucide', 'eye');
+                text.innerText = 'Hide Salary';
+            } else {
+                modal.classList.remove('show-financials');
+                icon.setAttribute('data-lucide', 'eye-off');
+                text.innerText = 'Show Salary';
+            }
+            lucide.createIcons();
+        }
+
+        // ========== VIEW EMPLOYEE DETAILS (organized list) ==========
         function viewEmployee(employeeId) {
             const employee = window.employeesData[employeeId];
             if (!employee) {
@@ -754,24 +1033,24 @@ foreach ($employees_data as $id => $emp) {
             const denyBtn = document.getElementById('denySalaryBtn');
             const complianceBtn = document.getElementById('forComplianceBtn');
 
-            if (currentStatus === 'Approved') {
+            if (currentStatus === 'For financing') {
                 approveBtn.disabled = true;
                 approveBtn.classList.add('btn-disabled');
                 approveBtn.innerHTML = '<i data-lucide="check-circle" class="mr-2 w-4 h-4"></i>Already Approved';
             } else {
                 approveBtn.disabled = false;
                 approveBtn.classList.remove('btn-disabled');
-                approveBtn.innerHTML = '<i data-lucide="check-circle" class="mr-2 w-4 h-4"></i>Approve Salary';
+                approveBtn.innerHTML = '<i data-lucide="check-circle" class="mr-2 w-4 h-4"></i>Approve for Financing';
             }
 
-            if (currentStatus === 'Denied') {
+            if (currentStatus === 'Denied financing') {
                 denyBtn.disabled = true;
                 denyBtn.classList.add('btn-disabled');
                 denyBtn.innerHTML = '<i data-lucide="x-circle" class="mr-2 w-4 h-4"></i>Already Denied';
             } else {
                 denyBtn.disabled = false;
                 denyBtn.classList.remove('btn-disabled');
-                denyBtn.innerHTML = '<i data-lucide="x-circle" class="mr-2 w-4 h-4"></i>Deny Salary Request';
+                denyBtn.innerHTML = '<i data-lucide="x-circle" class="mr-2 w-4 h-4"></i>Deny Financing';
             }
 
             if (currentStatus === 'For compliance') {
@@ -786,143 +1065,135 @@ foreach ($employees_data as $id => $emp) {
             lucide.createIcons();
         }
 
-        // ----- Employee Details Display (ALL CARDS NOW WHITE) -----
+        // Generate random attendance data
+        function generateDummyAttendance(employee) {
+            const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+            const workDays = Math.floor(daysInMonth * 0.8); // assume 80% working days
+            const present = Math.floor(Math.random() * (workDays - 5)) + 5; // between 5 and workDays
+            const late = Math.floor(Math.random() * 5);
+            const absent = workDays - present;
+            const overtimeHours = Math.floor(Math.random() * 20);
+            return { present, late, absent, overtimeHours };
+        }
+
         function displayEmployeeDetails(data) {
             const full_name = data.first_name + (data.middle_name ? ' ' + data.middle_name : '') + (data.last_name ? ' ' + data.last_name : '');
+            const attendance = generateDummyAttendance(data);
 
             const details = `
-            <div class="gap-6 grid grid-cols-1 md:grid-cols-2">
-                <!-- Personal Information - PURE WHITE -->
-                <div class="bg-white shadow card">
-                    <div class="card-body">
-                        <h4 class="card-title">Personal Information</h4>
-                        <div class="space-y-3">
-                            <div class="flex justify-between">
-                                <span class="font-medium">Full Name:</span>
-                                <span>${full_name}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="font-medium">Employee Code:</span>
-                                <span>${data.employee_code}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="font-medium">Email:</span>
-                                <span>${data.email || 'N/A'}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="font-medium">Phone:</span>
-                                <span>${data.phone_number || 'N/A'}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="font-medium">Date of Birth:</span>
-                                <span>${data.date_of_birth || 'N/A'}</span>
-                            </div>
-                        </div>
+            <div class="space-y-4">
+                <!-- Personal Information -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-lg mb-3 flex items-center">
+                        <i data-lucide="user" class="mr-2 w-5 h-5 text-blue-600"></i> Personal Information
+                    </h4>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><span class="font-medium text-gray-600">Full Name:</span> <span class="ml-2">${full_name}</span></div>
+                        <div><span class="font-medium text-gray-600">Employee Code:</span> <span class="ml-2">${data.employee_code}</span></div>
+                        <div><span class="font-medium text-gray-600">Email:</span> <span class="ml-2">${data.email || 'N/A'}</span></div>
+                        <div><span class="font-medium text-gray-600">Phone:</span> <span class="ml-2">${data.phone_number || 'N/A'}</span></div>
+                        <div><span class="font-medium text-gray-600">Date of Birth:</span> <span class="ml-2">${data.date_of_birth || 'N/A'}</span></div>
                     </div>
                 </div>
-                
-                <!-- Job Information - PURE WHITE -->
-                <div class="bg-white shadow card">
-                    <div class="card-body">
-                        <h4 class="card-title">Job Information</h4>
-                        <div class="space-y-3">
-                            <div class="flex justify-between">
-                                <span class="font-medium">Job/Position:</span>
-                                <span>${data.job}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="font-medium">Department ID:</span>
-                                <span>${data.department_id || 'N/A'}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="font-medium">Work Status:</span>
-                                <span class="badge ${data.work_status === 'Active' ? 'badge-success' : (data.work_status === 'Inactive' ? 'badge-error' : 'badge-warning')}">
-                                    ${data.work_status}
-                                </span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="font-medium">Employment Status:</span>
-                                <span>${data.employment_status}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="font-medium">Hire Date:</span>
-                                <span>${data.hire_date || 'N/A'}</span>
-                            </div>
-                        </div>
+
+                <!-- Job Information -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-lg mb-3 flex items-center">
+                        <i data-lucide="briefcase" class="mr-2 w-5 h-5 text-blue-600"></i> Job Information
+                    </h4>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><span class="font-medium text-gray-600">Job/Position:</span> <span class="ml-2">${data.job}</span></div>
+                        <div><span class="font-medium text-gray-600">Department ID:</span> <span class="ml-2">${data.department_id || 'N/A'}</span></div>
+                        <div><span class="font-medium text-gray-600">Work Status:</span> <span class="ml-2 badge ${data.work_status === 'Active' ? 'badge-success' : (data.work_status === 'Inactive' ? 'badge-error' : 'badge-warning')}">${data.work_status}</span></div>
+                        <div><span class="font-medium text-gray-600">Employment Status:</span> <span class="ml-2">${data.employment_status}</span></div>
+                        <div><span class="font-medium text-gray-600">Hire Date:</span> <span class="ml-2">${data.hire_date || 'N/A'}</span></div>
                     </div>
                 </div>
-                
-                <!-- Salary Information - WITH TOGGLE, WHITE BACKGROUND -->
-                <div class="bg-white shadow card">
-                    <div class="card-body">
-                        <h4 class="card-title">Salary Information</h4>
-                        <div class="space-y-3">
-                            <div class="flex justify-between">
-                                <span class="font-medium">Salary:</span>
-                                <span class="font-bold">
-                                    <span class="salary-hidden">********</span>
-                                    <span class="salary-value">₱${parseFloat(data.salary).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+
+                <!-- Salary Information -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-lg mb-3 flex items-center">
+                        <i data-lucide="dollar-sign" class="mr-2 w-5 h-5 text-blue-600"></i> Salary Information
+                    </h4>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><span class="font-medium text-gray-600">Salary:</span> 
+                            <span class="ml-2">
+                                <span class="salary-hidden">********</span>
+                                <span class="salary-value">₱${parseFloat(data.salary).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                            </span>
+                        </div>
+                        <div><span class="font-medium text-gray-600">Basic Salary:</span> 
+                            <span class="ml-2">
+                                <span class="salary-hidden">********</span>
+                                <span class="salary-value">₱${parseFloat(data.basic_salary || data.salary).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                            </span>
+                        </div>
+                        <div><span class="font-medium text-gray-600">Salary Status:</span> 
+                            <span class="ml-2 badge ${getSalaryStatusClass(data.salary_status)}">
+                                ${formatSalaryStatus(data.salary_status)}
+                            </span>
+                        </div>
+                        ${data.salary_reason ? `
+                        <div class="col-span-2"><span class="font-medium text-gray-600">Reason:</span> 
+                            <p class="bg-white mt-1 p-2 rounded border">${data.salary_reason}</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <!-- Payroll Information -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-lg mb-3 flex items-center">
+                        <i data-lucide="file-text" class="mr-2 w-5 h-5 text-blue-600"></i> Payroll Information
+                    </h4>
+                    ${data.payroll ? `
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><span class="font-medium text-gray-600">Payroll Status:</span> 
+                                <span class="ml-2 badge ${data.payroll.status === 'Approved' ? 'badge-success' : (data.payroll.status === 'Paid' ? 'badge-primary' : 'badge-warning')}">
+                                    ${data.payroll.status}
                                 </span>
                             </div>
-                            <div class="flex justify-between">
-                                <span class="font-medium">Basic Salary:</span>
-                                <span>
-                                    <span class="salary-hidden">********</span>
-                                    <span class="salary-value">₱${parseFloat(data.basic_salary || data.salary).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                            <div><span class="font-medium text-gray-600">Period:</span> <span class="ml-2">${data.payroll.period}</span></div>
+                            <div><span class="font-medium text-gray-600">Net Pay:</span> 
+                                <span class="ml-2">
+                                    <span class="netpay-hidden">********</span>
+                                    <span class="netpay-value">₱${parseFloat(data.payroll.net_pay).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
                                 </span>
                             </div>
-                            <div class="flex justify-between">
-                                <span class="font-medium">Salary Status:</span>
-                                <span class="badge ${getSalaryStatusClass(data.salary_status)}">
-                                    ${data.salary_status || 'Under review'}
-                                </span>
-                            </div>
-                            ${data.salary_reason ? `
-                            <div>
-                                <span class="font-medium">Reason:</span>
-                                <p class="bg-gray-100 mt-1 p-2 rounded">${data.salary_reason}</p>
+                            <div><span class="font-medium text-gray-600">Overtime Pay:</span> <span class="ml-2">₱${parseFloat(data.payroll.overtime_pay).toLocaleString('en-US', {minimumFractionDigits: 2})}</span></div>
+                            ${data.payroll.notes ? `
+                            <div class="col-span-2"><span class="font-medium text-gray-600">Notes:</span> 
+                                <p class="bg-white mt-1 p-2 rounded border">${data.payroll.notes}</p>
                             </div>
                             ` : ''}
                         </div>
-                    </div>
+                    ` : '<p class="text-gray-500 text-center">No payroll record found</p>'}
                 </div>
-                
-                <!-- Payroll Information - WITH TOGGLE for Net Pay, WHITE BACKGROUND -->
-                <div class="bg-white shadow card">
-                    <div class="card-body">
-                        <h4 class="card-title">Payroll Information</h4>
-                        ${data.payroll ? `
-                            <div class="space-y-2">
-                                <div class="flex justify-between">
-                                    <span>Payroll Status:</span>
-                                    <span class="badge ${data.payroll.status === 'Approved' ? 'badge-success' : (data.payroll.status === 'Paid' ? 'badge-primary' : 'badge-warning')}">
-                                        ${data.payroll.status}
-                                    </span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span>Period:</span>
-                                    <span>${data.payroll.period}</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span>Net Pay:</span>
-                                    <span class="font-bold">
-                                        <span class="netpay-hidden">********</span>
-                                        <span class="netpay-value">₱${parseFloat(data.payroll.net_pay).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                                    </span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span>Overtime Pay:</span>
-                                    <span>₱${parseFloat(data.payroll.overtime_pay).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                                </div>
-                                ${data.payroll.notes ? `
-                                <div>
-                                    <span class="font-medium">Notes:</span>
-                                    <p class="bg-gray-100 mt-1 p-2 rounded">${data.payroll.notes}</p>
-                                </div>
-                                ` : ''}
-                            </div>
-                        ` : '<p class="text-gray-500 text-center">No payroll record found</p>'}
+
+                <!-- Dummy Attendance Data -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-lg mb-3 flex items-center">
+                        <i data-lucide="calendar" class="mr-2 w-5 h-5 text-blue-600"></i> Attendance Summary (Current Month - Dummy Data)
+                    </h4>
+                    <div class="grid grid-cols-4 gap-4 text-center">
+                        <div class="bg-green-50 p-3 rounded-lg">
+                            <span class="block text-2xl font-bold text-green-600">${attendance.present}</span>
+                            <span class="text-sm text-gray-600">Days Present</span>
+                        </div>
+                        <div class="bg-yellow-50 p-3 rounded-lg">
+                            <span class="block text-2xl font-bold text-yellow-600">${attendance.late}</span>
+                            <span class="text-sm text-gray-600">Late</span>
+                        </div>
+                        <div class="bg-red-50 p-3 rounded-lg">
+                            <span class="block text-2xl font-bold text-red-600">${attendance.absent}</span>
+                            <span class="text-sm text-gray-600">Absent</span>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded-lg">
+                            <span class="block text-2xl font-bold text-blue-600">${attendance.overtimeHours}</span>
+                            <span class="text-sm text-gray-600">Overtime Hours</span>
+                        </div>
                     </div>
+                    <p class="text-xs text-gray-400 mt-2">*Randomly generated for demonstration</p>
                 </div>
             </div>
         `;
@@ -934,8 +1205,8 @@ foreach ($employees_data as $id => $emp) {
         function getSalaryStatusClass(status) {
             const classes = {
                 'Under review': 'badge-warning',
-                'Approved': 'badge-success',
-                'Denied': 'badge-error',
+                'For financing': 'badge-success',
+                'Denied financing': 'badge-error',
                 'For compliance': 'badge-info'
             };
             return classes[status] || 'badge-outline';
@@ -954,15 +1225,15 @@ foreach ($employees_data as $id => $emp) {
 
             switch (actionType) {
                 case 'approve':
-                    actionTitle.textContent = 'Approve Salary Request';
+                    actionTitle.textContent = 'Approve for Financing';
                     actionLabel.textContent = 'Approval Comments (Optional)';
-                    actionHint.textContent = 'Optional comments explaining why this salary is approved';
+                    actionHint.textContent = 'Optional comments explaining why this salary is approved for financing';
                     actionComment.placeholder = 'Enter approval comments (optional)...';
                     break;
                 case 'deny':
-                    actionTitle.textContent = 'Deny Salary Request';
+                    actionTitle.textContent = 'Deny Financing';
                     actionLabel.textContent = 'Denial Reason (Required)';
-                    actionHint.textContent = 'Required: Please provide detailed reason for denying this salary request';
+                    actionHint.textContent = 'Required: Please provide detailed reason for denying this financing request';
                     actionComment.placeholder = 'Enter detailed reason for denial...';
                     break;
                 case 'compliance':
@@ -997,8 +1268,8 @@ foreach ($employees_data as $id => $emp) {
 
             let status = '';
             switch (actionType) {
-                case 'approve': status = 'Approved'; break;
-                case 'deny':    status = 'Denied'; break;
+                case 'approve': status = 'For financing'; break;
+                case 'deny':    status = 'Denied financing'; break;
                 case 'compliance': status = 'For compliance'; break;
             }
 
@@ -1020,7 +1291,7 @@ foreach ($employees_data as $id => $emp) {
             }
         }
 
-        // ---------- Payroll History ----------
+        // ---------- Payroll History (unchanged) ----------
         async function viewPayrollHistory(employeeId, employeeName) {
             try {
                 const response = await fetch('API/payroll_api.php', {
@@ -1105,34 +1376,25 @@ foreach ($employees_data as $id => $emp) {
             }
         }
 
-        // ---------- Filter, CRUD, Payroll, Export ----------
-        function filterByStatus(status) {
-            const rows = document.querySelectorAll('.employee-row');
-            rows.forEach(row => {
-                if (status === 'all') {
-                    row.style.display = '';
-                } else if (status === 'Active') {
-                    row.style.display = row.getAttribute('data-work-status') === 'Active' ? '' : 'none';
-                } else {
-                    row.style.display = row.getAttribute('data-salary-status') === status ? '' : 'none';
-                }
-            });
-        }
-
+        // ---------- CRUD functions (using Tailwind-styled Swal) ----------
         function approveSalary(employeeId, employeeName) {
             currentAction = 'approve';
             currentEmployeeId = employeeId;
             currentEmployeeName = employeeName;
 
             Swal.fire({
-                title: 'Approve Salary',
-                html: `Approve salary for: <strong>${employeeName}</strong>`,
+                title: 'Approve for Financing',
+                html: `Approve financing for: <strong>${employeeName}</strong>`,
                 input: 'textarea',
                 inputLabel: 'Comments (Optional)',
                 inputPlaceholder: 'Enter optional comments for approval...',
                 showCancelButton: true,
                 confirmButtonText: 'Approve',
                 cancelButtonText: 'Cancel',
+                customClass: {
+                    confirmButton: 'bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded-lg',
+                    cancelButton: 'bg-gray-300 text-gray-800 hover:bg-gray-400 px-4 py-2 rounded-lg'
+                },
                 preConfirm: (comment) => { return comment === '' ? null : comment; }
             }).then(async (result) => {
                 if (result.isConfirmed) {
@@ -1141,17 +1403,17 @@ foreach ($employees_data as $id => $emp) {
                         const response = await fetch('API/payroll_api.php', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: `action=update_salary_status&id=${employeeId}&status=Approved&reason=${encodeURIComponent(comment)}`
+                            body: `action=update_salary_status&id=${employeeId}&status=For financing&reason=${encodeURIComponent(comment)}`
                         });
                         const data = await response.json();
                         if (data.success) {
-                            Swal.fire({ icon: 'success', title: 'Approved!', text: `Salary for ${employeeName} has been approved`, timer: 2000, showConfirmButton: false })
+                            Swal.fire({ icon: 'success', title: 'Approved!', text: `Financing for ${employeeName} has been approved`, timer: 2000, showConfirmButton: false })
                                 .then(() => location.reload());
                         } else {
                             Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                         }
                     } catch (error) {
-                        Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to approve salary' });
+                        Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to approve financing' });
                     }
                 }
             });
@@ -1163,15 +1425,19 @@ foreach ($employees_data as $id => $emp) {
             currentEmployeeName = employeeName;
 
             Swal.fire({
-                title: 'Deny Salary Request',
-                html: `Deny salary request for: <strong>${employeeName}</strong>`,
+                title: 'Deny Financing Request',
+                html: `Deny financing request for: <strong>${employeeName}</strong>`,
                 input: 'textarea',
                 inputLabel: 'Reason (Required)',
                 inputPlaceholder: 'Enter detailed reason for denial...',
                 inputValidator: (value) => { if (!value) return 'You need to provide a reason!'; },
                 showCancelButton: true,
                 confirmButtonText: 'Deny',
-                cancelButtonText: 'Cancel'
+                cancelButtonText: 'Cancel',
+                customClass: {
+                    confirmButton: 'bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-lg',
+                    cancelButton: 'bg-gray-300 text-gray-800 hover:bg-gray-400 px-4 py-2 rounded-lg'
+                }
             }).then(async (result) => {
                 if (result.isConfirmed) {
                     const comment = result.value;
@@ -1179,17 +1445,17 @@ foreach ($employees_data as $id => $emp) {
                         const response = await fetch('API/payroll_api.php', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: `action=update_salary_status&id=${employeeId}&status=Denied&reason=${encodeURIComponent(comment)}`
+                            body: `action=update_salary_status&id=${employeeId}&status=Denied financing&reason=${encodeURIComponent(comment)}`
                         });
                         const data = await response.json();
                         if (data.success) {
-                            Swal.fire({ icon: 'success', title: 'Denied!', text: `Salary for ${employeeName} has been denied`, timer: 2000, showConfirmButton: false })
+                            Swal.fire({ icon: 'success', title: 'Denied!', text: `Financing for ${employeeName} has been denied`, timer: 2000, showConfirmButton: false })
                                 .then(() => location.reload());
                         } else {
                             Swal.fire({ icon: 'error', title: 'Error!', text: data.message });
                         }
                     } catch (error) {
-                        Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to deny salary' });
+                        Swal.fire({ icon: 'error', title: 'Network Error!', text: 'Failed to deny financing' });
                     }
                 }
             });
@@ -1209,7 +1475,11 @@ foreach ($employees_data as $id => $emp) {
                 inputValidator: (value) => { if (!value) return 'You need to provide compliance notes!'; },
                 showCancelButton: true,
                 confirmButtonText: 'Send for Compliance',
-                cancelButtonText: 'Cancel'
+                cancelButtonText: 'Cancel',
+                customClass: {
+                    confirmButton: 'bg-yellow-600 text-white hover:bg-yellow-700 px-4 py-2 rounded-lg',
+                    cancelButton: 'bg-gray-300 text-gray-800 hover:bg-gray-400 px-4 py-2 rounded-lg'
+                }
             }).then(async (result) => {
                 if (result.isConfirmed) {
                     const comment = result.value;
@@ -1244,7 +1514,11 @@ foreach ($employees_data as $id => $emp) {
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Yes, mark inactive',
-                cancelButtonText: 'Cancel'
+                cancelButtonText: 'Cancel',
+                customClass: {
+                    confirmButton: 'bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-lg',
+                    cancelButton: 'bg-gray-300 text-gray-800 hover:bg-gray-400 px-4 py-2 rounded-lg'
+                }
             }).then((result) => {
                 if (result.isConfirmed) {
                     updateWorkStatus(employeeId, 'Inactive');
@@ -1344,13 +1618,13 @@ foreach ($employees_data as $id => $emp) {
             document.getElementById('summaryNetPay').textContent = '₱' + netPay.toLocaleString('en-US', { minimumFractionDigits: 2 });
         }
 
-        document.getElementById('basicSalary').addEventListener('input', calculatePayrollSummary);
-        document.getElementById('overtimeHours').addEventListener('input', calculatePayrollSummary);
-        document.getElementById('overtimeRate').addEventListener('input', calculatePayrollSummary);
-        document.getElementById('allowances').addEventListener('input', calculatePayrollSummary);
-        document.getElementById('deductions').addEventListener('input', calculatePayrollSummary);
+        document.getElementById('basicSalary')?.addEventListener('input', calculatePayrollSummary);
+        document.getElementById('overtimeHours')?.addEventListener('input', calculatePayrollSummary);
+        document.getElementById('overtimeRate')?.addEventListener('input', calculatePayrollSummary);
+        document.getElementById('allowances')?.addEventListener('input', calculatePayrollSummary);
+        document.getElementById('deductions')?.addEventListener('input', calculatePayrollSummary);
 
-        document.getElementById('payrollForm').addEventListener('submit', async function(e) {
+        document.getElementById('payrollForm')?.addEventListener('submit', async function(e) {
             e.preventDefault();
             const submitBtn = document.getElementById('payrollSubmitBtn');
             submitBtn.disabled = true;
@@ -1381,7 +1655,11 @@ foreach ($employees_data as $id => $emp) {
                         icon: 'warning',
                         showCancelButton: true,
                         confirmButtonText: 'Yes, mark Paid',
-                        cancelButtonText: 'Cancel'
+                        cancelButtonText: 'Cancel',
+                        customClass: {
+                            confirmButton: 'bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg',
+                            cancelButton: 'bg-gray-300 text-gray-800 hover:bg-gray-400 px-4 py-2 rounded-lg'
+                        }
                     });
                     if (!confirmPaid.isConfirmed) {
                         submitBtn.disabled = false;
@@ -1431,10 +1709,6 @@ foreach ($employees_data as $id => $emp) {
                 submitBtnFinal.textContent = previousLabel;
             }
         });
-
-        function exportToExcel() {
-            window.open('API/export_employees.php', '_blank');
-        }
     </script>
 </body>
 

@@ -336,14 +336,14 @@ function handleFormSubmission()
                                 <span class="label-text">Provider Name *</span>
                             </label>
                             <input type="text" name="name" id="providerName" required
-                                class="w-full input input-bordered" placeholder="Enter provider name">
+                                class="bg-white w-full input input-bordered" placeholder="Enter provider name">
                         </div>
 
                         <div class="form-control">
                             <label class="label">
                                 <span class="label-text">Type *</span>
                             </label>
-                            <select name="type" id="providerType" required class="w-full select-bordered select">
+                            <select name="type" id="providerType" required class="bg-white w-full select-bordered select">
                                 <option value="">Select Type</option>
                                 <option value="Hospital">Hospital</option>
                                 <option value="Clinic">Clinic</option>
@@ -358,7 +358,7 @@ function handleFormSubmission()
                             <label class="label">
                                 <span class="label-text">Location *</span>
                             </label>
-                            <select name="location" id="providerLocation" required class="w-full select-bordered select">
+                            <select name="location" id="providerLocation" required class="bg-white w-full select-bordered select">
                                 <option value="">Select Location</option>
                                 <?php foreach ($locations as $loc): ?>
                                     <option value="<?= htmlspecialchars($loc->location) ?>">
@@ -373,7 +373,7 @@ function handleFormSubmission()
                                 <span class="label-text">Phone Number *</span>
                             </label>
                             <input type="tel" name="phone" id="providerPhone" required
-                                class="w-full input input-bordered" placeholder="Enter phone number">
+                                class="bg-white w-full input input-bordered" placeholder="Enter phone number">
                         </div>
                     </div>
 
@@ -382,7 +382,7 @@ function handleFormSubmission()
                             <span class="label-text">Address *</span>
                         </label>
                         <textarea name="address" id="providerAddress" rows="2" required
-                            class="w-full textarea textarea-bordered" placeholder="Enter full address"></textarea>
+                            class="bg-white w-full textarea textarea-bordered" placeholder="Enter full address"></textarea>
                     </div>
 
                     <div class="gap-4 grid grid-cols-1 md:grid-cols-2 mb-4">
@@ -390,7 +390,7 @@ function handleFormSubmission()
                             <label class="label">
                                 <span class="label-text">Specialty</span>
                             </label>
-                            <select name="specialty" id="providerSpecialty" class="w-full select-bordered select">
+                            <select name="specialty" id="providerSpecialty" class="bg-white w-full select-bordered select">
                                 <option value="">Select Specialty</option>
                                 <?php foreach ($specialties as $spec): ?>
                                     <option value="<?= htmlspecialchars($spec->specialty) ?>">

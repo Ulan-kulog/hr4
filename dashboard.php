@@ -10,16 +10,102 @@ if (!isset($connections[$db_name])) {
 $conn = $connections[$db_name];
 
 // ------------------------------------------------------------
-//  FETCH REAL DATA FROM YOUR TABLES – FIXED GROUP BY ISSUES
+//  HANDLE AI INSIGHTS GENERATION (AJAX)
 // ------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_insights'])) {
+    header('Content-Type: application/json');
 
-// --- 1. EMPLOYEE COUNTS & TURNOVER ---
+    // Fetch necessary data for insights
+    $dept_salary = ['labels' => [], 'data' => []];
+    $ds_query = "SELECT d.name, COALESCE(AVG(NULLIF(e.salary, 0)), 0) AS avg_sal
+                 FROM departments d
+                 LEFT JOIN employees e ON e.department_id = d.id
+                 GROUP BY d.id";
+    $result = $conn->query($ds_query);
+    while ($row = $result->fetch_assoc()) {
+        $dept_salary['labels'][] = $row['name'];
+        $dept_salary['data'][] = round($row['avg_sal'], 0);
+    }
+
+    $total_employees = $conn->query("SELECT COUNT(*) as cnt FROM employees")->fetch_assoc()['cnt'] ?? 0;
+    $active_employees = $conn->query("SELECT COUNT(*) as cnt FROM employees WHERE employment_status = 'active'")->fetch_assoc()['cnt'] ?? 0;
+    $separated_employees = $conn->query("SELECT COUNT(*) as cnt FROM employees WHERE employment_status = 'separated'")->fetch_assoc()['cnt'] ?? 0;
+
+    // Generate insights array
+    $insights = [];
+
+    // 1. Overall workforce
+    $insights[] = "Total employees: $total_employees (Active: $active_employees, Separated: $separated_employees).";
+
+    // 2. Department with highest/lowest average salary
+    if (!empty($dept_salary['data'])) {
+        $max_avg = max($dept_salary['data']);
+        $max_dept = $dept_salary['labels'][array_search($max_avg, $dept_salary['data'])];
+        $insights[] = "Highest average salary is in '$max_dept' department: ₱" . number_format($max_avg) . ".";
+
+        $min_avg = min($dept_salary['data']);
+        $min_dept = $dept_salary['labels'][array_search($min_avg, $dept_salary['data'])];
+        $insights[] = "Lowest average salary is in '$min_dept' department: ₱" . number_format($min_avg) . ".";
+    }
+
+    // 3. Gender distribution
+    $gender_counts = [];
+    $gender_res = $conn->query("SELECT gender, COUNT(*) as cnt FROM employees GROUP BY gender");
+    while ($row = $gender_res->fetch_assoc()) {
+        $gender_counts[$row['gender'] ?: 'Not Specified'] = $row['cnt'];
+    }
+    if (!empty($gender_counts)) {
+        $insights[] = "Gender breakdown: " . implode(', ', array_map(function($k, $v) { return "$k: $v"; }, array_keys($gender_counts), $gender_counts));
+    }
+
+    // 4. Age distribution
+    $age_parts = [];
+    $age_res = $conn->query("SELECT 
+        CASE 
+            WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) < 25 THEN '<25'
+            WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) BETWEEN 25 AND 34 THEN '25-34'
+            WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) BETWEEN 35 AND 44 THEN '35-44'
+            WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) BETWEEN 45 AND 54 THEN '45-54'
+            ELSE '55+'
+        END as age_group, COUNT(*) as count
+        FROM employees WHERE date_of_birth IS NOT NULL
+        GROUP BY age_group");
+    while ($row = $age_res->fetch_assoc()) {
+        $age_parts[] = $row['age_group'] . ': ' . $row['count'];
+    }
+    if (!empty($age_parts)) {
+        $insights[] = "Age distribution: " . implode(', ', $age_parts);
+    }
+
+    // 5. Overtime trend
+    $ot_res = $conn->query("SELECT SUM(overtime_hours) as total_ot FROM payroll WHERE period >= DATE_SUB(NOW(), INTERVAL 12 MONTH)");
+    $total_ot = $ot_res->fetch_assoc()['total_ot'] ?? 0;
+    if ($total_ot > 0) {
+        $insights[] = "Total overtime hours in the last 12 months: " . number_format($total_ot) . " hours.";
+    } else {
+        $insights[] = "No overtime data recorded in the last 12 months.";
+    }
+
+    // 6. Allowance types
+    $allowance_count = $conn->query("SELECT COUNT(DISTINCT allowance_type) as cnt FROM allowances WHERE status = 'active'")->fetch_assoc()['cnt'] ?? 0;
+    $insights[] = "Active allowance types: $allowance_count.";
+
+    // 7. Bonus plans
+    $bonus_count = $conn->query("SELECT COUNT(DISTINCT bonus_type) as cnt FROM bonus_plans WHERE status = 'active'")->fetch_assoc()['cnt'] ?? 0;
+    $insights[] = "Active bonus plan types: $bonus_count.";
+
+    // Return insights as JSON (no database storage)
+    echo json_encode(['success' => true, 'insights' => $insights]);
+    exit;
+}
+
+// ------------------------------------------------------------
+//  FETCH REAL DATA FROM YOUR TABLES (same as before)
+// ------------------------------------------------------------
 $emp_total   = $conn->query("SELECT COUNT(*) as cnt FROM employees")->fetch_assoc()['cnt'] ?? 0;
 $emp_active  = $conn->query("SELECT COUNT(*) as cnt FROM employees WHERE employment_status = 'active'")->fetch_assoc()['cnt'] ?? 0;
 $emp_sep     = $conn->query("SELECT COUNT(*) as cnt FROM employees WHERE employment_status = 'separated'")->fetch_assoc()['cnt'] ?? 0;
-// $turnover_rate = $emp_total > 0 ? round(($emp_sep / $emp_total) * 100, 1) : 0;
 
-// --- 2. DEPARTMENT DISTRIBUTION ---
 $dept_dist = ['labels' => [], 'data' => []];
 $dept_query = "SELECT d.name, COUNT(e.id) as emp_count 
                FROM departments d 
@@ -32,7 +118,6 @@ while ($row = $result->fetch_assoc()) {
     $dept_dist['data'][]   = (int)$row['emp_count'];
 }
 
-// --- 3. LABOR COST BY DEPARTMENT (latest payroll period) ---
 $labor_cost = ['labels' => [], 'data' => []];
 $labor_query = "SELECT d.name, SUM(p.net_pay) as cost
                 FROM payroll p
@@ -46,7 +131,6 @@ while ($row = $result->fetch_assoc()) {
     $labor_cost['data'][]   = round($row['cost'] / 1000, 1);
 }
 
-// --- 4. OVERTIME TRENDS (last 12 months) ---
 $overtime_trend = ['labels' => [], 'data' => []];
 $ot_query = "SELECT 
                 DATE_FORMAT(MAX(period), '%b') as month,
@@ -62,7 +146,6 @@ while ($row = $result->fetch_assoc()) {
     $overtime_trend['data'][]   = (int)$row['hours'];
 }
 
-// --- 5. SALARY GRADES (min/max vs actual average salary) ---
 $salary_grade = ['labels' => [], 'min' => [], 'avg' => [], 'max' => []];
 $sg_query = "SELECT sg.grade_name, sg.min_salary, sg.max_salary, 
                     AVG(e.salary) as avg_salary
@@ -77,7 +160,6 @@ while ($row = $result->fetch_assoc()) {
     $salary_grade['avg'][]    = (int)$row['avg_salary'];
 }
 
-// --- 6. BONUS DISTRIBUTION (by bonus type) ---
 $bonus_dist = ['labels' => [], 'data' => []];
 $bonus_query = "SELECT bonus_type, COUNT(*) as count 
                 FROM bonus_plans 
@@ -89,7 +171,6 @@ while ($row = $result->fetch_assoc()) {
     $bonus_dist['data'][]   = (int)$row['count'];
 }
 
-// --- 7.  TYPES ---
 $allowance_dist = ['labels' => [], 'data' => []];
 $al_query = "SELECT allowance_type, COUNT(*) as cnt 
              FROM allowances 
@@ -101,14 +182,6 @@ while ($row = $result->fetch_assoc()) {
     $allowance_dist['data'][]   = (int)$row['cnt'];
 }
 
-// Benefits category distribution removed per request
-
-// Net pay histogram removed per request
-
-
-// Tenure distribution removed per request
-
-// --- 12. GENDER DISTRIBUTION ---
 $gender_dist = ['labels' => [], 'data' => []];
 $gender_query = "SELECT COALESCE(gender, 'Not Specified') as gender, COUNT(*) as cnt 
                  FROM employees 
@@ -119,7 +192,6 @@ while ($row = $result->fetch_assoc()) {
     $gender_dist['data'][]   = (int)$row['cnt'];
 }
 
-// --- AGE DISTRIBUTION ---
 $age_dist = ['labels' => [], 'data' => []];
 $age_query = "SELECT 
   CASE 
@@ -140,7 +212,6 @@ while ($row = $result->fetch_assoc()) {
     $age_dist['data'][]   = (int)$row['count'];
 }
 
-// --- 13. EMPLOYMENT STATUS ---
 $status_counts = ['labels' => [], 'data' => []];
 $status_res = $conn->query("SELECT COALESCE(employment_status, 'Unknown') as status, COUNT(*) as cnt 
                             FROM employees 
@@ -150,10 +221,7 @@ while ($row = $status_res->fetch_assoc()) {
     $status_counts['data'][]   = (int)$row['cnt'];
 }
 
-// --- 14. AVERAGE SALARY PER DEPARTMENT ---
 $dept_salary = ['labels' => [], 'data' => [], 'emp_count' => [], 'missing' => []];
-// Use LEFT JOIN from departments so departments with no employees still appear.
-// Treat salary = 0 or NULL as missing for the purpose of the average.
 $ds_query = "SELECT d.name,
        COALESCE(AVG(NULLIF(e.salary, 0)), 0) AS avg_sal,
        COUNT(e.id) AS emp_count,
@@ -174,7 +242,6 @@ if ($ds_res) {
     error_log('Dept salary query failed: ' . $conn->error);
 }
 
-// --- 15. ADDITIONAL STATS FOR 20 CARDS ---
 $dept_count       = $conn->query("SELECT COUNT(*) as c FROM departments WHERE active = 1")->fetch_assoc()['c'] ?? 0;
 $salary_grade_cnt = $conn->query("SELECT COUNT(*) as c FROM salary_grades")->fetch_assoc()['c'] ?? 0;
 $allowance_budget = $conn->query("SELECT 
@@ -192,7 +259,23 @@ $allowance_budget = $conn->query("SELECT
     FROM allowances 
     WHERE status = 'active'")->fetch_assoc()['total'] ?? 0;
 
-// Helper to format currency
+// ------------------------------------------------------------
+//  CHART DESCRIPTIONS
+// ------------------------------------------------------------
+$chart_descriptions = [
+    'genderPieChart'           => 'Distribution of employees by gender.',
+    'ageDistributionChart'     => 'Number of employees in each age group.',
+    'employmentStatusChart'    => 'Current employment status breakdown.',
+    'deptPieChart'             => 'Employee count per department.',
+    'laborCostChart'           => 'Total labor cost (in thousands) by department for the latest payroll period.',
+    'overtimeTrendsChart'      => 'Monthly overtime hours over the last 12 months.',
+    'allowancePieChart'        => 'Active allowances grouped by type.',
+    'bonusPieChart'            => 'Active bonus plans by type.',
+    'salaryBenchmarkChart'     => 'Salary grade ranges (min, max) vs actual average salary.',
+    'departmentSalaryChart'    => 'Average salary per department (employees with salary > 0).'
+];
+
+// Helper functions
 function format_currency($val)
 {
     if ($val === '' || $val === null || $val == 0) return '₱0';
@@ -209,33 +292,31 @@ function format_number($val)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HR Analytics Dashboard (Live Data) - 20 Stats + Export</title>
+    <title>HR Analytics Dashboard - AI + Export</title>
     <?php include 'INCLUDES/header.php'; ?>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         .glass-effect {
             background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
-
         .stat-card {
             transition: all 0.3s ease;
         }
-
         .stat-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
-
         .chart-toolbar {
             display: flex;
             gap: 0.5rem;
-            margin-left: auto;
+            align-items: center;
         }
-
         .chart-toolbar button {
             background: transparent;
             border: none;
@@ -244,16 +325,13 @@ function format_number($val)
             border-radius: 6px;
             transition: background 0.2s;
         }
-
         .chart-toolbar button:hover {
             background: rgba(0, 0, 0, 0.05);
         }
-
         [data-tooltip] {
             position: relative;
             cursor: help;
         }
-
         [data-tooltip]:before {
             content: attr(data-tooltip);
             position: absolute;
@@ -271,19 +349,35 @@ function format_number($val)
             pointer-events: none;
             transition: opacity 0.2s;
         }
-
         [data-tooltip]:hover:before {
             opacity: 1;
         }
-
+        .export-checkbox {
+            margin-right: 0.5rem;
+            accent-color: #3b82f6;
+        }
+        /* Styles for insights list */
+        .insights-list {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+            margin: 1rem 0;
+        }
+        .insights-list li {
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+        /* Pulse animation for generate button */
+        .btn-pulse {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(79, 70, 229, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+        }
         @media print {
-            .no-print {
-                display: none;
-            }
-
-            body {
-                background: white;
-            }
+            .no-print { display: none; }
+            body { background: white; }
         }
     </style>
 </head>
@@ -301,6 +395,7 @@ function format_number($val)
 
                 <!-- HR Analytics Dashboard -->
                 <div class="bg-white/70 shadow-sm backdrop-blur-sm p-6 border border-gray-100/50 rounded-2xl glass-effect">
+                    <!-- Header with AI Controls -->
                     <div class="flex sm:flex-row flex-col justify-between items-start sm:items-center gap-4 mb-6">
                         <h2 class="flex items-center font-bold text-gray-800 text-2xl">
                             <span class="bg-indigo-100/50 mr-3 p-2 rounded-lg text-indigo-600">
@@ -308,11 +403,20 @@ function format_number($val)
                             </span>
                             HR Analytics Dashboard
                         </h2>
+                        <div class="flex items-center gap-3 no-print">
+                            <button id="aiGenerateBtn" onclick="generateAI()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium text-white transition">
+                                <i data-lucide="bot" class="w-4 h-4"></i>
+                                Generate AI Insights
+                            </button>
+                            <button onclick="exportSelectedPDF()" class="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium text-white transition">
+                                <i data-lucide="file-text" class="w-4 h-4"></i>
+                                Export Selected as PDF
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- 4 STAT CARDS -->
+                    <!-- 4 STAT CARDS (unchanged) -->
                     <div class="gap-6 grid grid-cols-2 mb-8">
-                        <!-- 1. Total Employees -->
                         <div class="stat-card">
                             <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
                                 <div class="flex justify-between items-start">
@@ -324,7 +428,6 @@ function format_number($val)
                                 </div>
                             </div>
                         </div>
-                        <!-- 10. Departments -->
                         <div class="stat-card">
                             <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
                                 <div class="flex justify-between items-start">
@@ -336,7 +439,6 @@ function format_number($val)
                                 </div>
                             </div>
                         </div>
-                        <!-- 11. Salary Grades -->
                         <div class="stat-card">
                             <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
                                 <div class="flex justify-between items-start">
@@ -349,7 +451,6 @@ function format_number($val)
                                 </div>
                             </div>
                         </div>
-                        <!-- 20. Allowance Budget -->
                         <div class="stat-card">
                             <div class="bg-white hover:bg-gray-50 shadow-2xl p-5 rounded-xl text-black">
                                 <div class="flex justify-between items-start">
@@ -372,9 +473,12 @@ function format_number($val)
                         </h3>
                         <div class="gap-6 grid grid-cols-1 lg:grid-cols-2">
                             <!-- Gender Pie -->
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
+                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl" id="card-genderPieChart">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Gender Distribution</h4>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="export-checkbox" value="genderPieChart" checked>
+                                        <h4 class="font-semibold text-gray-800">Gender Distribution</h4>
+                                    </div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
@@ -388,9 +492,12 @@ function format_number($val)
                                 </div>
                             </div>
                             <!-- Age Distribution -->
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
+                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl" id="card-ageDistributionChart">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Age Distribution</h4>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="export-checkbox" value="ageDistributionChart" checked>
+                                        <h4 class="font-semibold text-gray-800">Age Distribution</h4>
+                                    </div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
@@ -401,11 +508,30 @@ function format_number($val)
                                 </div>
                                 <canvas id="ageDistributionChart"></canvas>
                             </div>
-                            <!-- Tenure Distribution removed -->
-                            <!-- Employment Status -->
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
+                            <!-- Department Distribution -->
+                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl" id="card-deptPieChart">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Employment Status</h4>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="export-checkbox" value="deptPieChart" checked>
+                                        <h4 class="font-semibold text-gray-800">Department Distribution</h4>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span data-tooltip="<?= $chart_descriptions['deptPieChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <div class="chart-toolbar no-print">
+                                            <button onclick="downloadChart('deptPieChart')" title="Download PNG"><i data-lucide="download" class="w-4 h-4"></i></button>
+                                            <button onclick="printChart('deptPieChart', 'Department Distribution')" title="Print Chart"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <canvas id="deptPieChart"></canvas>
+                            </div>
+                            <!-- Employment Status -->
+                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl" id="card-employmentStatusChart">
+                                <div class="flex justify-between items-center mb-4">
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="export-checkbox" value="employmentStatusChart" checked>
+                                        <h4 class="font-semibold text-gray-800">Employment Status</h4>
+                                    </div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
@@ -429,9 +555,12 @@ function format_number($val)
                         </h3>
                         <div class="gap-6 grid grid-cols-1 lg:grid-cols-2">
                             <!-- Labor Cost -->
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
+                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl" id="card-laborCostChart">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Labor Cost by Department</h4>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="export-checkbox" value="laborCostChart" checked>
+                                        <h4 class="font-semibold text-gray-800">Labor Cost by Department</h4>
+                                    </div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
@@ -443,9 +572,12 @@ function format_number($val)
                                 <canvas id="laborCostChart"></canvas>
                             </div>
                             <!-- Overtime Trends -->
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
+                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl" id="card-overtimeTrendsChart">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Overtime Trends (12 months)</h4>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="export-checkbox" value="overtimeTrendsChart" checked>
+                                        <h4 class="font-semibold text-gray-800">Overtime Trends (12 months)</h4>
+                                    </div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
@@ -456,7 +588,6 @@ function format_number($val)
                                 </div>
                                 <canvas id="overtimeTrendsChart"></canvas>
                             </div>
-                            <!-- Net Pay Distribution removed -->
                         </div>
                     </div>
 
@@ -468,9 +599,12 @@ function format_number($val)
                         </h3>
                         <div class="gap-6 grid grid-cols-1 lg:grid-cols-3">
                             <!-- Allowance Pie -->
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
+                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl" id="card-allowancePieChart">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Allowance Types</h4>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="export-checkbox" value="allowancePieChart" checked>
+                                        <h4 class="font-semibold text-gray-800">Allowance Types</h4>
+                                    </div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
@@ -481,11 +615,13 @@ function format_number($val)
                                 </div>
                                 <canvas id="allowancePieChart"></canvas>
                             </div>
-                            <!-- Benefit Categories removed -->
                             <!-- Bonus Pie -->
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
+                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl" id="card-bonusPieChart">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Bonus Plans by Type</h4>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="export-checkbox" value="bonusPieChart" checked>
+                                        <h4 class="font-semibold text-gray-800">Bonus Plans by Type</h4>
+                                    </div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
@@ -507,9 +643,12 @@ function format_number($val)
                         </h3>
                         <div class="gap-6 grid grid-cols-1 lg:grid-cols-2">
                             <!-- Salary Benchmark -->
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
+                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl" id="card-salaryBenchmarkChart">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Salary Ranges vs Actual</h4>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="export-checkbox" value="salaryBenchmarkChart" checked>
+                                        <h4 class="font-semibold text-gray-800">Salary Ranges vs Actual</h4>
+                                    </div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
@@ -521,9 +660,12 @@ function format_number($val)
                                 <canvas id="salaryBenchmarkChart"></canvas>
                             </div>
                             <!-- Dept Avg Salary -->
-                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
+                            <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl" id="card-departmentSalaryChart">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-800">Avg Salary by Department</h4>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="export-checkbox" value="departmentSalaryChart" checked>
+                                        <h4 class="font-semibold text-gray-800">Avg Salary by Department</h4>
+                                    </div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
@@ -545,13 +687,29 @@ function format_number($val)
     <script>
         lucide.createIcons();
 
-        // ------------------------------------------------------------
-        // CHART INITIALIZATION (store instances for export)
-        // ------------------------------------------------------------
+        // Chart instances storage
         window.charts = {};
 
-        // --- 1. GENDER PIE ---
-        charts.genderPieChart = new Chart(document.getElementById('genderPieChart'), {
+        // Helper to safely create chart
+        function createChart(id, config) {
+            const canvas = document.getElementById(id);
+            if (!canvas) {
+                console.warn(`Canvas with id '${id}' not found.`);
+                return null;
+            }
+            try {
+                return new Chart(canvas, config);
+            } catch (e) {
+                console.error(`Failed to create chart '${id}':`, e);
+                return null;
+            }
+        }
+
+        // ------------------------------------------------------------
+        // Initialize all charts
+        // ------------------------------------------------------------
+        // Gender Pie
+        charts.genderPieChart = createChart('genderPieChart', {
             type: 'pie',
             data: {
                 labels: <?= json_encode($gender_dist['labels'] ?? []) ?>,
@@ -564,16 +722,12 @@ function format_number($val)
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
+                plugins: { legend: { position: 'bottom' } }
             }
         });
 
-        // --- AGE DISTRIBUTION ---
-        charts.ageDistributionChart = new Chart(document.getElementById('ageDistributionChart'), {
+        // Age Distribution
+        charts.ageDistributionChart = createChart('ageDistributionChart', {
             type: 'bar',
             data: {
                 labels: <?= json_encode($age_dist['labels'] ?? []) ?>,
@@ -584,18 +738,11 @@ function format_number($val)
                     borderRadius: 4
                 }]
             },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
         });
 
-        // --- 2. DEPARTMENT PIE ---
-        charts.deptPieChart = new Chart(document.getElementById('deptPieChart'), {
+        // Department Pie
+        charts.deptPieChart = createChart('deptPieChart', {
             type: 'doughnut',
             data: {
                 labels: <?= json_encode($dept_dist['labels'] ?? []) ?>,
@@ -607,18 +754,12 @@ function format_number($val)
             },
             options: {
                 responsive: true,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
+                plugins: { legend: { position: 'bottom' } }
             }
         });
 
-        // --- Tenure chart removed ---
-
-        // --- 4. LABOR COST ---
-        charts.laborCostChart = new Chart(document.getElementById('laborCostChart'), {
+        // Labor Cost
+        charts.laborCostChart = createChart('laborCostChart', {
             type: 'bar',
             data: {
                 labels: <?= json_encode($labor_cost['labels'] ?? []) ?>,
@@ -629,22 +770,11 @@ function format_number($val)
                     borderRadius: 4
                 }]
             },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: '₱ Thousands'
-                        }
-                    }
-                }
-            }
+            options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: '₱ Thousands' } } } }
         });
 
-        // --- 5. OVERTIME TRENDS ---
-        charts.overtimeTrendsChart = new Chart(document.getElementById('overtimeTrendsChart'), {
+        // Overtime Trends
+        charts.overtimeTrendsChart = createChart('overtimeTrendsChart', {
             type: 'line',
             data: {
                 labels: <?= json_encode($overtime_trend['labels'] ?? []) ?>,
@@ -657,24 +787,11 @@ function format_number($val)
                     fill: true
                 }]
             },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Hours'
-                        }
-                    }
-                }
-            }
+            options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'Hours' } } } }
         });
 
-        // --- Net Pay histogram removed ---
-
-        // --- 7. ALLOWANCE PIE ---
-        charts.allowancePieChart = new Chart(document.getElementById('allowancePieChart'), {
+        // Allowance Pie
+        charts.allowancePieChart = createChart('allowancePieChart', {
             type: 'pie',
             data: {
                 labels: <?= json_encode($allowance_dist['labels'] ?? []) ?>,
@@ -684,20 +801,11 @@ function format_number($val)
                     borderWidth: 0
                 }]
             },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
         });
 
-        // --- Benefit pie removed ---
-
-        // --- 9. BONUS PIE ---
-        charts.bonusPieChart = new Chart(document.getElementById('bonusPieChart'), {
+        // Bonus Pie
+        charts.bonusPieChart = createChart('bonusPieChart', {
             type: 'pie',
             data: {
                 labels: <?= json_encode($bonus_dist['labels'] ?? []) ?>,
@@ -707,56 +815,25 @@ function format_number($val)
                     borderWidth: 0
                 }]
             },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
         });
 
-        // --- 10. SALARY BENCHMARK ---
-        charts.salaryBenchmarkChart = new Chart(document.getElementById('salaryBenchmarkChart'), {
+        // Salary Benchmark
+        charts.salaryBenchmarkChart = createChart('salaryBenchmarkChart', {
             type: 'bar',
             data: {
                 labels: <?= json_encode($salary_grade['labels'] ?? []) ?>,
-                datasets: [{
-                        label: 'Min Salary',
-                        data: <?= json_encode($salary_grade['min'] ?? []) ?>,
-                        backgroundColor: '#9ca3af'
-                    },
-                    {
-                        label: 'Avg Salary',
-                        data: <?= json_encode($salary_grade['avg'] ?? []) ?>,
-                        backgroundColor: '#3b82f6'
-                    },
-                    {
-                        label: 'Max Salary',
-                        data: <?= json_encode($salary_grade['max'] ?? []) ?>,
-                        backgroundColor: '#10b981'
-                    }
+                datasets: [
+                    { label: 'Min Salary', data: <?= json_encode($salary_grade['min'] ?? []) ?>, backgroundColor: '#9ca3af' },
+                    { label: 'Avg Salary', data: <?= json_encode($salary_grade['avg'] ?? []) ?>, backgroundColor: '#3b82f6' },
+                    { label: 'Max Salary', data: <?= json_encode($salary_grade['max'] ?? []) ?>, backgroundColor: '#10b981' }
                 ]
             },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Salary (₱)'
-                        }
-                    }
-                }
-            }
+            options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'Salary (₱)' } } } }
         });
 
-
-
-        // --- 13. EMPLOYMENT STATUS ---
-        charts.employmentStatusChart = new Chart(document.getElementById('employmentStatusChart'), {
+        // Employment Status
+        charts.employmentStatusChart = createChart('employmentStatusChart', {
             type: 'doughnut',
             data: {
                 labels: <?= json_encode($status_counts['labels'] ?? []) ?>,
@@ -766,19 +843,11 @@ function format_number($val)
                     borderWidth: 0
                 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
         });
 
-        // --- 14. DEPARTMENT AVG SALARY ---
-        charts.departmentSalaryChart = new Chart(document.getElementById('departmentSalaryChart'), {
+        // Department Salary
+        charts.departmentSalaryChart = createChart('departmentSalaryChart', {
             type: 'bar',
             data: {
                 labels: <?= json_encode($dept_salary['labels'] ?? []) ?>,
@@ -789,18 +858,11 @@ function format_number($val)
                     borderRadius: 4
                 }]
             },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
         });
 
         // ------------------------------------------------------------
-        // EXPORT FUNCTIONS
+        // DOWNLOAD / PRINT INDIVIDUAL CHARTS
         // ------------------------------------------------------------
         window.downloadChart = function(chartId) {
             const chart = charts[chartId];
@@ -820,7 +882,197 @@ function format_number($val)
             win.print();
         };
 
-        // Re-run lucide for dynamic icons
+        // ------------------------------------------------------------
+        // AI GENERATION with 10-second animated progress
+        // ------------------------------------------------------------
+        function generateAI() {
+            const btn = document.getElementById('aiGenerateBtn');
+            btn.classList.add('btn-pulse'); // Add pulse animation
+
+            // Show SweetAlert with progress bar that fills over 10 seconds
+            let progress = 0;
+            Swal.fire({
+                title: 'Generating AI Insights',
+                html: `
+                    <div style="text-align: left; margin-bottom: 15px;">
+                        <p>AI is analyzing your HR data. This will take about 10 seconds.</p>
+                        <ul style="list-style: disc; padding-left: 20px; margin-top: 10px;">
+                            <li>Examining employee demographics</li>
+                            <li>Calculating salary trends</li>
+                            <li>Identifying overtime patterns</li>
+                            <li>Generating actionable insights</li>
+                        </ul>
+                    </div>
+                    <div class="progress-bar-container" style="width: 100%; background-color: #f3f3f3; border-radius: 5px; margin: 20px 0;">
+                        <div id="swal-progress-bar" style="width: 0%; height: 10px; background-color: #4f46e5; border-radius: 5px; transition: width 0.3s;"></div>
+                    </div>
+                    <p id="swal-progress-text" style="font-size: 14px; color: #666;">0% complete</p>
+                `,
+                showConfirmButton: false,
+                allowOutsideClick: false,
+                didOpen: () => {
+                    // Start progress bar animation
+                    const interval = setInterval(() => {
+                        progress += 10;
+                        const progressBar = document.getElementById('swal-progress-bar');
+                        const progressText = document.getElementById('swal-progress-text');
+                        if (progressBar && progressText) {
+                            progressBar.style.width = progress + '%';
+                            progressText.innerText = progress + '% complete';
+                        }
+                        if (progress >= 100) {
+                            clearInterval(interval);
+                        }
+                    }, 1000);
+
+                    // Make AJAX request to generate insights (runs in background)
+                    fetch(window.location.href, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'generate_insights=1'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        // Wait until progress reaches 100% (or close enough) before showing results
+                        const checkProgress = setInterval(() => {
+                            if (progress >= 100) {
+                                clearInterval(checkProgress);
+                                btn.classList.remove('btn-pulse');
+                                if (data.success && data.insights) {
+                                    Swal.close();
+                                    // Display insights
+                                    const insightsList = data.insights.map(text => `<li class="mb-2">${text}</li>`).join('');
+                                    const htmlContent = `
+                                        <div class="text-left">
+                                            <h3 class="text-lg font-bold mb-3">AI-Generated Insights</h3>
+                                            <ul class="insights-list">${insightsList}</ul>
+                                            <div class="mt-6 flex justify-end gap-3">
+                                                <button onclick="printInsights()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                                                    <i data-lucide="printer" class="w-4 h-4"></i> Print as PDF
+                                                </button>
+                                                <button onclick="Swal.close()" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Close</button>
+                                            </div>
+                                        </div>
+                                    `;
+                                    Swal.fire({
+                                        html: htmlContent,
+                                        showConfirmButton: false,
+                                        showCloseButton: true,
+                                        width: '42rem',
+                                        didOpen: () => lucide.createIcons()
+                                    });
+                                    window.lastInsights = data.insights;
+                                } else {
+                                    Swal.fire('Error', 'Failed to generate insights', 'error');
+                                }
+                            }
+                        }, 100);
+                    })
+                    .catch(error => {
+                        btn.classList.remove('btn-pulse');
+                        console.error('Error:', error);
+                        Swal.fire('Error', 'An error occurred while generating insights', 'error');
+                    });
+                }
+            });
+        }
+
+        // Print insights as PDF
+        window.printInsights = function() {
+            if (!window.lastInsights || !window.lastInsights.length) return;
+
+            const insightsList = window.lastInsights.map(text => `<li style="margin-bottom: 8px;">${text}</li>`).join('');
+            const printContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>HR AI Insights</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 2rem; }
+                        h1 { color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem; }
+                        ul { list-style-type: disc; padding-left: 1.5rem; }
+                        li { margin-bottom: 8px; line-height: 1.5; }
+                        .footer { margin-top: 2rem; font-size: 0.8rem; color: #6b7280; text-align: center; }
+                    </style>
+                </head>
+                <body>
+                    <h1>HR AI Insights</h1>
+                    <p>Generated on: ${new Date().toLocaleString()}</p>
+                    <ul>${insightsList}</ul>
+                    <div class="footer">This report was generated by the HR Analytics Dashboard.</div>
+                </body>
+                </html>
+            `;
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        };
+
+        // ------------------------------------------------------------
+        // EXPORT SELECTED CHARTS AS PDF
+        // ------------------------------------------------------------
+        window.exportSelectedPDF = function() {
+            const checkboxes = document.querySelectorAll('.export-checkbox:checked');
+            if (checkboxes.length === 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'No Charts Selected',
+                    text: 'Select at least one chart to export.',
+                });
+                return;
+            }
+
+            const chartIds = Array.from(checkboxes).map(cb => cb.value);
+            const images = [];
+
+            chartIds.forEach(id => {
+                if (charts[id]) {
+                    images.push({
+                        id: id,
+                        src: charts[id].toBase64Image(),
+                        title: id.replace(/([A-Z])/g, ' $1').trim()
+                    });
+                }
+            });
+
+            let htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head><title>HR Analytics Export</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; }
+                .chart-page { page-break-after: always; text-align: center; }
+                img { max-width: 100%; height: auto; }
+                h2 { color: #333; }
+                .description { color: #666; font-size: 14px; margin-bottom: 20px; }
+            </style>
+            </head>
+            <body>
+                <div class="description">
+                    <p>This document contains HR analytics charts generated from live data. Each chart represents key metrics about employees, payroll, and compensation. Use these insights for reporting and decision-making.</p>
+                </div>
+            `;
+
+            images.forEach(img => {
+                htmlContent += `
+                <div class="chart-page">
+                    <h2>${img.title}</h2>
+                    <img src="${img.src}" style="max-width:100%;">
+                </div>
+                `;
+            });
+
+            htmlContent += `</body></html>`;
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(htmlContent);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        };
+
         lucide.createIcons();
     </script>
 </body>
