@@ -2,8 +2,8 @@
 require_once '../DB.php';
 session_start();
 
-header('Content-Type: application/json');
-
+// header('Content-Type: application/json');
+dd('This endpoint is deprecated. Please use the new API endpoint at /api/v2/enrollments/update.php');
 // Accept JSON body or form-encoded POST
 $raw = file_get_contents('php://input');
 $data = null;

@@ -61,7 +61,13 @@
                         <select id="employeeSelect" class="w-full select-bordered select" name="employee_id" onchange="updateEmployeeInfo()">
                             <option disabled selected>Choose employee</option>
                             <?php foreach ($employees as $employee) : ?>
-                                <?php $dept = htmlspecialchars($employee->department_name ?? $employee->department ?? ''); ?>
+                                <?php
+                                // Skip employees who already have an enrollment (only show unenrolled employees)
+                                if (isset($employee_benefits) && isset($employee_benefits[$employee->id])) {
+                                    continue;
+                                }
+                                $dept = htmlspecialchars($employee->department_name ?? $employee->department ?? '');
+                                ?>
                                 <option value="<?= $employee->id ?>" data-name="<?= htmlspecialchars($employee->first_name . ' ' . $employee->last_name) ?>" data-department="<?= $dept ?>" data-code="<?= htmlspecialchars($employee->employee_code) ?>"><?= htmlspecialchars($employee->first_name . ' ' . $employee->last_name) ?> {<?= htmlspecialchars($employee->employee_code) ?>}</option>
                             <?php endforeach ?>
                         </select>
@@ -134,6 +140,7 @@
 
                 <div class="space-y-3 p-2 max-h-60 overflow-y-auto">
                     <?php foreach (array_slice($benefits, 0, 5) as $benefit): ?>
+                        <?php if (isset($benefit->status) && $benefit->status === 'pending') continue; ?>
                         <div class="form-control">
                             <label class="justify-start gap-3 hover:bg-gray-50 p-2 rounded cursor-pointer label">
                                 <input type="checkbox"
@@ -184,9 +191,6 @@
 
             <!-- Modal Actions -->
             <div class="modal-action">
-                <form method="dialog">
-                    <button class="btn btn-ghost">Cancel</button>
-                </form>
                 <button type="submit" class="btn btn-primary">
                     <i data-lucide="save" class="mr-2 w-4 h-4"></i>
                     Save Enrollment
