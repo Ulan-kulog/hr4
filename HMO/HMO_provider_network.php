@@ -1,5 +1,5 @@
 <?php
-require_once 'DB.php';
+require_once __DIR__ . '/DB.php';
 session_start();
 
 // Handle AJAX requests
@@ -38,34 +38,7 @@ function handleAjaxRequest()
             echo json_encode($providers);
             break;
 
-        case 'search_providers':
-            $search = $_GET['search'] ?? '';
-            $specialty = $_GET['specialty'] ?? '';
-            $location = $_GET['location'] ?? '';
-
-            $sql = "SELECT * FROM providers WHERE 1=1";
-            $params = [];
-
-            if ($search) {
-                $sql .= " AND (name LIKE ? OR address LIKE ? OR phone LIKE ?)";
-                $params[] = "%$search%";
-                $params[] = "%$search%";
-                $params[] = "%$search%";
-            }
-
-            if ($specialty) {
-                $sql .= " AND specialty = ?";
-                $params[] = $specialty;
-            }
-
-            if ($location) {
-                $sql .= " AND location = ?";
-                $params[] = $location;
-            }
-
-            $providers = Database::fetchAll($sql, $params);
-            echo json_encode($providers);
-            break;
+        /* Filtering removed: search_providers case intentionally omitted */
 
         case 'get_provider':
             $id = intval($_GET['id'] ?? 0);
@@ -273,48 +246,7 @@ function handleFormSubmission()
                         </div>
                     </div>
 
-                    <!-- Provider Search and Filters -->
-                    <div class="bg-white shadow-sm mb-6 p-6 border border-gray-100 rounded-xl">
-                        <div class="space-y-4">
-                            <div class="gap-4 grid grid-cols-1 md:grid-cols-4">
-                                <input type="text" id="searchInput" placeholder="Search providers..."
-                                    class="bg-white w-full input input-bordered">
-
-                                <select id="specialtyFilter" class="bg-white w-full select-bordered select">
-                                    <option value="">All Specialties</option>
-                                    <?php foreach ($specialties as $spec): ?>
-                                        <option value="<?= htmlspecialchars($spec->specialty) ?>">
-                                            <?= htmlspecialchars($spec->specialty) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-
-                                <select id="locationFilter" class="bg-white w-full select-bordered select">
-                                    <option value="">All Locations</option>
-                                    <?php foreach ($locations as $loc): ?>
-                                        <option value="<?= htmlspecialchars($loc->location) ?>">
-                                            <?= htmlspecialchars($loc->location) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-
-                                <button onclick="searchProviders()" class="btn btn-primary">
-                                    <i data-lucide="search" class="mr-2 w-4 h-4"></i>
-                                    Search
-                                </button>
-                            </div>
-
-                            <div class="flex justify-between items-center mt-4">
-                                <div class="text-gray-600 text-sm">
-                                    Showing <span id="showingCount"><?= count($providers) ?></span> of
-                                    <span id="totalCount"><?= $totalProviders ?></span> providers
-                                </div>
-                                <button onclick="clearFilters()" class="btn btn-ghost btn-sm">
-                                    Clear Filters
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Filters removed from view -->
 
                     <!-- Provider Directory -->
                     <div class="bg-white shadow-sm p-6 border border-gray-100 rounded-xl">
@@ -690,22 +622,21 @@ function handleFormSubmission()
                     lucide.createIcons();
                 }
 
-                showingCount.textContent = providers.length;
+                if (showingCount) showingCount.textContent = providers.length;
             }
 
             function updateStats(stats) {
-                document.getElementById('totalProviders').textContent = stats.totalProviders;
-                document.getElementById('totalHospitals').textContent = stats.totalHospitals;
-                document.getElementById('totalClinics').textContent = stats.totalClinics;
-                document.getElementById('avgRating').textContent = stats.avgRating;
-                document.getElementById('totalCount').textContent = stats.totalProviders;
-            }
+                const elTotal = document.getElementById('totalProviders');
+                const elHosp = document.getElementById('totalHospitals');
+                const elClin = document.getElementById('totalClinics');
+                const elAvg = document.getElementById('avgRating');
+                const elTotalCount = document.getElementById('totalCount');
 
-            function clearFilters() {
-                document.getElementById('searchInput').value = '';
-                document.getElementById('specialtyFilter').value = '';
-                document.getElementById('locationFilter').value = '';
-                searchProviders();
+                if (elTotal) elTotal.textContent = stats.totalProviders;
+                if (elHosp) elHosp.textContent = stats.totalHospitals;
+                if (elClin) elClin.textContent = stats.totalClinics;
+                if (elAvg) elAvg.textContent = stats.avgRating;
+                if (elTotalCount) elTotalCount.textContent = stats.totalProviders;
             }
 
             function confirmDeleteProvider(id) {
@@ -817,12 +748,7 @@ function handleFormSubmission()
                 return div.innerHTML;
             }
 
-            // Add event listeners for search input
-            document.getElementById('searchInput').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    searchProviders();
-                }
-            });
+            // Filtering inputs removed from view; no search input listeners required
         </script>
 </body>
 

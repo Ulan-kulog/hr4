@@ -1,6 +1,45 @@
 <!-- View Employee Enrollment Modal -->
+<style>
+    /* Scoped light-theme overrides for the View Enrollment modal */
+    #viewEmployeeModal .modal-box {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #e5e7eb !important;
+        /* gray-200 */
+        box-shadow: 0 10px 25px rgba(16, 24, 40, 0.08) !important;
+    }
+
+    #viewEmployeeModal .input,
+    #viewEmployeeModal input[type="text"],
+    #viewEmployeeModal .select,
+    #viewEmployeeModal select,
+    #viewEmployeeModal .textarea,
+    #viewEmployeeModal .label-text {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border-color: #d1d5db !important;
+        /* gray-300 */
+    }
+
+    #viewEmployeeModal .input,
+    #viewEmployeeModal select {
+        box-shadow: none !important;
+        outline: none !important;
+    }
+
+    #viewEmployeeModal .label-text {
+        color: #374151 !important;
+        /* gray-700 */
+    }
+
+    #viewEmployeeModal .status-badge,
+    #viewEmployeeModal #view_status {
+        color: #111827 !important;
+    }
+</style>
+
 <dialog id="viewEmployeeModal" class="modal">
-    <div class="bg-white/90 max-w-4xl text-black modal-box">
+    <div class="bg-white shadow-lg border border-gray-200 max-w-4xl text-black modal-box">
         <h3 class="mb-6 font-bold text-xl">Employee Enrollment Details</h3>
 
         <!-- Employee Information Section -->

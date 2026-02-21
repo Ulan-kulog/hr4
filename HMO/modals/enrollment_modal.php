@@ -1,7 +1,50 @@
 <!-- New Enrollment Modal -->
+<style>
+    /* Scoped light-theme overrides for the New Enrollment modal inputs */
+    #newEnrollmentModal .input,
+    #newEnrollmentModal input[type="date"],
+    #newEnrollmentModal .select,
+    #newEnrollmentModal select,
+    #newEnrollmentModal .textarea,
+    #newEnrollmentModal .form-control .label-text {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border-color: #d1d5db !important;
+        /* tailwind gray-300 */
+    }
+
+    #newEnrollmentModal .input,
+    #newEnrollmentModal select,
+    #newEnrollmentModal .select select {
+        box-shadow: none !important;
+        outline: none !important;
+    }
+
+    #newEnrollmentModal .label-text {
+        color: #374151 !important;
+        /* gray-700 */
+    }
+
+    #newEnrollmentModal .benefit-checkbox+div,
+    #newEnrollmentModal .label {
+        color: #111827 !important;
+        /* gray-900 for labels */
+    }
+
+    #newEnrollmentModal .checkbox {
+        accent-color: #2563eb;
+        /* blue-600 for checkbox accent */
+    }
+
+    #newEnrollmentModal .modal-box {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+</style>
+
 <dialog id="newEnrollmentModal" class="modal-bottom modal sm:modal-middle">
-    <div class="max-w-4xl modal-box">
-        <form method="dialog" class="bg-white/90 text-black">
+    <div class="bg-white shadow-lg border border-gray-200 max-w-4xl text-black modal-box">
+        <form method="dialog" class="bg-white text-black">
             <button class="top-2 right-2 absolute btn btn-sm btn-circle btn-ghost">✕</button>
         </form>
         <h3 class="mb-6 font-bold text-blue-700 text-lg">New Employee Enrollment</h3>
@@ -18,7 +61,13 @@
                         <select id="employeeSelect" class="w-full select-bordered select" name="employee_id" onchange="updateEmployeeInfo()">
                             <option disabled selected>Choose employee</option>
                             <?php foreach ($employees as $employee) : ?>
-                                <?php $dept = htmlspecialchars($employee->department_name ?? $employee->department ?? ''); ?>
+                                <?php
+                                // Skip employees who already have an enrollment (only show unenrolled employees)
+                                if (isset($employee_benefits) && isset($employee_benefits[$employee->id])) {
+                                    continue;
+                                }
+                                $dept = htmlspecialchars($employee->department_name ?? $employee->department ?? '');
+                                ?>
                                 <option value="<?= $employee->id ?>" data-name="<?= htmlspecialchars($employee->first_name . ' ' . $employee->last_name) ?>" data-department="<?= $dept ?>" data-code="<?= htmlspecialchars($employee->employee_code) ?>"><?= htmlspecialchars($employee->first_name . ' ' . $employee->last_name) ?> {<?= htmlspecialchars($employee->employee_code) ?>}</option>
                             <?php endforeach ?>
                         </select>
@@ -91,6 +140,7 @@
 
                 <div class="space-y-3 p-2 max-h-60 overflow-y-auto">
                     <?php foreach (array_slice($benefits, 0, 5) as $benefit): ?>
+                        <?php if (isset($benefit->status) && $benefit->status === 'pending') continue; ?>
                         <div class="form-control">
                             <label class="justify-start gap-3 hover:bg-gray-50 p-2 rounded cursor-pointer label">
                                 <input type="checkbox"
@@ -141,9 +191,6 @@
 
             <!-- Modal Actions -->
             <div class="modal-action">
-                <form method="dialog">
-                    <button class="btn btn-ghost">Cancel</button>
-                </form>
                 <button type="submit" class="btn btn-primary">
                     <i data-lucide="save" class="mr-2 w-4 h-4"></i>
                     Save Enrollment

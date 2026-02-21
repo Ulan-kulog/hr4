@@ -480,7 +480,7 @@ function format_number($val)
                                         <h4 class="font-semibold text-gray-800">Gender Distribution</h4>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['genderPieChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
                                             <button onclick="downloadChart('genderPieChart')" title="Download PNG"><i data-lucide="download" class="w-4 h-4"></i></button>
                                             <button onclick="printChart('genderPieChart', 'Gender Distribution')" title="Print Chart"><i data-lucide="printer" class="w-4 h-4"></i></button>
@@ -499,7 +499,7 @@ function format_number($val)
                                         <h4 class="font-semibold text-gray-800">Age Distribution</h4>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['ageDistributionChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
                                             <button onclick="downloadChart('ageDistributionChart')" title="Download PNG"><i data-lucide="download" class="w-4 h-4"></i></button>
                                             <button onclick="printChart('ageDistributionChart', 'Age Distribution')" title="Print Chart"><i data-lucide="printer" class="w-4 h-4"></i></button>
@@ -533,7 +533,7 @@ function format_number($val)
                                         <h4 class="font-semibold text-gray-800">Employment Status</h4>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['employmentStatusChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
                                             <button onclick="downloadChart('employmentStatusChart')" title="Download PNG"><i data-lucide="download" class="w-4 h-4"></i></button>
                                             <button onclick="printChart('employmentStatusChart', 'Employment Status')" title="Print Chart"><i data-lucide="printer" class="w-4 h-4"></i></button>
@@ -562,7 +562,7 @@ function format_number($val)
                                         <h4 class="font-semibold text-gray-800">Labor Cost by Department</h4>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['laborCostChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
                                             <button onclick="downloadChart('laborCostChart')"><i data-lucide="download" class="w-4 h-4"></i></button>
                                             <button onclick="printChart('laborCostChart', 'Labor Cost by Department')"><i data-lucide="printer" class="w-4 h-4"></i></button>
@@ -579,7 +579,7 @@ function format_number($val)
                                         <h4 class="font-semibold text-gray-800">Overtime Trends (12 months)</h4>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['overtimeTrendsChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
                                             <button onclick="downloadChart('overtimeTrendsChart')"><i data-lucide="download" class="w-4 h-4"></i></button>
                                             <button onclick="printChart('overtimeTrendsChart', 'Overtime Trends')"><i data-lucide="printer" class="w-4 h-4"></i></button>
@@ -606,7 +606,7 @@ function format_number($val)
                                         <h4 class="font-semibold text-gray-800">Allowance Types</h4>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['allowancePieChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
                                             <button onclick="downloadChart('allowancePieChart')"><i data-lucide="download" class="w-4 h-4"></i></button>
                                             <button onclick="printChart('allowancePieChart', 'Allowance Types')"><i data-lucide="printer" class="w-4 h-4"></i></button>
@@ -623,7 +623,7 @@ function format_number($val)
                                         <h4 class="font-semibold text-gray-800">Bonus Plans by Type</h4>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['bonusPieChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
                                             <button onclick="downloadChart('bonusPieChart')"><i data-lucide="download" class="w-4 h-4"></i></button>
                                             <button onclick="printChart('bonusPieChart', 'Bonus Plans by Type')"><i data-lucide="printer" class="w-4 h-4"></i></button>
@@ -650,7 +650,7 @@ function format_number($val)
                                         <h4 class="font-semibold text-gray-800">Salary Ranges vs Actual</h4>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['salaryBenchmarkChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
                                             <button onclick="downloadChart('salaryBenchmarkChart')"><i data-lucide="download" class="w-4 h-4"></i></button>
                                             <button onclick="printChart('salaryBenchmarkChart', 'Salary Benchmark')"><i data-lucide="printer" class="w-4 h-4"></i></button>
@@ -667,7 +667,7 @@ function format_number($val)
                                         <h4 class="font-semibold text-gray-800">Avg Salary by Department</h4>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span data-tooltip="<?= $chart_descriptions['departmentSalaryChart'] ?>" class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
+                                        <span class="text-gray-400 hover:text-gray-600"><i data-lucide="info" class="w-4 h-4"></i></span>
                                         <div class="chart-toolbar no-print">
                                             <button onclick="downloadChart('departmentSalaryChart')"><i data-lucide="download" class="w-4 h-4"></i></button>
                                             <button onclick="printChart('departmentSalaryChart', 'Avg Salary by Dept')"><i data-lucide="printer" class="w-4 h-4"></i></button>
